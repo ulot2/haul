@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Haul audio" in the share sheet: a clay note over the light tray. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M48,58 L48,32 L68,28 L68,54 M48,58 A6,6 0 1,1 36,58 A6,6 0 1,1 48,58 M68,54 A6,6 0 1,1 56,54 A6,6 0 1,1 68,54" android:strokeColor="@color/icon_clay" android:strokeWidth="5" android:strokeLineCap="square" android:strokeLineJoin="miter" />
+    <path android:pathData="M33,68 L33,80 L75,80 L75,68" android:strokeColor="@color/icon_ink" android:strokeWidth="6" android:strokeLineCap="square" />
+</vector>

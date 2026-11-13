@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Text on a chip or a quality choice: the ground color on the ink fill when chosen, ink otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/ground" android:state_activated="true" />
+    <item android:color="@color/ink" />
+</selector>

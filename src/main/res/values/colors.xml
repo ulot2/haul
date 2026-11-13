@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Nautical chart, day. Same palette as Ferry (see DESIGN.md). The night chart is in values-night. -->
+<!-- Freight, light (see DESIGN.md). The dark set, the one Haul is designed in first, is in values-night. -->
 <resources>
-    <color name="water">#DCEBF2</color>
-    <color name="contour1">#B9D6E4</color>
-    <color name="contour2">#C8DFEA</color>
-    <color name="land">#E9E1CC</color>
-    <color name="ground">#F2F6F8</color>
-    <color name="ink">#0F2A44</color>
-    <color name="ink_muted">#3D5A73</color>
-    <color name="course">#A3125F</color>
-    <color name="act">#A3125F</color>
-    <color name="on_act">#FFFFFF</color>
-    <color name="rule">#C9D9E2</color>
-    <color name="rule_row">#DCE6EC</color>
-    <color name="chip_on">#0F2A44</color>
-    <color name="chip_on_text">#F2F6F8</color>
-    <color name="chip_off">#9DB2C2</color>
-    <color name="pill">#F2F6F8</color>
-    <color name="steady">#1E8E5A</color>
-    <color name="adrift">#B3261E</color>
-    <color name="ripple">#1F0F2A44</color>
-    <!-- The launcher icon keeps the day chart in both themes (not overridden in values-night). -->
-    <color name="icon_water">#DCEBF2</color>
-    <color name="icon_ink">#0F2A44</color>
-    <color name="icon_course">#A3125F</color>
+    <color name="ground">#F3F0E9</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="raised">#E8E3D9</color>
+    <color name="line">#D6CFC2</color>
+    <color name="ink">#161513</color>
+    <color name="ink_muted">#5C574F</color>
+    <!-- Clay: what you tap and what moves. Text in clay uses the darker clay_text to read on the light ground. -->
+    <color name="clay">#C8775A</color>
+    <color name="clay_text">#9A4F33</color>
+    <color name="on_clay">#1E1408</color>
+    <color name="ripple">#1F161513</color>
+    <color name="len_bg">#8C000000</color>
+    <!-- Thumbnail grounds while a picture loads (and for links that have none). White text reads on all six. -->
+    <color name="tone0">#3B4A44</color>
+    <color name="tone1">#5A3F37</color>
+    <color name="tone2">#2F3C52</color>
+    <color name="tone3">#4B4436</color>
+    <color name="tone4">#3E3550</color>
+    <color name="tone5">#55503F</color>
+    <!-- The launcher icon is dark in both themes (not overridden in values-night). -->
+    <color name="icon_ground">#121110</color>
+    <color name="icon_ink">#F4F0E8</color>
+    <color name="icon_clay">#C8775A</color>
 </resources>

@@ -1,8 +1,14 @@
 # Haul
 
-Haul downloads videos from TikTok, Instagram, X, YouTube, Facebook, Reddit and about a thousand other sites, straight into your phone's Gallery.
+Haul downloads videos and photos from TikTok, Instagram, X, YouTube, Facebook, Reddit and about a thousand other sites, straight into your phone's Gallery.
 
-In TikTok (or any app), tap **Share**, then **Haul**. The video downloads in the background and lands in the **Movies/Haul** album. You can also open Haul and paste a link: if you just copied one, Haul fills it in for you.
+In TikTok (or any app), tap **Share**, then **Haul**. The video downloads in the background and lands in the **Movies/Haul** album. Other ways in:
+
+- **Haul audio** in the share sheet saves just the sound.
+- Open Haul after copying a link: it waits at the bottom of the screen, one tap from downloading. **Options** picks the quality, or **Clip a section** of a long video.
+- The **Quick Settings tile**: copy a link anywhere, pull down the shade, tap Haul.
+
+When a download is done, its notification has **Share** (straight to WhatsApp, say) and **Delete**. In Haul, every download is a numbered row with its picture; tap one to play, share, copy its link, download it again or delete it.
 
 No account, no ads, and no server of its own: everything runs on the phone.
 
@@ -14,13 +20,19 @@ Haul runs [yt-dlp](https://github.com/yt-dlp/yt-dlp), the open-source downloader
 Share sheet / pasted link  →  Haul  →  yt-dlp (on the phone)  →  site  →  Movies/Haul
 ```
 
-Sites change often, and each change can break yt-dlp for a while. So Haul updates yt-dlp from GitHub once a day, and again when a download fails, then tries once more. **Update engine** at the bottom of the screen does it by hand.
+Downloads run one at a time and keep going after you leave Haul. On Android 14 and later they run as a user-initiated download job: if you're offline, the link waits in the list and starts when the phone is back online. On older Android, a download that can't reach the site fails, and you tap it to try again.
 
-Videos come as MP4 with H.264 video and AAC audio, because those play everywhere: the Gallery, WhatsApp, an old laptop. Choose:
+Sites change often, and each change can break yt-dlp for a while. So Haul updates yt-dlp from GitHub once a day, after your downloads finish, and again when a download fails, then tries once more. **Settings › Engine › Update** does it by hand.
+
+Videos come as MP4 with H.264 video and AAC audio, because those play everywhere: the Gallery, WhatsApp, an old laptop. When a site only offers another sound format, Haul converts the sound to AAC. Choose:
 
 - **Best**: the highest resolution in H.264.
 - **720p**: smaller files.
 - **Audio**: just the sound, as M4A, in **Music/Haul**.
+
+The default is in **Settings**, which can also ask each time you share. Photos (Instagram photo posts and carousels, TikTok slideshows) land in **Pictures/Haul**. **Wi‑Fi only** keeps links waiting until the phone is on Wi‑Fi (on Android 13 and older they stop with a note instead).
+
+A clip is cut at the nearest keyframe, without re-encoding, so it is quick but may start a second or two early.
 
 Haul saves through Android's MediaStore, so it needs no storage permission.
 
@@ -37,13 +49,15 @@ Haul is built for 64-bit phones (arm64), which is nearly every phone from the la
 ## Limits
 
 - **Private and age-restricted posts** need a signed-in account. Haul does not sign in, so it can't fetch them.
-- **Photo posts** (Instagram carousels of photos, TikTok slideshows) are not supported yet. Videos inside carousels are.
+- **TikTok slideshows** are read from the post's page, which TikTok changes now and then; if one fails, the video posts still work.
 - Instagram sometimes limits downloads without an account. Trying again later usually works.
 - Download only what you have the right to keep: your own posts, or posts whose owners allow it.
 
 ## Build
 
-GitHub Actions builds `Haul.apk` on every push (see `.github/workflows/build.yml`). Pushing a tag like `v1.0.0` publishes a release.
+GitHub Actions runs the unit tests and builds `Haul.apk` on every push to `main` or `dev` and on every pull request (see `.github/workflows/build.yml`). Pushing a tag like `v1.0.0` publishes a release.
+
+To build on a computer with the Android SDK: `./gradlew testDebugUnitTest assembleDebug`. The wrapper fetches the right Gradle.
 
 The APK is signed with a key kept in two repository secrets:
 

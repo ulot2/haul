@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SETTINGS: how downloads behave, the shortcuts into Haul, notifications, the engine, and about. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/settingsScroll"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ground"
+    android:clipToPadding="false"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:id="@+id/settingsContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="40dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/back"
+                style="@style/Haul.IconButton"
+                android:contentDescription="Back"
+                android:src="@drawable/ic_back" />
+
+            <TextView
+                style="@style/Haul.Heading"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="SETTINGS"
+                android:textSize="34sp" />
+        </LinearLayout>
+
+        <!-- Downloads -->
+        <TextView style="@style/Haul.Label" android:layout_marginTop="26dp" android:text="Downloads" />
+
+        <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp">
+
+            <TextView
+                style="@style/Haul.Title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Default quality" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button android:id="@+id/sBest" style="@style/Haul.Segment" android:text="Best" />
+                <Button android:id="@+id/sSmall" style="@style/Haul.Segment" android:text="720p" />
+                <Button android:id="@+id/sAudio" style="@style/Haul.Segment" android:layout_marginEnd="0dp" android:text="Audio" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="16dp" android:background="@color/line" />
+
+            <LinearLayout
+                android:id="@+id/rowAsk"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ask quality when sharing" />
+                    <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="A small sheet opens over TikTok, so you pick Best, 720p or Audio each time." />
+                </LinearLayout>
+
+                <Switch android:id="@+id/swAsk" style="@style/Haul.Switch" android:layout_marginStart="14dp" android:contentDescription="Ask quality when sharing" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="14dp" android:background="@color/line" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Haul audio in the share sheet" />
+                    <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="A second share target that saves just the sound." />
+                </LinearLayout>
+
+                <Switch android:id="@+id/swAudio" style="@style/Haul.Switch" android:layout_marginStart="14dp" android:contentDescription="Haul audio in the share sheet" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="14dp" android:background="@color/line" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Wi-Fi only" />
+                    <TextView android:id="@+id/wifiHelp" style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" />
+                </LinearLayout>
+
+                <Switch android:id="@+id/swWifi" style="@style/Haul.Switch" android:layout_marginStart="14dp" android:contentDescription="Wi-Fi only" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="14dp" android:background="@color/line" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView style="@style/Haul.Title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Saved to" />
+                <TextView style="@style/Haul.Mono" android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="end" android:text="Movies/Haul\nPictures/Haul\nMusic/Haul" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Shortcuts -->
+        <TextView style="@style/Haul.Label" android:layout_marginTop="22dp" android:text="Shortcuts" />
+
+        <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp" android:gravity="center_vertical" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Quick Settings tile" />
+                <TextView android:id="@+id/tileHelp" style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="Copy a link anywhere, pull down the shade, tap Haul." />
+            </LinearLayout>
+
+            <Button android:id="@+id/addTile" style="@style/Haul.Button.Outline" android:layout_width="wrap_content" android:layout_height="44dp" android:layout_marginStart="14dp" android:text="Add tile" />
+        </LinearLayout>
+
+        <!-- Notifications -->
+        <TextView style="@style/Haul.Label" android:layout_marginTop="22dp" android:text="Notifications" />
+
+        <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp" android:gravity="center_vertical" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:id="@+id/notifState" style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="Progress, and Share or Delete on each saved video." />
+            </LinearLayout>
+
+            <Button android:id="@+id/notifSettings" style="@style/Haul.Button.Outline" android:layout_width="wrap_content" android:layout_height="44dp" android:layout_marginStart="14dp" android:text="Open" />
+        </LinearLayout>
+
+        <!-- Engine -->
+        <TextView style="@style/Haul.Label" android:layout_marginTop="22dp" android:text="Engine" />
+
+        <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp" android:gravity="center_vertical" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:id="@+id/engineVersion" style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                <TextView android:id="@+id/engineHelp" style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="Updates itself daily, after your downloads finish." />
+            </LinearLayout>
+
+            <Button android:id="@+id/engineUpdate" style="@style/Haul.Button.Outline" android:layout_width="wrap_content" android:layout_height="44dp" android:layout_marginStart="14dp" android:text="Update" />
+        </LinearLayout>
+
+        <!-- About -->
+        <TextView style="@style/Haul.Label" android:layout_marginTop="22dp" android:text="About" />
+
+        <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp">
+            <TextView android:id="@+id/aboutVersion" style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textSize="13sp" android:text="No account, no ads, no server. yt-dlp runs on this phone. Download only what you have the right to keep." />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

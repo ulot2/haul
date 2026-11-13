@@ -1,14 +1,37 @@
-# Design: Nautical chart (shared with Ferry)
+# Design: Freight
 
-Haul uses Ferry's design system unchanged: the same palette (`src/main/res/values/colors.xml`, night in
-`values-night`), Barlow type, components and type roles (`styles.xml`, renamed `Haul.*`). See DESIGN.md in
-ulot2/ferry for the full rules.
+Haul's own look: a cargo manifest. Every download is a numbered ticket with its picture. The mockup this was built
+from is the "Haul redesign" canvas (App, System, Style boards).
 
-## What is Haul's own
-- Header: a piece of chart (`drawable/chart.xml`), land in the top corner, and the magenta course running in to
-  one ink harbor: things come in from one direction only. Wordmark "HAUL" top left; italic chart label
-  "Any link, into your Gallery" bottom left.
-- The list is "The hold" (italic heading, like Ferry's "Logbook"). Each row: title in Barlow Medium, then
-  site · time · status in muted ink. Errors in the adrift red. A thin magenta progress bar while downloading.
-- Launcher icon: the magenta course turned into an arrow, lowered into an ink tray, on the day-chart water.
-- Magenta stays rare: the Download button, the course in the header, progress.
+## Principles
+- **Clay is for action.** The one accent (`clay`, #C8775A) marks what you tap and what moves: the Download button,
+  progress, switches that are on, the tile. Never decoration. Text in clay uses `clay_text`, darker on the light theme.
+- **Failures are labelled, not just colored.** An outlined FAILED (or CANCELED) tag in ink, and the reason in words.
+- **The picture leads.** Each row starts with the saved file's own frame (Android makes it from the Gallery); until
+  then a steady tone per haul and the site's tag (TT, IG, X, YT…).
+- **Dark first**, a matching light theme for the light system setting. Warm near-black, never pure black.
+
+## Tokens (`values/colors.xml`, dark in `values-night/colors.xml`)
+| Token | Dark | Light |
+|---|---|---|
+| ground | #121110 | #F3F0E9 |
+| surface | #1C1B19 | #FFFFFF |
+| raised | #2A2825 | #E8E3D9 |
+| line | #36332E | #D6CFC2 |
+| ink | #F4F0E8 | #161513 |
+| ink_muted | #A8A298 | #5C574F |
+| clay / clay_text | #C8775A / #C8775A | #C8775A / #9A4F33 |
+| on_clay (text on clay) | #1E1408 | #1E1408 |
+
+## Type (`res/font`, all under the SIL Open Font License)
+- **Archivo Condensed Black / ExtraBold** (`Haul.Wordmark`, `Haul.Heading`, `Haul.Number`): the wordmark, sheet and
+  screen headings in capitals, the download percent.
+- **Archivo** Regular, SemiBold, ExtraBold: body, titles, buttons.
+- **JetBrains Mono** (`Haul.Label`, `Haul.Mono`): the manifest facts in small capitals: NO. 0148, sizes, lengths.
+
+## Parts (`values/styles.xml`, drawables)
+- Buttons: `Haul.Button.Primary` (clay, 54dp), `Haul.Button.Outline` (line, 48dp), `Haul.IconButton` (44dp square).
+- Choices: `Haul.Chip` (filters) and `Haul.Segment` (quality): ink fill when chosen (`setActivated`).
+- `Haul.Card` for settings groups and notices; bottom sheets on `bg_sheet` with `Haul.Handle`.
+- The dock: a floating card at the bottom of the hold with the copied link, or "Add a link".
+- Launcher icon: a clay arrow lowered into a light tray on the dark ground; "Haul audio" swaps the arrow for a note.

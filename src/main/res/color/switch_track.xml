@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Switch track: a light course tint when on, the chip-off grey when off. -->
+<!-- Switch track: clay when on, the raised grey when off. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:alpha="0.4" android:color="@color/rule" android:state_enabled="false" />
-    <item android:alpha="0.45" android:color="@color/course" android:state_checked="true" />
-    <item android:color="@color/chip_off" />
+    <item android:alpha="0.4" android:color="@color/line" android:state_enabled="false" />
+    <item android:color="@color/clay" android:state_checked="true" />
+    <item android:color="@color/raised" />
 </selector>

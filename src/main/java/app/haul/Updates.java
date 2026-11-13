@@ -14,13 +14,17 @@ import java.net.URL;
 final class Updates {
     private static final String LATEST = "https://api.github.com/repos/ulot2/haul/releases/latest";
 
+    /** Checks when the last successful check was over 6 hours ago; after a failed one (offline), 15 minutes later. */
     static void checkSoon(Context c, Runnable done) {
-        long last = Haul.prefs(c).getLong("update_checked", 0);
-        if (System.currentTimeMillis() - last < 6 * 3600_000L) return;
-        Haul.prefs(c).edit().putLong("update_checked", System.currentTimeMillis()).apply();
+        long now = System.currentTimeMillis();
+        if (now - Haul.prefs(c).getLong("update_checked", 0) < 6 * 3600_000L) return;
+        if (now - Haul.prefs(c).getLong("update_tried", 0) < 15 * 60_000L) return;
+        Haul.prefs(c).edit().putLong("update_tried", now).apply();
         Context app = c.getApplicationContext();
         new Thread(() -> {
-            if (check(app)) done.run();
+            if (!check(app)) return;
+            Haul.prefs(app).edit().putLong("update_checked", System.currentTimeMillis()).apply();
+            done.run();
         }).start();
     }
 
