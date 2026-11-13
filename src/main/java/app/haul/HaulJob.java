@@ -26,7 +26,8 @@ public class HaulJob extends JobService implements Downloads.Host {
         try {
             JobInfo job = new JobInfo.Builder(ID, new ComponentName(c, HaulJob.class))
                     .setUserInitiated(true)
-                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                    // Wi-Fi only: Android holds the job until an unmetered network, and stops it if that goes.
+                    .setRequiredNetworkType(Haul.wifiOnly(c) ? JobInfo.NETWORK_TYPE_UNMETERED : JobInfo.NETWORK_TYPE_ANY)
                     .setEstimatedNetworkBytes(50L << 20, 64L << 10)   // a typical short video; only a hint
                     .build();
             return c.getSystemService(JobScheduler.class).schedule(job) == JobScheduler.RESULT_SUCCESS;
@@ -58,6 +59,11 @@ public class HaulJob extends JobService implements Downloads.Host {
         Downloads.Runner r = runner;
         if (r != null) r.stop(byUser ? Downloads.CANCEL_ALL : Downloads.REQUEUE);
         return !byUser;
+    }
+
+    @Override
+    public boolean waitsForNetwork() {
+        return true;
     }
 
     @Override

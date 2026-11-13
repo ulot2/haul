@@ -8,11 +8,23 @@ import com.yausername.ffmpeg.FFmpeg;
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
 
+import com.yausername.youtubedl_android.YoutubeDLResponse;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import kotlin.Unit;
 import kotlin.jvm.functions.Function3;
@@ -29,8 +41,10 @@ final class Engine {
             "mp4", "m4v", "mov", "webm", "mkv", "m4a", "mp3", "aac", "opus", "ogg", "jpg", "jpeg", "png", "webp", "gif");
     /** Audio that plays everywhere inside an MP4: AAC, and MP3. */
     private static final List<String> PLAYABLE_AUDIO = Arrays.asList(MediaFormat.MIMETYPE_AUDIO_AAC, MediaFormat.MIMETYPE_AUDIO_MPEG);
-    /** Held while yt-dlp runs or updates: replacing it in the middle of a download would break that download. */
-    private static final Object RUN = new Object();
+    /** Downloads hold it to read, an update to write: replacing yt-dlp in the middle of a download would break it. */
+    private static final ReentrantReadWriteLock RUN = new ReentrantReadWriteLock();
+    private static final String BROWSER =
+            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
     private static boolean ready;
 
     /** Unpacks Python and FFmpeg the first time (a few seconds), then returns at once. */
@@ -52,15 +66,18 @@ final class Engine {
     }
 
     /**
-     * True when a newer yt-dlp was installed. Waits for a download in progress to finish first.
+     * True when a newer yt-dlp was installed. Waits for downloads in progress to finish first.
      * "engine_tried" is every attempt; "engine_checked" only a successful one, so being offline doesn't count as checked.
      */
     static boolean update(Context c) throws Exception {
         init(c);
         Haul.prefs(c).edit().putLong("engine_tried", System.currentTimeMillis()).apply();
         YoutubeDL.UpdateStatus s;
-        synchronized (RUN) {
+        RUN.writeLock().lock();
+        try {
             s = YoutubeDL.getInstance().updateYoutubeDL(c.getApplicationContext(), YoutubeDL.UpdateChannel._STABLE);
+        } finally {
+            RUN.writeLock().unlock();
         }
         Haul.prefs(c).edit().putLong("engine_checked", System.currentTimeMillis()).apply();
         return s == YoutubeDL.UpdateStatus.DONE;
@@ -91,37 +108,70 @@ final class Engine {
         }
     }
 
+    /** Runs yt-dlp; any number at once, but never while it is being replaced by an update. */
+    private static YoutubeDLResponse run(YoutubeDLRequest r, String id, Function3<Float, Long, String, Unit> cb) throws Exception {
+        RUN.readLock().lock();
+        try {
+            return cb == null ? YoutubeDL.getInstance().execute(r, id) : YoutubeDL.getInstance().execute(r, id, cb);
+        } finally {
+            RUN.readLock().unlock();
+        }
+    }
+
+    // ---- Downloads ----
+
+    /** 0 to 100; or WORKING when there is no percent to show (a clip is being cut). */
     interface Progress {
+        float WORKING = -2;
+
         void on(float percent);
     }
 
-    /** Empties dir, downloads everything at the link into it, and returns the finished files. */
-    static List<File> download(Context c, String id, String url, String quality, File dir, Progress progress) throws Exception {
-        List<File> files = fetch(c, id, url, quality, dir, progress, false);
-        if (Haul.AUDIO.equals(quality)) return files;
-        for (File f : files) {
+    /** What a download brought in: the files, and what yt-dlp knew about the first one. */
+    static final class Result {
+        final List<File> files = new ArrayList<>();
+        String title = "";
+        int duration = -1, height = -1;
+    }
+
+    /** Empties dir, downloads everything at the link into it (a section only, with clipStart/clipEnd in seconds). */
+    static Result download(Context c, String id, String url, String quality, int clipStart, int clipEnd, File dir,
+                           Progress progress) throws Exception {
+        Result r = fetch(c, id, url, quality, clipStart, clipEnd, dir, progress, false);
+        if (Haul.AUDIO.equals(quality)) return r;
+        for (File f : r.files) {
             if (needsAac(f)) {
                 // Rare: the site has no AAC sound at all, so the video came with Opus or Vorbis, which WhatsApp and
                 // some players can't play. Fetch it again, converting the sound to AAC on the way.
-                return fetch(c, id, url, quality, dir, progress, true);
+                return fetch(c, id, url, quality, clipStart, clipEnd, dir, progress, true);
             }
         }
-        return files;
+        return r;
     }
 
-    private static List<File> fetch(Context c, String id, String url, String quality, File dir, Progress progress,
-                                    boolean toAac) throws Exception {
+    private static Result fetch(Context c, String id, String url, String quality, int clipStart, int clipEnd, File dir,
+                                Progress progress, boolean toAac) throws Exception {
         init(c);
         deleteAll(dir);
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
+        boolean audio = Haul.AUDIO.equals(quality), clip = clipStart >= 0 && clipEnd > clipStart;
         YoutubeDLRequest r = new YoutubeDLRequest(url);
         r.addOption("-o", dir.getAbsolutePath() + "/%(title).70B [%(id)s].%(ext)s");
         r.addOption("--windows-filenames");      // no characters that the Gallery or Windows trip over
         r.addOption("--no-mtime");               // date the file today, so it shows at the top of the Gallery
         r.addOption("--no-playlist");            // a video in a playlist: just the video
-        r.addOption("-I", "1:20");               // posts with several videos: at most 20
-        if (Haul.AUDIO.equals(quality)) {
+        r.addOption("-I", "1:20");               // posts with several videos or photos: at most 20
+        // A photo in a post is an entry without video formats: skip it instead of failing the whole post, and write
+        // each entry's details, from which the photos are then fetched.
+        r.addOption("--ignore-no-formats-error");
+        r.addOption("--write-info-json");
+        r.addOption("--no-write-playlist-metafiles");
+        if (clip) {
+            // Cuts at the nearest keyframe (no re-encoding, so it is quick): may start a second or two early.
+            r.addOption("--download-sections", "*" + clipStart + "-" + clipEnd);
+        }
+        if (audio) {
             r.addOption("-f", "ba[ext=m4a]/ba/b");   // M4A when the site has it, so it needs no converting
             r.addOption("-x");
             r.addOption("--audio-format", "m4a");
@@ -138,28 +188,209 @@ final class Engine {
             }
         }
         // yt-dlp reports each file on its own (video, then audio); add them up so the bar only moves forward.
+        // A clip is cut by FFmpeg, which reports no percent.
         DownloadProgress overall = new DownloadProgress();
         float[] shown = {-1};
         Function3<Float, Long, String, Unit> cb = (percent, eta, line) -> {
             float p = overall.on(line, percent == null ? -1 : percent);
-            if (p > shown[0]) {
+            if (clip && p >= 0) p = Progress.WORKING;
+            if (p > shown[0] || (p == Progress.WORKING && shown[0] != p)) {
                 shown[0] = p;
                 progress.on(p);
             }
             return Unit.INSTANCE;
         };
-        synchronized (RUN) {
-            YoutubeDL.getInstance().execute(r, id, cb);
+        Exception failed = null;
+        try {
+            run(r, id, cb);
+        } catch (Exception e) {
+            if (canceled(e)) throw e;
+            failed = e;   // a post may still have photos, or a slideshow behind an "unsupported" link
         }
 
-        List<File> out = new ArrayList<>();
-        File[] files = dir.listFiles();
-        if (files != null) {
-            Arrays.sort(files, (a, b) -> a.getName().compareTo(b.getName()));
-            for (File f : files) if (f.isFile() && f.length() > 0 && MEDIA.contains(ext(f.getName()))) out.add(f);
+        Result out = collect(dir);
+        if (!audio) {
+            savePhotos(dir, out, progress);
+            if (out.files.isEmpty()) tiktokSlideshow(id, url, dir, out, progress);
         }
-        if (out.isEmpty()) throw new Exception("NO_FILES");
+        if (out.files.isEmpty()) throw failed != null ? failed : new Exception("NO_FILES");
         return out;
+    }
+
+    /** The media files in dir, in name order, and the first video's details from its info JSON. */
+    private static Result collect(File dir) {
+        Result out = new Result();
+        File[] files = dir.listFiles();
+        if (files == null) return out;
+        Arrays.sort(files, (a, b) -> a.getName().compareTo(b.getName()));
+        for (File f : files) {
+            if (f.isFile() && f.length() > 0 && MEDIA.contains(ext(f.getName()))) out.files.add(f);
+        }
+        for (JSONObject info : infos(dir)) {
+            JSONArray formats = info.optJSONArray("formats");
+            if (formats == null || formats.length() == 0) continue;
+            out.title = info.optString("title");
+            out.duration = (int) Math.round(info.optDouble("duration", -1));
+            out.height = info.optInt("height", -1);
+            break;
+        }
+        return out;
+    }
+
+    private static List<JSONObject> infos(File dir) {
+        List<JSONObject> out = new ArrayList<>();
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".info.json"));
+        if (files == null) return out;
+        Arrays.sort(files, (a, b) -> a.getName().compareTo(b.getName()));
+        for (File f : files) {
+            try (InputStream in = new FileInputStream(f)) {
+                out.add(new JSONObject(Haul.readAll(in)));
+            } catch (Exception ignored) {
+                // a half-written file: skip it
+            }
+        }
+        return out;
+    }
+
+    /** Photos in the post (entries without video), saved next to the videos as "<title> [id].jpg". */
+    private static void savePhotos(File dir, Result out, Progress progress) {
+        List<JSONObject> photos = new ArrayList<>();
+        for (JSONObject info : infos(dir)) if (Photos.bestImage(info) != null) photos.add(info);
+        boolean onlyPhotos = out.files.isEmpty();   // with videos too, the bar already reached 100
+        for (int k = 0; k < photos.size(); k++) {
+            JSONObject info = photos.get(k);
+            String base = safeName(info.optString("title", "Photo")) + " [" + safeName(info.optString("id", "" + k)) + "]";
+            File f = fetchImage(Photos.bestImage(info), info.optJSONObject("http_headers"), dir, base);
+            if (f != null) {
+                out.files.add(f);
+                if (out.title.isEmpty()) out.title = info.optString("title");
+            }
+            if (onlyPhotos) progress.on(100f * (k + 1) / photos.size());
+        }
+    }
+
+    /** A TikTok slideshow: yt-dlp fetches and prints the post's page, and the photos are read from it. */
+    private static void tiktokSlideshow(String id, String url, File dir, Result out, Progress progress) {
+        if (!"TikTok".equals(Haul.site(url))) return;
+        String photoId = Photos.tiktokPhotoId(url);
+        if (photoId == null) photoId = Photos.tiktokPhotoId(resolve(url));
+        if (photoId == null) return;
+        YoutubeDLRequest r = new YoutubeDLRequest("https://www.tiktok.com/@_/video/" + photoId);
+        r.addOption("--dump-pages");
+        // yt-dlp may well complain that a slideshow has no video; this keeps the library from turning that into an
+        // exception, so the printed page still comes back.
+        r.addOption("--ignore-errors");
+        r.addOption("--skip-download");
+        r.addOption("--ignore-no-formats-error");
+        r.addOption("--no-playlist");
+        String printed;
+        try {
+            printed = run(r, id, null).getOut();
+        } catch (Exception e) {
+            return;
+        }
+        JSONObject headers = new JSONObject();
+        try {
+            headers.put("Referer", "https://www.tiktok.com/").put("User-Agent", BROWSER);
+        } catch (Exception ignored) {
+        }
+        for (String page : Photos.dumpedPages(printed)) {
+            List<String> images = Photos.tiktokImages(page);
+            for (int k = 0; k < images.size(); k++) {
+                File f = fetchImage(images.get(k), headers, dir, "TikTok " + photoId + " " + (k + 1));
+                if (f != null) out.files.add(f);
+                progress.on(100f * (k + 1) / images.size());
+            }
+            if (!images.isEmpty()) {
+                out.title = "TikTok photos";
+                return;
+            }
+        }
+    }
+
+    /** Where a short link (vm.tiktok.com/…) leads; the link itself when it can't be followed. */
+    private static String resolve(String url) {
+        try {
+            HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
+            con.setRequestMethod("HEAD");
+            con.setInstanceFollowRedirects(true);
+            con.setRequestProperty("User-Agent", "facebookexternalhit/1.1");   // what yt-dlp uses for these links
+            con.setConnectTimeout(10_000);
+            con.setReadTimeout(10_000);
+            con.getResponseCode();
+            String to = con.getURL().toString();
+            con.disconnect();
+            return to;
+        } catch (Exception e) {
+            return url;
+        }
+    }
+
+    /** Downloads one photo into dir as base + its type's extension; null when it fails. */
+    private static File fetchImage(String url, JSONObject headers, File dir, String base) {
+        HttpURLConnection con = null;
+        try {
+            con = (HttpURLConnection) new URL(url).openConnection();
+            con.setConnectTimeout(15_000);
+            con.setReadTimeout(30_000);
+            con.setRequestProperty("User-Agent", BROWSER);
+            if (headers != null) {
+                for (java.util.Iterator<String> k = headers.keys(); k.hasNext(); ) {
+                    String name = k.next();
+                    con.setRequestProperty(name, headers.optString(name));
+                }
+            }
+            if (con.getResponseCode() / 100 != 2) return null;
+            String type = String.valueOf(con.getContentType()).toLowerCase(Locale.ROOT);
+            String ext = type.contains("png") ? "png" : type.contains("webp") ? "webp" : type.contains("gif") ? "gif" : "jpg";
+            File f = new File(dir, base + "." + ext);
+            try (InputStream in = con.getInputStream(); OutputStream os = new FileOutputStream(f)) {
+                byte[] buf = new byte[64 * 1024];
+                for (int n; (n = in.read(buf)) > 0; ) os.write(buf, 0, n);
+            }
+            return f.length() > 0 ? f : null;
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (con != null) con.disconnect();
+        }
+    }
+
+    private static String safeName(String s) {
+        String t = s.replaceAll("[\\\\/:*?\"<>|\\n\\r\\t]", " ").trim();
+        return t.length() > 70 ? t.substring(0, 70).trim() : t.isEmpty() ? "Photo" : t;
+    }
+
+    // ---- What the clip picker needs ----
+
+    /** A video's title, length and picture, read without downloading it. */
+    static final class Info {
+        String title = "", thumbnail = "";
+        int duration = -1;
+    }
+
+    static Info info(Context c, String url) throws Exception {
+        init(c);
+        YoutubeDLRequest r = new YoutubeDLRequest(url);
+        r.addOption("--skip-download");
+        r.addOption("--no-playlist");
+        r.addOption("--no-warnings");
+        r.addOption("-I", "1");
+        r.addOption("--print", "%(duration)s");
+        r.addOption("--print", "%(thumbnail)s");
+        r.addOption("--print", "%(title)s");
+        String[] lines = run(r, "info-" + url.hashCode(), null).getOut().trim().split("\n");
+        Info i = new Info();
+        if (lines.length > 0) {
+            try {
+                i.duration = (int) Math.round(Double.parseDouble(lines[0].trim()));
+            } catch (NumberFormatException ignored) {
+                // "NA": a live stream or a site that doesn't say
+            }
+        }
+        if (lines.length > 1 && lines[1].startsWith("http")) i.thumbnail = lines[1].trim();
+        if (lines.length > 2 && !"NA".equals(lines[2].trim())) i.title = lines[2].trim();
+        return i;
     }
 
     /** True for a video whose sound won't play everywhere (Opus, Vorbis...). Unreadable files are left alone. */
@@ -209,7 +440,7 @@ final class Engine {
         String m = String.valueOf(e.getMessage());
         String low = m.toLowerCase(Locale.ROOT);
         if (m.equals("NO_FILES") || has(low, "no video formats", "no video could be found", "there's no video", "no media found"))
-            return "No video in this post. Photo posts are not supported yet.";
+            return "Haul found no video or photos in this post.";
         if (low.contains("unsupported url")) return "Haul can't read links from this site.";
         if (has(low, "login", "log in", "sign in", "cookies", "private", "age-restricted", "rate-limit",
                 "http error 429", "too many requests"))

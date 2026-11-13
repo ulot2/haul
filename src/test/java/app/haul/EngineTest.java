@@ -58,8 +58,8 @@ public class EngineTest {
 
     @Test
     public void noVideoAndUnsupportedSites() {
-        assertEquals("No video in this post. Photo posts are not supported yet.", friendly("NO_FILES"));
-        assertEquals("No video in this post. Photo posts are not supported yet.",
+        assertEquals("Haul found no video or photos in this post.", friendly("NO_FILES"));
+        assertEquals("Haul found no video or photos in this post.",
                 friendly("ERROR: [twitter] 1: No video could be found in this tweet"));
         assertEquals("Haul can't read links from this site.", friendly("ERROR: Unsupported URL: https://example.com/x"));
     }

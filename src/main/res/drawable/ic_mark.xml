@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mark beside the wordmark: a clay arrow lowered into an ink tray, square ends like a stencil. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="30dp" android:height="30dp"
+    android:viewportWidth="30" android:viewportHeight="30">
+    <path android:pathData="M15,3 L15,16 M10,11 L15,16 L20,11" android:strokeColor="@color/clay_text" android:strokeWidth="3" android:strokeLineCap="square" />
+    <path android:pathData="M4,17 L4,25 L26,25 L26,17" android:strokeColor="@color/ink" android:strokeWidth="3" android:strokeLineCap="square" />
+</vector>

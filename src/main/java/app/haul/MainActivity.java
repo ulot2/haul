@@ -2,10 +2,7 @@ package app.haul;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.NotificationManager;
-import android.content.ActivityNotFoundException;
-import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Intent;
@@ -16,18 +13,14 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
-import android.view.inputmethod.EditorInfo;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
-import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,18 +31,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/** The hold: every haul as a ticket with its picture, filters, and the dock with the copied link. */
 public class MainActivity extends Activity {
-    private View header, wordmark, updateCard, notifyCard, clear, empty;
-    private EditText link;
+    static final String EXTRA_RETRY = "retry", EXTRA_NOTIFICATION = "notification";
+    private static final String ALL = "all", VIDEOS = "videos", PHOTOS = "photos", AUDIO = "audio", FAILED = "failed";
+
+    private View content, dock, dockClip, dockAdd, updateCard, notifyCard, wifiBadge;
     private LinearLayout hold;
-    private TextView engine, updateTitle;
-    private Button engineUpdate;
-    private int headerHeight, wordmarkTop;
+    private TextView count, empty, dockLabel, dockLink, updateTitle;
+    private Button dockDownload;
+    private final Map<String, Button> filters = new HashMap<>();
+    private String filter = ALL;
+    private int contentTop, dockBottom, navBottom;
     private final Runnable render = this::render;
     /** The hold's rows by haul id, and what each one shows, so a redraw only touches rows that changed. */
     private final Map<String, View> rows = new HashMap<>();
     private final Map<String, String> drawn = new HashMap<>();
-    private boolean offline;
+    private boolean offline, metered;
     private final ConnectivityManager.NetworkCallback network = new ConnectivityManager.NetworkCallback() {
         @Override
         public void onAvailable(Network n) {
@@ -66,48 +64,52 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_main);
-        if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
-        else edgeToEdgeLegacy();
+        edgeToEdge(this);
 
-        header = findViewById(R.id.header);
-        wordmark = findViewById(R.id.wordmark);
-        link = findViewById(R.id.link);
+        content = findViewById(R.id.content);
         hold = findViewById(R.id.hold);
+        count = findViewById(R.id.count);
         empty = findViewById(R.id.empty);
-        clear = findViewById(R.id.clear);
-        engine = findViewById(R.id.engine);
-        engineUpdate = findViewById(R.id.engineUpdate);
+        wifiBadge = findViewById(R.id.wifiBadge);
         updateCard = findViewById(R.id.updateCard);
-        notifyCard = findViewById(R.id.notifyCard);
         updateTitle = findViewById(R.id.updateTitle);
-        headerHeight = header.getLayoutParams().height;
-        wordmarkTop = ((ViewGroup.MarginLayoutParams) wordmark.getLayoutParams()).topMargin;
-        findViewById(R.id.scroll).setOnApplyWindowInsetsListener(this::applyInsets);
+        notifyCard = findViewById(R.id.notifyCard);
+        dock = findViewById(R.id.dock);
+        dockClip = findViewById(R.id.dockClip);
+        dockAdd = findViewById(R.id.dockAdd);
+        dockLabel = findViewById(R.id.dockLabel);
+        dockLink = findViewById(R.id.dockLink);
+        dockDownload = findViewById(R.id.dockDownload);
+        contentTop = content.getPaddingTop();
+        dockBottom = ((ViewGroup.MarginLayoutParams) dock.getLayoutParams()).bottomMargin;
+        findViewById(R.id.root).setOnApplyWindowInsetsListener(this::applyInsets);
+        // Keep the last row clear of the dock, whatever height it has.
+        dock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitBottom());
 
-        RadioGroup quality = findViewById(R.id.quality);
-        String q = Haul.quality(this);
-        quality.check(Haul.AUDIO.equals(q) ? R.id.qAudio : Haul.SMALL.equals(q) ? R.id.qSmall : R.id.qBest);
-        quality.setOnCheckedChangeListener((g, id) ->
-                Haul.setQuality(this, id == R.id.qAudio ? Haul.AUDIO : id == R.id.qSmall ? Haul.SMALL : Haul.BEST));
+        String[][] chips = {{ALL, "" + R.id.fAll}, {VIDEOS, "" + R.id.fVideo}, {PHOTOS, "" + R.id.fPhotos},
+                {AUDIO, "" + R.id.fAudio}, {FAILED, "" + R.id.fFailed}};
+        for (String[] chip : chips) {
+            Button b = findViewById(Integer.parseInt(chip[1]));
+            filters.put(chip[0], b);
+            b.setOnClickListener(v -> {
+                filter = chip[0];
+                render();
+            });
+        }
 
-        findViewById(R.id.download).setOnClickListener(v -> download());
-        link.setOnEditorActionListener((v, action, e) -> {
-            if (action != EditorInfo.IME_ACTION_GO) return false;
-            download();
-            return true;
+        findViewById(R.id.settings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+        findViewById(R.id.dockOptions).setOnClickListener(v -> Sheets.add(this, new Sheets.Draft(dockUrl(), Haul.quality(this)), this::added));
+        dockDownload.setOnClickListener(v -> {
+            String url = dockUrl();
+            if (Downloads.add(this, url) == null) Toast.makeText(this, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
+            added(url);
         });
-        findViewById(R.id.paste).setOnClickListener(v -> {
-            String url = clipboardLink();
-            if (url == null) Toast.makeText(this, "There's no link on the clipboard", Toast.LENGTH_SHORT).show();
-            else link.setText(url);
-        });
-        clear.setOnClickListener(v -> Haul.clearFinished(this));
-        engineUpdate.setOnClickListener(v -> updateEngine());
-        findViewById(R.id.notifyOn).setOnClickListener(v -> open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        dockAdd.setOnClickListener(v -> Sheets.add(this, new Sheets.Draft("", Haul.quality(this)), this::added));
+        findViewById(R.id.notifyOn).setOnClickListener(v -> Sheets.open(this, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
         findViewById(R.id.update).setOnClickListener(v -> {
             String url = Haul.prefs(this).getString("update_url", "");
-            if (!url.isEmpty()) startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            if (!url.isEmpty()) Sheets.open(this, new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         });
 
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -115,25 +117,65 @@ public class MainActivity extends Activity {
             Haul.prefs(this).edit().putBoolean("asked_notifications", true).apply();
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
+        handle(getIntent());
     }
 
-    @SuppressWarnings("deprecation")
-    private void edgeToEdgeLegacy() {
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | getWindow().getDecorView().getSystemUiVisibility());
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handle(intent);
     }
 
-    // The system-window inset getters cover API 29, where WindowInsets.Type does not exist yet. On 30+ they include the keyboard.
+    /** "Try again" on a failed-download notification lands here: Android lets an app on screen start a download. */
+    private void handle(Intent intent) {
+        String retry = intent == null ? null : intent.getStringExtra(EXTRA_RETRY);
+        if (retry == null) return;
+        getSystemService(NotificationManager.class).cancel(intent.getIntExtra(EXTRA_NOTIFICATION, 0));
+        intent.removeExtra(EXTRA_RETRY);
+        if (Haul.get(this, retry) != null) Downloads.retry(this, retry);
+    }
+
+    /** Draws under the status and navigation bars (the screens pad themselves by the insets). */
     @SuppressWarnings("deprecation")
+    static void edgeToEdge(Activity a) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            a.getWindow().setDecorFitsSystemWindows(false);
+        } else {
+            View decor = a.getWindow().getDecorView();
+            decor.setSystemUiVisibility(decor.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        }
+    }
+
+    /** The bars' sizes as {left, top, right, bottom}; bottom includes the keyboard. Android 10 has only the old getters. */
+    @SuppressWarnings("deprecation")
+    static int[] bars(WindowInsets insets) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            android.graphics.Insets b = insets.getInsets(WindowInsets.Type.systemBars());
+            int ime = insets.getInsets(WindowInsets.Type.ime()).bottom;
+            return new int[]{b.left, b.top, b.right, Math.max(b.bottom, ime)};
+        }
+        return new int[]{insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()};
+    }
+
     private WindowInsets applyInsets(View v, WindowInsets insets) {
-        int top = insets.getSystemWindowInsetTop();
-        ViewGroup.LayoutParams lp = header.getLayoutParams();
-        lp.height = headerHeight + top;
-        header.setLayoutParams(lp);
-        ((ViewGroup.MarginLayoutParams) wordmark.getLayoutParams()).topMargin = wordmarkTop + top;
-        v.setPadding(insets.getSystemWindowInsetLeft(), 0, insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
-        return insets.consumeSystemWindowInsets();
+        int[] b = bars(insets);
+        navBottom = b[3];
+        content.setPadding(content.getPaddingLeft(), contentTop + b[1], content.getPaddingRight(), content.getPaddingBottom());
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) dock.getLayoutParams();
+        lp.bottomMargin = dockBottom + navBottom;
+        dock.setLayoutParams(lp);
+        v.setPadding(b[0], 0, b[2], 0);
+        fitBottom();
+        return insets;
+    }
+
+    private void fitBottom() {
+        int bottom = dock.getHeight() + dockBottom + navBottom + Sheets.dp(this, 24);
+        if (content.getPaddingBottom() != bottom) {
+            content.setPadding(content.getPaddingLeft(), content.getPaddingTop(), content.getPaddingRight(), bottom);
+        }
     }
 
     @Override
@@ -143,7 +185,7 @@ public class MainActivity extends Activity {
         try {
             getSystemService(ConnectivityManager.class).registerDefaultNetworkCallback(network);
         } catch (RuntimeException ignored) {
-            // without it, "waiting for a connection" just updates less often
+            // without it, the waiting labels just update less often
         }
         render();
         Updates.checkSoon(this, () -> runOnUiThread(this::render));
@@ -159,15 +201,23 @@ public class MainActivity extends Activity {
         super.onPause();
     }
 
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request == Sheets.REQ_DELETE) render();
+    }
+
+    // ---- The dock ----
+
     /**
-     * Android only lets an app read the clipboard once its window has focus, so the link is filled in here. Reading
-     * it makes Android 12+ show "Haul pasted from your clipboard", so it is read only when something new was copied:
-     * the clip's description (which shows no message) carries the time it was copied.
+     * Android only lets an app read the clipboard once its window has focus, so the copied link is picked up here.
+     * Reading it makes Android 12+ show "Haul pasted from your clipboard", so it is read only when something new was
+     * copied: the clip's description (which shows no message) carries the time it was copied.
      */
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (!hasFocus || link.length() > 0) return;
+        if (!hasFocus) return;
         ClipDescription d;
         try {
             d = getSystemService(ClipboardManager.class).getPrimaryClipDescription();
@@ -177,73 +227,53 @@ public class MainActivity extends Activity {
         if (d == null || !d.hasMimeType("text/*")) return;
         if (d.getTimestamp() == Haul.prefs(this).getLong("clip_seen", -1)) return;
         Haul.prefs(this).edit().putLong("clip_seen", d.getTimestamp()).apply();
-        String url = clipboardLink();
-        // Fill each copied link once: not again after it was downloaded or cleared.
-        if (url != null && !url.equals(Haul.prefs(this).getString("last_filled", ""))) {
-            Haul.prefs(this).edit().putString("last_filled", url).apply();
-            link.setText(url);
-        }
-    }
-
-    private String clipboardLink() {
+        String url = null;
         try {
-            ClipboardManager cm = getSystemService(ClipboardManager.class);
-            ClipData clip = cm.getPrimaryClip();
-            if (clip == null || clip.getItemCount() == 0) return null;
-            return Haul.firstLink(clip.getItemAt(0).coerceToText(this));
-        } catch (Exception e) {
-            return null;
+            android.content.ClipData clip = getSystemService(ClipboardManager.class).getPrimaryClip();
+            if (clip != null && clip.getItemCount() > 0) url = Haul.firstLink(clip.getItemAt(0).coerceToText(this));
+        } catch (RuntimeException ignored) {
+            // no access: nothing to offer
+        }
+        // Offer each copied link once: not again after it was downloaded, or copied from Haul itself.
+        if (url != null && !url.equals(Haul.prefs(this).getString("last_filled", ""))) {
+            Haul.prefs(this).edit().putString("dock_link", url).apply();
+            render();
         }
     }
 
-    private void download() {
-        String url = Haul.firstLink(link.getText());
-        if (url == null) {
-            link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
-            return;
-        }
-        if (Downloads.add(this, url) == null) Toast.makeText(this, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
-        link.setText("");
-        link.clearFocus();
-        getSystemService(InputMethodManager.class).hideSoftInputFromWindow(link.getWindowToken(), 0);
+    private String dockUrl() {
+        return Haul.prefs(this).getString("dock_link", "");
     }
 
-    private void updateEngine() {
-        if (Downloads.busy()) {
-            Toast.makeText(this, "Wait until the downloads finish", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        engineUpdate.setEnabled(false);
-        engineUpdate.setText("Updating…");
-        new Thread(() -> {
-            String msg;
-            try {
-                msg = Engine.update(this) ? "Engine updated to " + Engine.version(this) : "The engine is up to date";
-            } catch (Exception e) {
-                msg = "Couldn't reach GitHub. Try again later.";
-            }
-            String m = msg;
-            runOnUiThread(() -> {
-                engineUpdate.setEnabled(true);
-                engineUpdate.setText("Update engine");
-                Toast.makeText(this, m, Toast.LENGTH_SHORT).show();
-                render();
-            });
-        }).start();
+    /** A link went into the queue: the dock lets go of it. */
+    private void added(String url) {
+        Haul.prefs(this).edit().putString("last_filled", url).putString("dock_link", "").apply();
+        filter = ALL;
+        render();
     }
 
     // ---- Drawing ----
 
     /** Runs many times a second while downloading, so it only rebinds the rows whose text changed. */
     private void render() {
-        List<Haul.Item> items = Haul.items(this);
-        // Only Android 14+ download jobs wait for a connection; on older Android an offline download fails instead.
-        offline = Build.VERSION.SDK_INT >= 34 && getSystemService(ConnectivityManager.class).getActiveNetwork() == null;
-        boolean anyFinished = false;
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        // Only Android 14+ download jobs wait for a (Wi-Fi) connection; on older Android an offline download fails.
+        offline = Build.VERSION.SDK_INT >= 34 && cm.getActiveNetwork() == null;
+        metered = Build.VERSION.SDK_INT >= 34 && Haul.wifiOnly(this) && cm.isActiveNetworkMetered();
+
+        List<Haul.Item> all = Haul.items(this);
+        int failedCount = 0;
+        for (Haul.Item i : all) if (Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status)) failedCount++;
+        filters.get(FAILED).setText(failedCount > 0 ? "Failed · " + failedCount : "Failed");
+        for (Map.Entry<String, Button> f : filters.entrySet()) f.getValue().setActivated(f.getKey().equals(filter));
+        count.setText("The hold · " + all.size() + (all.size() == 1 ? " item" : " items"));
+        wifiBadge.setVisibility(Haul.wifiOnly(this) ? View.VISIBLE : View.GONE);
+
         LayoutInflater inf = getLayoutInflater();
         List<View> order = new ArrayList<>();
         Set<String> ids = new HashSet<>();
-        for (Haul.Item i : items) {
+        for (Haul.Item i : all) {
+            if (!shows(i)) continue;
             View row = rows.get(i.id);
             if (row == null) {
                 row = inf.inflate(R.layout.item_haul, hold, false);
@@ -256,7 +286,6 @@ public class MainActivity extends Activity {
             }
             order.add(row);
             ids.add(i.id);
-            if (!i.active()) anyFinished = true;
         }
         rows.keySet().retainAll(ids);
         drawn.keySet().retainAll(ids);
@@ -266,127 +295,106 @@ public class MainActivity extends Activity {
             hold.removeAllViews();
             for (View row : order) hold.addView(row);
         }
-        empty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
-        clear.setVisibility(anyFinished ? View.VISIBLE : View.GONE);
-
-        String v = Engine.version(this);
-        engine.setText(v.isEmpty() ? "Engine: yt-dlp" : "Engine: yt-dlp " + v);
+        empty.setVisibility(order.isEmpty() ? View.VISIBLE : View.GONE);
+        empty.setText(all.isEmpty()
+                ? "Nothing yet. In TikTok, Instagram or X tap Share, then Haul. Or copy a link and come back here.\n\n"
+                + "Videos land in your Gallery in Movies/Haul, photos in Pictures/Haul, audio in Music/Haul."
+                : "Nothing here.");
 
         notifyCard.setVisibility(getSystemService(NotificationManager.class).areNotificationsEnabled() ? View.GONE : View.VISIBLE);
-
         String newVersion = Haul.prefs(this).getString("update_version", "");
         updateCard.setVisibility(newVersion.isEmpty() ? View.GONE : View.VISIBLE);
         updateTitle.setText("Haul " + newVersion + " is out");
+
+        String link = dockUrl();
+        boolean hasLink = !link.isEmpty();
+        dockClip.setVisibility(hasLink ? View.VISIBLE : View.GONE);
+        dockAdd.setVisibility(hasLink ? View.GONE : View.VISIBLE);
+        if (hasLink) {
+            dockLabel.setText("Copied link · " + Haul.site(link));
+            dockLink.setText(Look.shortLink(link));
+            dockDownload.setText("Download · " + Look.qualityName(Haul.quality(this)));
+        }
+    }
+
+    private boolean shows(Haul.Item i) {
+        boolean done = Haul.DONE.equals(i.status);
+        switch (filter) {
+            case VIDEOS: return done ? Haul.VIDEO.equals(i.kind) : i.active() && !Haul.AUDIO.equals(i.quality);
+            case PHOTOS: return done && Haul.PHOTOS.equals(i.kind);
+            case AUDIO: return done ? Haul.AUDIO.equals(i.kind) : i.active() && Haul.AUDIO.equals(i.quality);
+            case FAILED: return Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status);
+            default: return true;
+        }
     }
 
     /** Everything a row shows, as one string: when it changes, the row is redrawn. */
     private String look(Haul.Item i) {
         float p = Haul.WORKING.equals(i.status) ? Math.round(Haul.progress(i.id)) : 0;
-        return i.status + '|' + p + '|' + i.title + '|' + i.error + '|' + i.count + '|' + i.mime + '|' + when(i.time)
-                + '|' + (Haul.QUEUED.equals(i.status) && offline);
+        return i.status + '|' + p + '|' + i.title + '|' + i.error + '|' + i.size + '|' + i.kind + '|' + i.uri + '|'
+                + (Haul.QUEUED.equals(i.status) ? waiting() : "");
+    }
+
+    private String waiting() {
+        return offline ? "Offline" : metered ? "Waiting for Wi-Fi" : "Waiting";
     }
 
     private void bind(View row, Haul.Item i) {
-        TextView title = row.findViewById(R.id.itemTitle);
-        TextView meta = row.findViewById(R.id.itemMeta);
-        ProgressBar bar = row.findViewById(R.id.itemProgress);
-        title.setText(i.title.isEmpty() ? shortLink(i.url) : i.title);
+        ImageView thumb = row.findViewById(R.id.thumb);
+        Look.picture(this, row.findViewById(R.id.thumbBox), thumb, row.findViewById(R.id.thumbIcon),
+                row.findViewById(R.id.thumbTag), i, 162, 288);
+        TextView len = row.findViewById(R.id.thumbLen);
+        String lenText = !Haul.DONE.equals(i.status) ? ""
+                : Haul.PHOTOS.equals(i.kind) ? (i.count > 1 ? "×" + i.count : "")
+                : i.duration > 0 ? Format.clock(i.duration) : "";
+        len.setText(lenText);
+        len.setVisibility(lenText.isEmpty() ? View.GONE : View.VISIBLE);
 
-        String status;
-        boolean bad = false;
+        ((TextView) row.findViewById(R.id.itemNo)).setText("No. " + Format.ticket(i.no));
+        ((TextView) row.findViewById(R.id.itemTitle)).setText(Look.title(i));
+        TextView meta = row.findViewById(R.id.itemMeta);
+        TextView pct = row.findViewById(R.id.itemPct), state = row.findViewById(R.id.itemState), failed = row.findViewById(R.id.itemFailed);
+        ProgressBar bar = row.findViewById(R.id.itemProgress);
+        pct.setVisibility(View.GONE);
+        state.setVisibility(View.GONE);
+        failed.setVisibility(View.GONE);
         bar.setVisibility(View.GONE);
+
         switch (i.status) {
-            case Haul.QUEUED:
-                status = offline ? "Waiting for a connection" : "Waiting";
-                break;
             case Haul.WORKING:
                 float p = Haul.progress(i.id);
-                status = p < 0 ? "Looking at the link…" : "Downloading " + Math.round(p) + "%";
+                meta.setText(i.site + " · " + (p == Engine.Progress.WORKING ? (i.clipped() ? "Cutting the section" : "Downloading")
+                        : p < 0 ? "Looking at the link" : "Downloading"));
                 bar.setVisibility(View.VISIBLE);
                 bar.setIndeterminate(p < 0);
-                if (p >= 0) bar.setProgress(Math.round(p));
+                if (p >= 0) {
+                    bar.setProgress(Math.round(p * 10));
+                    pct.setVisibility(View.VISIBLE);
+                    pct.setText(Math.round(p) + "%");
+                }
+                break;
+            case Haul.QUEUED:
+                meta.setText(i.site + " · " + Look.what(i) + " · in line");
+                state.setVisibility(View.VISIBLE);
+                state.setAllCaps(true);
+                state.setText(waiting());
                 break;
             case Haul.DONE:
-                status = i.count > 1 ? "Saved " + i.count + " files" : i.mime.startsWith("audio/") ? "Saved to Music" : "Saved";
+                meta.setText(i.site + " · " + Look.what(i));
+                state.setVisibility(View.VISIBLE);
+                state.setAllCaps(false);
+                state.setText(Format.size(i.size));
                 break;
             case Haul.CANCELED:
-                status = "Canceled. Tap to try again";
+                meta.setText(i.site + " · Canceled. Tap to try again");
+                failed.setVisibility(View.VISIBLE);
+                failed.setText("Canceled");
                 break;
             default:
-                status = i.error.isEmpty() ? "Failed. Tap to try again" : i.error;
-                bad = true;
+                meta.setText(i.error.isEmpty() ? i.site + " · Tap to try again" : i.error);
+                failed.setVisibility(View.VISIBLE);
+                failed.setText("Failed");
         }
-        meta.setText(i.site + " · " + when(i.time) + " · " + status);
-        meta.setTextColor(getColor(bad ? R.color.adrift : R.color.ink_muted));
-
-        row.setOnClickListener(v -> {
-            if (Haul.DONE.equals(i.status)) play(i);
-            else if (Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status)) Downloads.retry(this, i.id);
-        });
-        row.setOnLongClickListener(v -> {
-            menu(i);
-            return true;
-        });
-    }
-
-    private void menu(Haul.Item i) {
-        List<String> labels = new ArrayList<>();
-        List<Runnable> actions = new ArrayList<>();
-        if (i.active()) {
-            labels.add("Cancel download");
-            actions.add(() -> Downloads.cancel(this, i.id));
-        } else {
-            if (Haul.DONE.equals(i.status)) {
-                labels.add("Share");
-                actions.add(() -> share(i));
-            }
-            labels.add(Haul.DONE.equals(i.status) ? "Download again" : "Try again");
-            actions.add(() -> Downloads.retry(this, i.id));
-            labels.add("Remove from list");
-            actions.add(() -> Haul.remove(this, i.id));
-        }
-        labels.add("Copy link");
-        actions.add(() -> {
-            getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Link", i.url));
-            Haul.prefs(this).edit().putString("last_filled", i.url).apply();   // don't paste it back into the field
-        });
-        labels.add("Open in browser");
-        actions.add(() -> open(new Intent(Intent.ACTION_VIEW, Uri.parse(i.url))));
-        new AlertDialog.Builder(this)
-                .setTitle(i.title.isEmpty() ? i.site : i.title)
-                .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
-                .show();
-    }
-
-    private void play(Haul.Item i) {
-        open(new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(i.uri), i.mime)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
-    }
-
-    private void share(Haul.Item i) {
-        Intent send = new Intent(Intent.ACTION_SEND).setType(i.mime)
-                .putExtra(Intent.EXTRA_STREAM, Uri.parse(i.uri))
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        open(Intent.createChooser(send, null));
-    }
-
-    private void open(Intent intent) {
-        try {
-            startActivity(intent);
-        } catch (ActivityNotFoundException | SecurityException e) {
-            Toast.makeText(this, "Nothing on this phone can open that, or the file was deleted", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private String when(long time) {
-        int flags = DateUtils.isToday(time) ? DateUtils.FORMAT_SHOW_TIME : DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
-        return DateUtils.formatDateTime(this, time, flags);
-    }
-
-    /** "tiktok.com/@user/video/73…" without the https:// and the tracking query. */
-    private static String shortLink(String url) {
-        String s = url.replaceFirst("^https?://(www\\.)?", "");
-        int q = s.indexOf('?');
-        return q > 0 ? s.substring(0, q) : s;
+        row.setOnClickListener(v -> Sheets.item(this, i));
     }
 }

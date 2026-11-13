@@ -38,6 +38,12 @@ public class HaulService extends Service implements Downloads.Host {
         return START_NOT_STICKY;
     }
 
+    /** A service starts at once on any network, so the runner checks Wi-Fi only itself. */
+    @Override
+    public boolean waitsForNetwork() {
+        return false;
+    }
+
     @Override
     public void show(Notification n) {
         shown = n;

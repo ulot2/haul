@@ -8,7 +8,9 @@ import android.app.job.JobScheduler;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.ClipData;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -19,6 +21,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,33 +38,70 @@ final class Downloads {
     static final int ONGOING = 1;
     static final String TIMED_OUT = "Android allows downloads in the background for 6 hours a day. Tap to try again later.";
     private static final String NOT_STARTED = "Android didn't let Haul start the download. Open Haul and tap to try again.";
+    private static final String NO_WIFI = "Wi-Fi only is on, and the phone is on mobile data. Tap to try again on Wi-Fi.";
     private static final AtomicInteger notifyIds = new AtomicInteger(100);
 
     /** Guards {@link #active}: a runner is scheduled or running, so a new link only needs to join the queue. */
     private static final Object LOCK = new Object();
     private static boolean active;
+    /** A runner is downloading in this process right now (not just scheduled). */
+    private static volatile boolean draining;
 
     // ---- What the screens and the share sheet call ----
 
-    /** Adds the link to the hold and starts the queue. Null when this link is already waiting or downloading. */
+    /** Adds the link with the default quality, the whole video. */
     static Haul.Item add(Context c, String url) {
+        return add(c, url, Haul.quality(c), -1, -1);
+    }
+
+    /**
+     * Adds the link to the hold and starts the queue: in this quality, and only clipStart to clipEnd (seconds) when
+     * those are set. Null when this link is already waiting or downloading.
+     */
+    static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd) {
         Haul.Item i;
         synchronized (Downloads.class) {   // two quick shares of one link: only the first gets in
             if (Haul.activeFor(c, url) != null) return null;
-            i = Haul.add(c, url);
+            i = Haul.add(c, url, quality, clipStart, clipEnd);
         }
         start(c);
         return i;
     }
 
-    /** Tries an existing (failed, canceled or finished) haul again. */
+    /** Tries an existing (failed, canceled or finished) haul again, with the quality and section it had. */
     static void retry(Context c, String id) {
         Haul.update(c, id, i -> {
             i.status = Haul.QUEUED;
             i.error = "";
-            i.quality = Haul.quality(c);
         });
         start(c);
+    }
+
+    /**
+     * Deletes a haul's files from the Gallery and the haul from the hold. Returns the files Android wouldn't let Haul
+     * delete (made before a reinstall, so no longer Haul's): MainActivity asks the user for those.
+     */
+    static List<Uri> delete(Context c, Haul.Item i) {
+        List<Uri> refused = new ArrayList<>();
+        for (String u : i.uris) {
+            if (u.isEmpty() || "null".equals(u)) continue;
+            Uri uri = Uri.parse(u);
+            try {
+                c.getContentResolver().delete(uri, null, null);
+            } catch (SecurityException e) {
+                refused.add(uri);
+            } catch (RuntimeException ignored) {
+                // already gone
+            }
+        }
+        Haul.remove(c, i.id);
+        return refused;
+    }
+
+    /** Wi-Fi only was switched: a job still waiting is scheduled again with the new rule. */
+    static void settingsChanged(Context c) {
+        if (Build.VERSION.SDK_INT < 34 || draining) return;
+        if (c.getSystemService(JobScheduler.class).getPendingJob(HaulJob.ID) != null) HaulJob.schedule(c);
     }
 
     /** Stops a waiting or downloading haul. */
@@ -124,6 +164,9 @@ final class Downloads {
     /** Where the runner lives: shows its ongoing notification the way that host has to. */
     interface Host {
         void show(Notification n);
+
+        /** True when Android starts the host only on a suitable network (the job), so Wi-Fi only needs no check. */
+        boolean waitsForNetwork();
     }
 
     /** How a runner was stopped from outside: put the current link back in the queue, cancel all, or fail all. */
@@ -150,6 +193,15 @@ final class Downloads {
          * download). Returns true when the queue ran out, false when it was stopped from outside.
          */
         boolean drain() {
+            draining = true;
+            try {
+                return drainQueue();
+            } finally {
+                draining = false;
+            }
+        }
+
+        private boolean drainQueue() {
             boolean updated = false;
             while (true) {
                 Haul.Item next;
@@ -203,39 +255,52 @@ final class Downloads {
             showProgress(item, -1);
             File dir = new File(c.getCacheDir(), "haul/" + id);
             try {
+                if (!host.waitsForNetwork() && Haul.wifiOnly(c)
+                        && c.getSystemService(ConnectivityManager.class).isActiveNetworkMetered()) {
+                    throw new IllegalStateException(NO_WIFI);
+                }
                 Engine.init(c);
-                List<File> files;
+                Engine.Result got;
                 try {
-                    files = fetch(item, dir);
+                    got = fetch(item, dir);
                 } catch (Exception first) {
                     if (stopped != 0 || Engine.canceled(first) || isCanceled(id)) throw first;
                     // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                     if (!Engine.updateAfterFailure(c)) throw first;
-                    files = fetch(item, dir);
+                    got = fetch(item, dir);
                 }
                 if (stopped != 0 || isCanceled(id)) throw new InterruptedException();
 
-                Uri firstUri = null;
-                String firstMime = "", title = "";
-                for (File f : files) {
+                List<String> uris = new ArrayList<>();
+                String firstMime = "";
+                long size = 0;
+                boolean anyVideo = false, anyAudio = false;
+                for (File f : got.files) {
                     String mime = mime(f.getName());
-                    Uri u = save(f, mime);
-                    if (firstUri == null) {
-                        firstUri = u;
-                        firstMime = mime;
-                        title = titleOf(f.getName());
-                    }
+                    size += f.length();
+                    uris.add(String.valueOf(save(f, mime)));
+                    if (firstMime.isEmpty()) firstMime = mime;
+                    anyVideo |= mime.startsWith("video/");
+                    anyAudio |= mime.startsWith("audio/");
                 }
-                final Uri uri = firstUri;
-                final String m = firstMime, t = title;
-                final int count = files.size();
+                final String m = firstMime, kind = anyVideo ? Haul.VIDEO : anyAudio ? Haul.AUDIO : Haul.PHOTOS;
+                final String t = !got.title.isEmpty() ? got.title : titleOf(got.files.get(0).getName());
+                final long bytes = size;
+                final int count = got.files.size(), height = got.height;
+                final int duration = item.clipped() ? item.clipEnd - item.clipStart : got.duration;
                 Haul.update(c, id, i -> {
                     i.status = Haul.DONE;
                     i.error = "";
-                    i.uri = String.valueOf(uri);
+                    i.uris = uris;
+                    i.uri = uris.get(0);
                     i.mime = m;
+                    i.kind = kind;
                     i.title = t;
                     i.count = count;
+                    i.size = bytes;
+                    i.duration = duration;
+                    i.height = Haul.VIDEO.equals(kind) ? height : -1;
+                    i.doneAt = System.currentTimeMillis();
                 });
                 notifyDone(Haul.get(c, id));
             } catch (Exception e) {
@@ -244,7 +309,7 @@ final class Downloads {
                 } else if (Engine.canceled(e) || isCanceled(id) || e instanceof InterruptedException) {
                     Haul.update(c, id, i -> i.status = Haul.CANCELED);
                 } else {
-                    String why = Engine.friendly(e);
+                    String why = NO_WIFI.equals(e.getMessage()) ? NO_WIFI : Engine.friendly(e);
                     Haul.update(c, id, i -> {
                         i.status = Haul.FAILED;
                         i.error = why;
@@ -257,8 +322,8 @@ final class Downloads {
             }
         }
 
-        private List<File> fetch(Haul.Item item, File dir) throws Exception {
-            return Engine.download(c, item.id, item.url, item.quality, dir, p -> {
+        private Engine.Result fetch(Haul.Item item, File dir) throws Exception {
+            return Engine.download(c, item.id, item.url, item.quality, item.clipStart, item.clipEnd, dir, p -> {
                 Haul.setProgress(item.id, p);
                 showProgress(item, p);
             });
@@ -315,7 +380,8 @@ final class Downloads {
             if (percent >= 0 && percent < 100 && now - lastNotify < 500) return;   // Android drops floods of updates anyway
             lastNotify = now;
             int waiting = Haul.waiting(c);
-            String title = percent < 0 ? "Looking at the link…" : "Downloading " + Math.round(percent) + "%";
+            String title = percent == Engine.Progress.WORKING ? (item.clipped() ? "Cutting the section…" : "Downloading…")
+                    : percent < 0 ? "Looking at the link…" : "Downloading " + Math.round(percent) + "%";
             String text = item.site + (waiting > 0 ? " · " + waiting + " more waiting" : "");
             if (stopped == 0) host.show(ongoing(title, text, percent, item.id));
         }
@@ -338,42 +404,82 @@ final class Downloads {
             return b.build();
         }
 
+        /** "Saved", with Share and Delete: straight from TikTok to WhatsApp without opening the Gallery. */
         private void notifyDone(Haul.Item i) {
             if (i == null) return;
+            int nid = notifyIds.incrementAndGet();
             Intent view = new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(i.uri), i.mime)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            PendingIntent open = PendingIntent.getActivity(c, notifyIds.incrementAndGet(), view, PendingIntent.FLAG_IMMUTABLE);
-            String where = i.mime.startsWith("audio/") ? "Music/Haul" : i.mime.startsWith("image/") ? "Pictures/Haul" : "Movies/Haul";
-            String what = i.count > 1 ? i.count + " files saved" : "Saved";
-            post(new Notification.Builder(c, CH_DONE)
+            PendingIntent open = PendingIntent.getActivity(c, nid, view, PendingIntent.FLAG_IMMUTABLE);
+            PendingIntent share = PendingIntent.getActivity(c, nid, shareIntent(i).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_IMMUTABLE);
+            PendingIntent delete = PendingIntent.getBroadcast(c, nid, new Intent(c, DeleteReceiver.class)
+                    .putExtra(DeleteReceiver.EXTRA_ID, i.id).putExtra(DeleteReceiver.EXTRA_NOTIFICATION, nid),
+                    PendingIntent.FLAG_IMMUTABLE);
+            String what = i.count > 1 ? i.count + (Haul.PHOTOS.equals(i.kind) ? " photos saved" : " files saved") : "Saved";
+            post(nid, new Notification.Builder(c, CH_DONE)
                     .setSmallIcon(R.drawable.ic_notify)
                     .setContentTitle(i.title.isEmpty() ? i.site : i.title)
-                    .setContentText(what + " to " + where + " · " + i.site)
+                    .setContentText(what + " to " + album(i) + " · " + i.site)
                     .setContentIntent(open)
+                    .addAction(new Notification.Action.Builder(null, "Share", share).build())
+                    .addAction(new Notification.Action.Builder(null, "Delete", delete).build())
                     .setAutoCancel(true)
                     .build());
         }
 
+        /** "Couldn't download", with Try again (it opens Haul, which Android needs to start a download). */
         private void notifyFailed(Haul.Item i) {
             if (i == null) return;
-            post(new Notification.Builder(c, CH_DONE)
+            int nid = notifyIds.incrementAndGet();
+            PendingIntent retry = PendingIntent.getActivity(c, nid, new Intent(c, MainActivity.class)
+                    .putExtra(MainActivity.EXTRA_RETRY, i.id).putExtra(MainActivity.EXTRA_NOTIFICATION, nid)
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            post(nid, new Notification.Builder(c, CH_DONE)
                     .setSmallIcon(R.drawable.ic_notify)
                     .setContentTitle("Couldn't download from " + i.site)
                     .setContentText(i.error)
                     .setStyle(new Notification.BigTextStyle().bigText(i.error))
                     .setContentIntent(openApp(c, 2))
+                    .addAction(new Notification.Action.Builder(null, "Try again", retry).build())
                     .setAutoCancel(true)
                     .build());
         }
 
-        private void post(Notification n) {
-            c.getSystemService(NotificationManager.class).notify(notifyIds.incrementAndGet(), n);
+        private void post(int nid, Notification n) {
+            c.getSystemService(NotificationManager.class).notify(nid, n);
         }
     }
 
     static PendingIntent openApp(Context c, int code) {
         return PendingIntent.getActivity(c, code, new Intent(c, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    /** The share sheet for a haul's files: one file, or all of a post's. */
+    static Intent shareIntent(Haul.Item i) {
+        List<Uri> uris = new ArrayList<>();
+        for (String u : i.uris) if (!u.isEmpty() && !"null".equals(u)) uris.add(Uri.parse(u));
+        if (uris.isEmpty() && !i.uri.isEmpty()) uris.add(Uri.parse(i.uri));
+        Intent send;
+        if (uris.size() > 1) {
+            send = new Intent(Intent.ACTION_SEND_MULTIPLE).setType(i.mime.isEmpty() ? "*/*" : i.mime.split("/")[0] + "/*")
+                    .putParcelableArrayListExtra(Intent.EXTRA_STREAM, new ArrayList<>(uris));
+        } else {
+            send = new Intent(Intent.ACTION_SEND).setType(i.mime).putExtra(Intent.EXTRA_STREAM, uris.isEmpty() ? null : uris.get(0));
+        }
+        if (!uris.isEmpty()) {
+            ClipData clip = ClipData.newRawUri(i.title, uris.get(0));
+            for (int k = 1; k < uris.size(); k++) clip.addItem(new ClipData.Item(uris.get(k)));
+            send.setClipData(clip);
+        }
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        return Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    }
+
+    /** Where a haul's files are in the Gallery. */
+    static String album(Haul.Item i) {
+        return Haul.AUDIO.equals(i.kind) ? "Music/Haul" : Haul.PHOTOS.equals(i.kind) ? "Pictures/Haul" : "Movies/Haul";
     }
 
     static String mime(String name) {

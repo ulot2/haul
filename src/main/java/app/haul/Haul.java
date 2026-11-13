@@ -27,19 +27,27 @@ import java.util.regex.Pattern;
 final class Haul {
     static final String QUEUED = "queued", WORKING = "working", DONE = "done", FAILED = "failed", CANCELED = "canceled";
     static final String BEST = "best", SMALL = "small", AUDIO = "audio";
+    static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
     private static final int KEEP = 50;
     private static final Pattern LINK = Pattern.compile("https?://[^\\s<>\"'{}|\\\\^`]+", Pattern.CASE_INSENSITIVE);
 
     /** One link the user asked for, and what came of it. */
     static final class Item {
         String id, url, title = "", site = "", status = QUEUED, error = "", uri = "", mime = "", quality = BEST;
-        int count = 0;   // files saved; a post with several videos saves several
-        long time;
+        String kind = "";              // VIDEO, AUDIO or PHOTOS once saved
+        List<String> uris = new ArrayList<>();   // every saved file; uri is the first
+        int no;                        // the ticket number shown as "NO. 0148"
+        int count = 0;                 // files saved; a post with several videos or photos saves several
+        int clipStart = -1, clipEnd = -1;   // seconds, when only a section was asked for
+        int duration = -1, height = -1;     // of the first file, when known
+        long size, time, doneAt;
 
         JSONObject json() throws Exception {
             return new JSONObject().put("id", id).put("url", url).put("title", title).put("site", site)
                     .put("status", status).put("error", error).put("uri", uri).put("mime", mime)
-                    .put("quality", quality).put("count", count).put("time", time);
+                    .put("quality", quality).put("count", count).put("time", time).put("kind", kind)
+                    .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
+                    .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt);
         }
 
         static Item of(JSONObject o) {
@@ -55,11 +63,26 @@ final class Haul {
             i.quality = o.optString("quality", BEST);
             i.count = o.optInt("count");
             i.time = o.optLong("time");
+            i.kind = o.optString("kind", i.mime.startsWith("audio/") ? AUDIO : i.mime.startsWith("image/") ? PHOTOS : VIDEO);
+            JSONArray u = o.optJSONArray("uris");
+            for (int k = 0; u != null && k < u.length(); k++) i.uris.add(u.optString(k));
+            if (i.uris.isEmpty() && !i.uri.isEmpty()) i.uris.add(i.uri);
+            i.no = o.optInt("no");
+            i.clipStart = o.optInt("clipStart", -1);
+            i.clipEnd = o.optInt("clipEnd", -1);
+            i.duration = o.optInt("duration", -1);
+            i.height = o.optInt("height", -1);
+            i.size = o.optLong("size");
+            i.doneAt = o.optLong("doneAt", i.time);
             return i;
         }
 
         boolean active() {
             return QUEUED.equals(status) || WORKING.equals(status);
+        }
+
+        boolean clipped() {
+            return clipStart >= 0 && clipEnd > clipStart;
         }
     }
 
@@ -86,6 +109,24 @@ final class Haul {
         prefs(c).edit().putString("quality", q).apply();
     }
 
+    /** Settings, all off by default except the "Haul audio" share target. */
+    static boolean askQuality(Context c) {
+        return prefs(c).getBoolean("ask_quality", false);
+    }
+
+    static boolean wifiOnly(Context c) {
+        return prefs(c).getBoolean("wifi_only", false);
+    }
+
+    static boolean audioTarget(Context c) {
+        return prefs(c).getBoolean("audio_target", true);
+    }
+
+    static void set(Context c, String key, boolean on) {
+        prefs(c).edit().putBoolean(key, on).apply();
+        changed();
+    }
+
     // ---- The hold: the last 50 hauls, newest first ----
 
     static synchronized List<Item> items(Context c) {
@@ -97,14 +138,20 @@ final class Haul {
         return null;
     }
 
-    static synchronized Item add(Context c, String url) {
+    /** A new haul for this link, with its own quality and, if wanted, a section (seconds; -1 for the whole). */
+    static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd) {
         List<Item> list = load(c);
         Item i = new Item();
         i.time = System.currentTimeMillis();
         i.id = Long.toString(i.time, 36) + Integer.toString((int) (Math.random() * 1296), 36);
         i.url = url;
         i.site = site(url);
-        i.quality = quality(c);
+        i.quality = quality;
+        i.clipStart = clipStart;
+        i.clipEnd = clipEnd;
+        int no = prefs(c).getInt("next_no", 1);
+        i.no = no;
+        prefs(c).edit().putInt("next_no", no + 1).apply();
         list.add(0, i);
         // Trim the oldest finished ones; never drop one that is still going.
         for (int k = list.size() - 1; k >= 0 && list.size() > KEEP; k--) if (!list.get(k).active()) list.remove(k);
