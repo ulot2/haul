@@ -40,6 +40,8 @@ final class Downloads {
     private static final String NOT_STARTED = "Android didn't let Haul start the download. Open Haul and tap to try again.";
     private static final String NO_WIFI = "Wi-Fi only is on, and the phone is on mobile data. Tap to try again on Wi-Fi.";
     private static final AtomicInteger notifyIds = new AtomicInteger(100);
+    /** Set once Android has stopped a download job for its own reasons: from then on Haul uses the service. */
+    static final String USE_SERVICE = "use_service";
 
     /** Guards {@link #active}: a runner is scheduled or running, so a new link only needs to join the queue. */
     private static final Object LOCK = new Object();
@@ -107,7 +109,9 @@ final class Downloads {
     /** Stops a waiting or downloading haul. */
     static void cancel(Context c, String id) {
         Haul.update(c, id, i -> {
-            if (i.active()) i.status = Haul.CANCELED;
+            if (!i.active()) return;
+            i.status = Haul.CANCELED;
+            i.error = "Canceled.";
         });
         Engine.cancel(id);   // stops yt-dlp if this one is downloading; nothing otherwise
     }
@@ -134,7 +138,7 @@ final class Downloads {
             if (active) return;   // the runner takes the new link after the current one
             active = true;
         }
-        if (Build.VERSION.SDK_INT >= 34 && HaulJob.schedule(c)) return;
+        if (Build.VERSION.SDK_INT >= 34 && !Haul.prefs(c).getBoolean(USE_SERVICE, false) && HaulJob.schedule(c)) return;
         try {
             c.startForegroundService(new Intent(c, HaulService.class));
         } catch (Exception e) {
@@ -170,7 +174,7 @@ final class Downloads {
     }
 
     /** How a runner was stopped from outside: put the current link back in the queue, cancel all, or fail all. */
-    static final int REQUEUE = 1, CANCEL_ALL = 2, TIME_OUT = 3;
+    static final int REQUEUE = 1, CANCEL_ALL = 2, FAIL_ALL = 3;
 
     static final class Runner {
         private final Context c;
@@ -226,19 +230,17 @@ final class Downloads {
             }
         }
 
-        /** Called on the main thread when Android stops the host. Must return at once. */
-        void stop(int how) {
+        /** Called on the main thread when Android stops the host, with the reason to show. Must return at once. */
+        void stop(int how, String why) {
             stopped = how;
             for (Haul.Item i : Haul.items(c)) {
                 if (!i.active()) continue;
                 Haul.update(c, i.id, it -> {
                     if (how == REQUEUE) {
                         it.status = Haul.QUEUED;
-                    } else if (how == CANCEL_ALL) {
-                        it.status = Haul.CANCELED;
                     } else {
-                        it.status = Haul.FAILED;
-                        it.error = TIMED_OUT;
+                        it.status = how == CANCEL_ALL ? Haul.CANCELED : Haul.FAILED;
+                        it.error = why;
                     }
                 });
             }
@@ -307,7 +309,10 @@ final class Downloads {
                 if (stopped != 0) {
                     // stop() already marked it, with the reason.
                 } else if (Engine.canceled(e) || isCanceled(id) || e instanceof InterruptedException) {
-                    Haul.update(c, id, i -> i.status = Haul.CANCELED);
+                    Haul.update(c, id, i -> {
+                        i.status = Haul.CANCELED;
+                        if (i.error.isEmpty()) i.error = "Canceled.";
+                    });
                 } else {
                     String why = NO_WIFI.equals(e.getMessage()) ? NO_WIFI : Engine.friendly(e);
                     Haul.update(c, id, i -> {

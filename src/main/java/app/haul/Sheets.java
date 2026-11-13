@@ -302,11 +302,9 @@ final class Sheets {
                 Downloads.retry(a, i.id);
             });
         } else {
-            primary.setText("Cancel download");
-            primary.setOnClickListener(v -> {
-                d.dismiss();
-                Downloads.cancel(a, i.id);
-            });
+            // Still going: no big button. Cancel is the small one at the end of the row below, so a tap meant to
+            // look at a download can't stop it.
+            primary.setVisibility(View.GONE);
         }
 
         d.findViewById(R.id.actShare).setOnClickListener(v -> {

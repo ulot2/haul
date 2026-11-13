@@ -386,7 +386,7 @@ public class MainActivity extends Activity {
                 state.setText(Format.size(i.size));
                 break;
             case Haul.CANCELED:
-                meta.setText(i.site + " · Canceled. Tap to try again");
+                meta.setText(i.error.isEmpty() || "Canceled.".equals(i.error) ? i.site + " · Canceled. Tap to try again" : i.error);
                 failed.setVisibility(View.VISIBLE);
                 failed.setText("Canceled");
                 break;

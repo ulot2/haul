@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import kotlin.Unit;
@@ -108,13 +111,24 @@ final class Engine {
         }
     }
 
-    /** Runs yt-dlp; any number at once, but never while it is being replaced by an update. */
+    /** Each haul's yt-dlp process right now (haul id → process id), so Cancel stops the right one. */
+    private static final Map<String, String> PROCESS = new ConcurrentHashMap<>();
+    private static final AtomicInteger RUNS = new AtomicInteger();
+
+    /**
+     * Runs yt-dlp; any number at once, but never while it is being replaced by an update. Every run gets its own process
+     * id: the library forgets an id when its process ends, so a stopped attempt that ends late would otherwise forget the
+     * next attempt's id, and that attempt would then end as "canceled" though nobody canceled it.
+     */
     private static YoutubeDLResponse run(YoutubeDLRequest r, String id, Function3<Float, Long, String, Unit> cb) throws Exception {
+        String pid = id + "#" + RUNS.incrementAndGet();
+        PROCESS.put(id, pid);
         RUN.readLock().lock();
         try {
-            return cb == null ? YoutubeDL.getInstance().execute(r, id) : YoutubeDL.getInstance().execute(r, id, cb);
+            return cb == null ? YoutubeDL.getInstance().execute(r, pid) : YoutubeDL.getInstance().execute(r, pid, cb);
         } finally {
             RUN.readLock().unlock();
+            PROCESS.remove(id, pid);
         }
     }
 
@@ -418,9 +432,12 @@ final class Engine {
         f.delete();
     }
 
+    /** Stops the yt-dlp process of this haul, if one is running. */
     static void cancel(String id) {
+        String pid = PROCESS.get(id);
+        if (pid == null) return;
         try {
-            YoutubeDL.getInstance().destroyProcessById(id);
+            YoutubeDL.getInstance().destroyProcessById(pid);
         } catch (Exception ignored) {
         }
     }
