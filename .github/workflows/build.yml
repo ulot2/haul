@@ -44,7 +44,18 @@ jobs:
           HAUL_KEY_PASSWORD: ${{ secrets.HAUL_KEY_PASSWORD }}
           HAUL_VERSION: ${{ steps.v.outputs.version }}
         run: |
-          echo "$HAUL_KEY" | base64 -d > haul.p12
+          if [ -z "$HAUL_KEY" ]; then
+            # No key in the repo secrets yet: sign with a throwaway key, so the build still proves the code compiles.
+            # Such an APK can't update one signed with the real key, so a release refuses to publish without it.
+            [[ "$GITHUB_REF" == refs/tags/v* ]] && { echo "::error::Add the HAUL_KEY and HAUL_KEY_PASSWORD secrets before releasing"; exit 1; }
+            echo "::warning::HAUL_KEY secret missing; signing with a throwaway key"
+            HAUL_KEY_PASSWORD=throwaway
+            keytool -genkeypair -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" -keypass "$HAUL_KEY_PASSWORD" \
+              -alias throwaway -keyalg RSA -keysize 2048 -validity 1 -dname "CN=throwaway"
+            export HAUL_KEY_PASSWORD
+          else
+            echo "$HAUL_KEY" | base64 -d > haul.p12
+          fi
           export HAUL_KEY_ALIAS=$(keytool -list -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" | grep PrivateKeyEntry | cut -d, -f1)
           gradle assembleRelease
           cp build/outputs/apk/release/*.apk Haul.apk
