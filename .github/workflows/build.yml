@@ -54,7 +54,11 @@ jobs:
               -alias throwaway -keyalg RSA -keysize 2048 -validity 1 -dname "CN=throwaway"
             export HAUL_KEY_PASSWORD
           else
-            echo "$HAUL_KEY" | base64 -d > haul.p12
+            # Strip spaces and line breaks that copying from a phone can add.
+            printf '%s' "$HAUL_KEY" | tr -d ' \r\n\t' | base64 -d > haul.p12 \
+              || { echo "::error::HAUL_KEY is not valid base64. Paste the whole of haul.p12.b64 into it again."; exit 1; }
+            keytool -list -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" >/dev/null \
+              || { echo "::error::HAUL_KEY_PASSWORD does not open the key. Paste password.txt into it again."; exit 1; }
           fi
           export HAUL_KEY_ALIAS=$(keytool -list -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" | grep PrivateKeyEntry | cut -d, -f1)
           gradle assembleRelease
