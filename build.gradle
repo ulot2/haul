@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application' version '8.13.0'
+}
+
+def build = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+android {
+    namespace 'app.haul'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'app.haul'
+        minSdk 29
+        targetSdk 36
+        versionCode build
+        versionName System.getenv('HAUL_VERSION') ?: "0.0.0-local"   // set by the GitHub build from the release tag
+
+        // yt-dlp runs on a bundled Python, and FFmpeg merges video and audio. Both are native, so each CPU type
+        // adds about 40 MB. Nearly every phone from the last eight years is arm64, so only that one ships.
+        ndk { abiFilters 'arm64-v8a' }
+    }
+
+    // The key comes from GitHub secrets (see .github/workflows/build.yml).
+    signingConfigs {
+        release {
+            storeFile file('haul.p12')
+            storeType 'pkcs12'
+            storePassword System.getenv('HAUL_KEY_PASSWORD')
+            keyAlias System.getenv('HAUL_KEY_ALIAS')
+            keyPassword System.getenv('HAUL_KEY_PASSWORD')
+        }
+    }
+
+    buildTypes {
+        release { signingConfig signingConfigs.release }
+    }
+
+    // The engine runs Python and FFmpeg as programs, so their .so files must be unpacked on install.
+    packaging {
+        jniLibs { useLegacyPackaging true }
+    }
+}
+
+dependencies {
+    // yt-dlp + Python + FFmpeg for Android (github.com/yausername/youtubedl-android).
+    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+    // The engine is written in Kotlin and its helpers pull different Kotlin versions; align them, or the build sees duplicate classes.
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:2.0.21')
+}

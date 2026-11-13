@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nautical chart, day. Same palette as Ferry (see DESIGN.md). The night chart is in values-night. -->
+<resources>
+    <color name="water">#DCEBF2</color>
+    <color name="contour1">#B9D6E4</color>
+    <color name="contour2">#C8DFEA</color>
+    <color name="land">#E9E1CC</color>
+    <color name="ground">#F2F6F8</color>
+    <color name="ink">#0F2A44</color>
+    <color name="ink_muted">#3D5A73</color>
+    <color name="course">#A3125F</color>
+    <color name="act">#A3125F</color>
+    <color name="on_act">#FFFFFF</color>
+    <color name="rule">#C9D9E2</color>
+    <color name="rule_row">#DCE6EC</color>
+    <color name="chip_on">#0F2A44</color>
+    <color name="chip_on_text">#F2F6F8</color>
+    <color name="chip_off">#9DB2C2</color>
+    <color name="pill">#F2F6F8</color>
+    <color name="steady">#1E8E5A</color>
+    <color name="adrift">#B3261E</color>
+    <color name="ripple">#1F0F2A44</color>
+    <!-- The launcher icon keeps the day chart in both themes (not overridden in values-night). -->
+    <color name="icon_water">#DCEBF2</color>
+    <color name="icon_ink">#0F2A44</color>
+    <color name="icon_course">#A3125F</color>
+</resources>

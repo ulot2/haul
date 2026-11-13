@@ -1,0 +1,60 @@
+name: Build Haul
+
+# A push to main or dev only builds, to prove the code still compiles; the APK stays on the run page
+# (download it with "gh run download"). Pushing a tag like v1.2.0 builds and publishes the release
+# that the app offers as an update.
+on:
+  push:
+    branches: [main, dev]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        # Tag builds use the tag. Other builds use the last release tag plus "-dev.<run>",
+        # so the app never offers them as updates.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+            last="${last:-v0.0.0}"
+            v="${last#v}-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+      - name: Build signed APK
+        env:
+          HAUL_KEY: ${{ secrets.HAUL_KEY }}
+          HAUL_KEY_PASSWORD: ${{ secrets.HAUL_KEY_PASSWORD }}
+          HAUL_VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          echo "$HAUL_KEY" | base64 -d > haul.p12
+          export HAUL_KEY_ALIAS=$(keytool -list -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" | grep PrivateKeyEntry | cut -d, -f1)
+          gradle assembleRelease
+          cp build/outputs/apk/release/*.apk Haul.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: Haul.apk
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: gh release create "$GITHUB_REF_NAME" Haul.apk --title "Haul $VERSION" --generate-notes --latest

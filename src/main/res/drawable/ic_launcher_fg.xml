@@ -1,0 +1,17 @@
+<!-- A load lowered into the hold: magenta course down into an ink tray, inside the 66dp safe zone of the 108dp adaptive canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path
+        android:pathData="M54,32 L54,59 M44,50 L54,60 L64,50"
+        android:strokeColor="@color/icon_course"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M35,62 L35,75 L73,75 L73,62"
+        android:strokeColor="@color/icon_ink"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

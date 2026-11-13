@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One haul: what it is, where from, how it went. Tap plays it (or retries); long-press for more. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_text_button"
+    android:minHeight="56dp"
+    android:orientation="vertical"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
+
+    <TextView
+        android:id="@+id/itemTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="@font/barlow_medium"
+        android:maxLines="2"
+        android:textColor="@color/ink"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/itemMeta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:fontFamily="@font/barlow_regular"
+        android:fontFeatureSettings="tnum"
+        android:textColor="@color/ink_muted"
+        android:textSize="14sp" />
+
+    <ProgressBar
+        android:id="@+id/itemProgress"
+        style="@android:style/Widget.Material.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="8dp"
+        android:max="100"
+        android:progressBackgroundTint="@color/rule"
+        android:progressTint="@color/course"
+        android:indeterminateTint="@color/course"
+        android:visibility="gone" />
+</LinearLayout>

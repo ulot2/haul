@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nautical chart type roles and components. See DESIGN.md. -->
+<resources>
+    <!-- Empty base: "Haul.X" names make Android look for a parent called "Haul". -->
+    <style name="Haul" />
+
+    <style name="Haul.Wordmark">
+        <item name="android:textSize">26sp</item>
+        <item name="android:fontFamily">@font/barlow_condensed_semibold</item>
+        <item name="android:letterSpacing">0.2</item>
+        <item name="android:textColor">@color/ink</item>
+    </style>
+
+    <style name="Haul.Kicker">
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">@font/barlow_medium</item>
+        <item name="android:letterSpacing">0.14</item>
+        <item name="android:textColor">@color/ink_muted</item>
+    </style>
+
+    <style name="Haul.Crossing">
+        <item name="android:textSize">20sp</item>
+        <item name="android:fontFamily">@font/barlow_medium</item>
+        <item name="android:lineSpacingMultiplier">1.2</item>
+        <item name="android:textColor">@color/ink</item>
+    </style>
+
+    <style name="Haul.Label">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">@font/barlow_italic</item>
+        <item name="android:textColor">@color/ink_muted</item>
+    </style>
+
+    <style name="Haul.Title">
+        <item name="android:textSize">17sp</item>
+        <item name="android:fontFamily">@font/barlow_medium</item>
+        <item name="android:textColor">@color/ink</item>
+    </style>
+
+    <style name="Haul.Body">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">@font/barlow_regular</item>
+        <item name="android:lineSpacingMultiplier">1.25</item>
+        <item name="android:textColor">@color/ink_muted</item>
+    </style>
+
+    <style name="Haul.Notice">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:background">@drawable/bg_notice</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">16dp</item>
+    </style>
+
+    <style name="Haul.Button">
+        <item name="android:layout_height">44dp</item>
+        <item name="android:minWidth">48dp</item>
+        <item name="android:paddingStart">18dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">@font/barlow_medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <style name="Haul.Button.Primary">
+        <item name="android:layout_height">52dp</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:fontFamily">@font/barlow_bold</item>
+        <item name="android:background">@drawable/bg_primary</item>
+        <item name="android:textColor">@color/on_act</item>
+    </style>
+
+    <style name="Haul.Button.Secondary">
+        <item name="android:background">@drawable/bg_chip_off</item>
+        <item name="android:textColor">@color/ink</item>
+    </style>
+
+    <style name="Haul.Button.Text">
+        <item name="android:background">@drawable/bg_text_button</item>
+        <item name="android:textColor">@color/course</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+    </style>
+
+    <!-- Settings: a section heading, and a switch row (label left, switch right). -->
+    <style name="Haul.Section" parent="Haul.Kicker">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">32dp</item>
+        <item name="android:layout_marginBottom">4dp</item>
+    </style>
+
+    <style name="Haul.Switch">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:fontFamily">@font/barlow_medium</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:thumbTint">@color/switch_thumb</item>
+        <item name="android:trackTint">@color/switch_track</item>
+    </style>
+
+    <!-- One choice of a segmented control (a RadioButton without its circle), inside a RadioGroup with bg_segment. -->
+    <style name="Haul.Segment">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">38dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:button">@null</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/bg_segment_item</item>
+        <item name="android:textColor">@color/segment_text</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">@font/barlow_medium</item>
+    </style>
+
+    <style name="Haul.Button.Danger">
+        <item name="android:background">@drawable/bg_danger</item>
+        <item name="android:textColor">@color/adrift</item>
+    </style>
+
+    <style name="Haul.Hint" parent="Haul.Body">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="Haul.Chip" parent="Haul.Button">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+</resources>
