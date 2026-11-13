@@ -53,18 +53,22 @@ final class Downloads {
 
     /** Adds the link with the default quality, the whole video. */
     static Haul.Item add(Context c, String url) {
-        return add(c, url, Haul.quality(c), -1, -1);
+        return add(c, url, Haul.quality(c), -1, -1, "", "");
+    }
+
+    static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd) {
+        return add(c, url, quality, clipStart, clipEnd, "", "");
     }
 
     /**
      * Adds the link to the hold and starts the queue: in this quality, and only clipStart to clipEnd (seconds) when
      * those are set. Null when this link is already waiting or downloading.
      */
-    static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd) {
+    static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as) {
         Haul.Item i;
         synchronized (Downloads.class) {   // two quick shares of one link: only the first gets in
             if (Haul.activeFor(c, url) != null) return null;
-            i = Haul.add(c, url, quality, clipStart, clipEnd);
+            i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as);
         }
         start(c);
         return i;
@@ -328,7 +332,7 @@ final class Downloads {
         }
 
         private Engine.Result fetch(Haul.Item item, File dir) throws Exception {
-            return Engine.download(c, item.id, item.url, item.quality, item.clipStart, item.clipEnd, dir, p -> {
+            return Engine.download(c, item, dir, p -> {
                 Haul.setProgress(item.id, p);
                 showProgress(item, p);
             });
@@ -385,8 +389,7 @@ final class Downloads {
             if (percent >= 0 && percent < 100 && now - lastNotify < 500) return;   // Android drops floods of updates anyway
             lastNotify = now;
             int waiting = Haul.waiting(c);
-            String title = percent == Engine.Progress.WORKING ? (item.clipped() ? "Cutting the section…" : "Downloading…")
-                    : percent < 0 ? "Looking at the link…" : "Downloading " + Math.round(percent) + "%";
+            String title = percent >= 0 ? "Downloading " + Math.round(percent) + "%" : Look.stage(item, percent) + "…";
             String text = item.site + (waiting > 0 ? " · " + waiting + " more waiting" : "");
             if (stopped == 0) host.show(ongoing(title, text, percent, item.id));
         }
@@ -466,15 +469,21 @@ final class Downloads {
         List<Uri> uris = new ArrayList<>();
         for (String u : i.uris) if (!u.isEmpty() && !"null".equals(u)) uris.add(Uri.parse(u));
         if (uris.isEmpty() && !i.uri.isEmpty()) uris.add(Uri.parse(i.uri));
+        String type = uris.size() > 1 ? (i.mime.isEmpty() ? "*/*" : i.mime.split("/")[0] + "/*") : i.mime;
+        return shareIntent(uris, type, i.title);
+    }
+
+    /** The share sheet for any saved files (several hauls at once, from the hold). */
+    static Intent shareIntent(List<Uri> uris, String type, String title) {
         Intent send;
         if (uris.size() > 1) {
-            send = new Intent(Intent.ACTION_SEND_MULTIPLE).setType(i.mime.isEmpty() ? "*/*" : i.mime.split("/")[0] + "/*")
+            send = new Intent(Intent.ACTION_SEND_MULTIPLE).setType(type)
                     .putParcelableArrayListExtra(Intent.EXTRA_STREAM, new ArrayList<>(uris));
         } else {
-            send = new Intent(Intent.ACTION_SEND).setType(i.mime).putExtra(Intent.EXTRA_STREAM, uris.isEmpty() ? null : uris.get(0));
+            send = new Intent(Intent.ACTION_SEND).setType(type).putExtra(Intent.EXTRA_STREAM, uris.isEmpty() ? null : uris.get(0));
         }
         if (!uris.isEmpty()) {
-            ClipData clip = ClipData.newRawUri(i.title, uris.get(0));
+            ClipData clip = ClipData.newRawUri(title, uris.get(0));
             for (int k = 1; k < uris.size(); k++) clip.addItem(new ClipData.Item(uris.get(k)));
             send.setClipData(clip);
         }

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A TikTok photo post: save its pictures, a video of them with the sound, or just the sound. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_sheet"
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="24dp">
+
+    <View style="@style/Haul.Handle" />
+
+    <TextView
+        style="@style/Haul.Heading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="TIKTOK PHOTOS" />
+
+    <TextView
+        style="@style/Haul.Body"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="This post is pictures with sound. Save it as:" />
+
+    <Button
+        android:id="@+id/asVideo"
+        style="@style/Haul.Button.Outline"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginTop="16dp"
+        android:gravity="start|center_vertical"
+        android:drawableStart="@drawable/ic_play"
+        android:drawablePadding="14dp"
+        android:drawableTint="@color/ink" />
+
+    <Button
+        android:id="@+id/asPhotos"
+        style="@style/Haul.Button.Outline"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginTop="10dp"
+        android:gravity="start|center_vertical"
+        android:drawableStart="@drawable/ic_photos"
+        android:drawablePadding="14dp"
+        android:drawableTint="@color/ink" />
+
+    <Button
+        android:id="@+id/asSound"
+        style="@style/Haul.Button.Outline"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginTop="10dp"
+        android:gravity="start|center_vertical"
+        android:drawableStart="@drawable/ic_music"
+        android:drawablePadding="14dp"
+        android:drawableTint="@color/ink" />
+</LinearLayout>

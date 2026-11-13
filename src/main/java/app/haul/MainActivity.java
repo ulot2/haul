@@ -27,6 +27,7 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,9 +37,13 @@ public class MainActivity extends Activity {
     static final String EXTRA_RETRY = "retry", EXTRA_NOTIFICATION = "notification";
     private static final String ALL = "all", VIDEOS = "videos", PHOTOS = "photos", AUDIO = "audio", FAILED = "failed";
 
-    private View content, dock, dockClip, dockAdd, updateCard, notifyCard, wifiBadge;
+    private View content, dock, dockClip, dockAdd, dockSelect, updateCard, notifyCard, wifiBadge;
     private LinearLayout hold;
-    private TextView count, empty, dockLabel, dockLink, updateTitle;
+    private TextView count, empty, dockLabel, dockLink, updateTitle, selectCount;
+    /** Rows chosen with a long-press, to share or delete together; empty when not selecting. */
+    private final Set<String> selected = new LinkedHashSet<>();
+    private final List<String> shown = new ArrayList<>();
+    private Object backWhileSelecting;   // an OnBackInvokedCallback on Android 13+
     private Button dockDownload;
     private final Map<String, Button> filters = new HashMap<>();
     private String filter = ALL;
@@ -80,6 +85,15 @@ public class MainActivity extends Activity {
         dockLabel = findViewById(R.id.dockLabel);
         dockLink = findViewById(R.id.dockLink);
         dockDownload = findViewById(R.id.dockDownload);
+        dockSelect = findViewById(R.id.dockSelect);
+        selectCount = findViewById(R.id.selectCount);
+        findViewById(R.id.selectClose).setOnClickListener(v -> stopSelecting());
+        findViewById(R.id.selectAll).setOnClickListener(v -> {
+            selected.addAll(shown);
+            render();
+        });
+        findViewById(R.id.selectShare).setOnClickListener(v -> shareSelected());
+        findViewById(R.id.selectDelete).setOnClickListener(v -> deleteSelected());
         contentTop = content.getPaddingTop();
         dockBottom = ((ViewGroup.MarginLayoutParams) dock.getLayoutParams()).bottomMargin;
         findViewById(R.id.root).setOnApplyWindowInsetsListener(this::applyInsets);
@@ -101,8 +115,9 @@ public class MainActivity extends Activity {
         findViewById(R.id.dockOptions).setOnClickListener(v -> Sheets.add(this, new Sheets.Draft(dockUrl(), Haul.quality(this)), this::added));
         dockDownload.setOnClickListener(v -> {
             String url = dockUrl();
-            if (Downloads.add(this, url) == null) Toast.makeText(this, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
-            added(url);
+            Choose.add(this, url, Haul.quality(this), -1, -1, i -> {
+                if (i != null) added(url);
+            });
         });
         dockAdd.setOnClickListener(v -> Sheets.add(this, new Sheets.Draft("", Haul.quality(this)), this::added));
         findViewById(R.id.notifyOn).setOnClickListener(v -> Sheets.open(this, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -289,6 +304,11 @@ public class MainActivity extends Activity {
         }
         rows.keySet().retainAll(ids);
         drawn.keySet().retainAll(ids);
+        shown.clear();
+        shown.addAll(ids);
+        Set<String> exist = new HashSet<>();
+        for (Haul.Item i : all) exist.add(i.id);
+        if (selected.retainAll(exist) && selected.isEmpty()) watchBack(false);
         boolean same = hold.getChildCount() == order.size();
         for (int k = 0; same && k < order.size(); k++) same = hold.getChildAt(k) == order.get(k);
         if (!same) {
@@ -307,10 +327,14 @@ public class MainActivity extends Activity {
         updateTitle.setText("Haul " + newVersion + " is out");
 
         String link = dockUrl();
-        boolean hasLink = !link.isEmpty();
-        dockClip.setVisibility(hasLink ? View.VISIBLE : View.GONE);
-        dockAdd.setVisibility(hasLink ? View.GONE : View.VISIBLE);
+        boolean hasLink = !link.isEmpty(), selecting = !selected.isEmpty();
+        dockSelect.setVisibility(selecting ? View.VISIBLE : View.GONE);
+        selectCount.setText(selected.size() + " SELECTED");
+        dockClip.setVisibility(hasLink && !selecting ? View.VISIBLE : View.GONE);
+        dockAdd.setVisibility(hasLink || selecting ? View.GONE : View.VISIBLE);
         if (hasLink) {
+            // Read the link while the user looks at it: the download then starts from what was read.
+            Engine.readAhead(this, link);
             dockLabel.setText("Copied link · " + Haul.site(link));
             dockLink.setText(Look.shortLink(link));
             dockDownload.setText("Download · " + Look.qualityName(Haul.quality(this)));
@@ -332,7 +356,7 @@ public class MainActivity extends Activity {
     private String look(Haul.Item i) {
         float p = Haul.WORKING.equals(i.status) ? Math.round(Haul.progress(i.id)) : 0;
         return i.status + '|' + p + '|' + i.title + '|' + i.error + '|' + i.size + '|' + i.kind + '|' + i.uri + '|'
-                + (Haul.QUEUED.equals(i.status) ? waiting() : "");
+                + (Haul.QUEUED.equals(i.status) ? waiting() : "") + '|' + selected.isEmpty() + selected.contains(i.id);
     }
 
     private String waiting() {
@@ -363,8 +387,7 @@ public class MainActivity extends Activity {
         switch (i.status) {
             case Haul.WORKING:
                 float p = Haul.progress(i.id);
-                meta.setText(i.site + " · " + (p == Engine.Progress.WORKING ? (i.clipped() ? "Cutting the section" : "Downloading")
-                        : p < 0 ? "Looking at the link" : "Downloading"));
+                meta.setText(i.site + " · " + (p >= 0 ? "Downloading" : Look.stage(i, p)));
                 bar.setVisibility(View.VISIBLE);
                 bar.setIndeterminate(p < 0);
                 if (p >= 0) {
@@ -395,6 +418,124 @@ public class MainActivity extends Activity {
                 failed.setVisibility(View.VISIBLE);
                 failed.setText("Failed");
         }
-        row.setOnClickListener(v -> Sheets.item(this, i));
+        // Selecting: a long-press starts it; then taps add or take away rows.
+        boolean selecting = !selected.isEmpty(), chosen = selected.contains(i.id);
+        row.setActivated(chosen);
+        ImageView check = row.findViewById(R.id.thumbCheck);
+        check.setVisibility(selecting ? View.VISIBLE : View.GONE);
+        check.setBackgroundResource(chosen ? R.drawable.bg_check_on : R.drawable.bg_check_off);
+        check.setImageResource(chosen ? R.drawable.ic_check : 0);
+        row.setOnClickListener(v -> {
+            if (selected.isEmpty()) Sheets.item(this, i);
+            else toggle(i.id);
+        });
+        row.setOnLongClickListener(v -> {
+            toggle(i.id);
+            return true;
+        });
+    }
+
+    // ---- Selecting several ----
+
+    private void toggle(String id) {
+        if (!selected.remove(id)) selected.add(id);
+        watchBack(!selected.isEmpty());
+        render();
+    }
+
+    private void stopSelecting() {
+        selected.clear();
+        watchBack(false);
+        render();
+    }
+
+    /** While selecting, Back stops selecting instead of leaving Haul (Android 13+ asks for this up front). */
+    private void watchBack(boolean on) {
+        if (Build.VERSION.SDK_INT < 33) return;
+        android.window.OnBackInvokedDispatcher back = getOnBackInvokedDispatcher();
+        if (on && backWhileSelecting == null) {
+            android.window.OnBackInvokedCallback cb = this::stopSelecting;
+            backWhileSelecting = cb;
+            back.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb);
+        } else if (!on && backWhileSelecting != null) {
+            back.unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) backWhileSelecting);
+            backWhileSelecting = null;
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (!selected.isEmpty()) stopSelecting();
+        else super.onBackPressed();
+    }
+
+    private List<Haul.Item> chosen() {
+        List<Haul.Item> out = new ArrayList<>();
+        for (Haul.Item i : Haul.items(this)) if (selected.contains(i.id)) out.add(i);
+        return out;
+    }
+
+    private void shareSelected() {
+        List<Uri> uris = new ArrayList<>();
+        Set<String> types = new HashSet<>();
+        for (Haul.Item i : chosen()) {
+            if (!Haul.DONE.equals(i.status)) continue;
+            for (String u : i.uris) if (!u.isEmpty() && !"null".equals(u)) uris.add(Uri.parse(u));
+            types.add(i.mime.contains("/") ? i.mime.substring(0, i.mime.indexOf('/')) : "*");
+        }
+        if (uris.isEmpty()) {
+            Toast.makeText(this, "None of these is saved yet", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String type = types.size() == 1 ? types.iterator().next() + "/*" : "*/*";
+        Sheets.open(this, Downloads.shareIntent(uris, type, selected.size() + " from Haul"));
+    }
+
+    /** Saved ones: delete their files from the Gallery too, or only take them off the list. */
+    private void deleteSelected() {
+        List<Haul.Item> chosen = chosen();
+        int saved = 0;
+        for (Haul.Item i : chosen) if (Haul.DONE.equals(i.status)) saved++;
+        String n = chosen.size() + (chosen.size() == 1 ? " download" : " downloads");
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this).setTitle(n);
+        if (saved > 0) {
+            b.setMessage("Delete " + (saved == 1 ? "its file" : "their files") + " from your Gallery too, or only take "
+                    + (chosen.size() == 1 ? "it" : "them") + " off this list?")
+                    .setPositiveButton("Delete files", (x, y) -> remove(chosen, true))
+                    .setNegativeButton("Only from the list", (x, y) -> remove(chosen, false))
+                    .setNeutralButton("Keep", null);
+        } else {
+            b.setMessage("Take " + (chosen.size() == 1 ? "it" : "them") + " off the list? Any still downloading stop.")
+                    .setPositiveButton("Remove", (x, y) -> remove(chosen, false))
+                    .setNegativeButton("Keep", null);
+        }
+        b.show();
+    }
+
+    private void remove(List<Haul.Item> chosen, boolean files) {
+        List<Uri> refused = new ArrayList<>();
+        for (Haul.Item i : chosen) {
+            if (i.active()) Downloads.cancel(this, i.id);
+            if (files && Haul.DONE.equals(i.status)) {
+                for (String u : i.uris) Thumbs.forget(u);
+                refused.addAll(Downloads.delete(this, i));
+            } else {
+                Haul.remove(this, i.id);
+            }
+        }
+        stopSelecting();
+        if (refused.isEmpty()) return;
+        if (Build.VERSION.SDK_INT >= 30) {
+            // Saved before a reinstall, so no longer Haul's: Android asks the user itself, once for all of them.
+            try {
+                startIntentSenderForResult(android.provider.MediaStore.createDeleteRequest(getContentResolver(), refused)
+                        .getIntentSender(), Sheets.REQ_DELETE, null, 0, 0, 0);
+                return;
+            } catch (Exception ignored) {
+                // fall through to the note
+            }
+        }
+        Toast.makeText(this, "Removed from Haul. Delete the older files in your Gallery.", Toast.LENGTH_LONG).show();
     }
 }

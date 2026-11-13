@@ -43,6 +43,18 @@
             android:textColor="@android:color/white"
             android:textSize="10sp" />
 
+        <!-- While selecting rows: a clay check, or an empty ring. -->
+        <ImageView
+            android:id="@+id/thumbCheck"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:importantForAccessibility="no"
+            android:padding="3dp"
+            android:tint="@color/on_clay"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/thumbLen"
             android:layout_width="wrap_content"

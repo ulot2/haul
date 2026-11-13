@@ -57,6 +57,7 @@ public class PhotosTest {
                 + Base64.getEncoder().encodeToString(html.getBytes(StandardCharsets.UTF_8)) + "\n"
                 + "WARNING: [TikTok] 1: Requested format is not available\n";
         assertEquals(1, Photos.dumpedPages(printed).size());
+        assertEquals("Three rooms", Photos.tiktokDesc(Photos.dumpedPages(printed).get(0)));
         assertEquals(Arrays.asList("https://p16/1.jpeg", "https://p16/2.jpeg"), Photos.tiktokImages(Photos.dumpedPages(printed).get(0)));
     }
 

@@ -65,9 +65,18 @@ public class ShareActivity extends Activity {
     }
 
     private void start(String url, String quality) {
-        if (Downloads.add(this, url, quality, -1, -1) == null) {
-            Toast.makeText(this, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
-        } else if (!getSystemService(NotificationManager.class).areNotificationsEnabled()) {
+        android.view.View sheet = findViewById(R.id.qScrim);
+        if (sheet != null) sheet.setVisibility(android.view.View.GONE);   // the quality sheet makes way for what follows
+        // A TikTok photo post asks how to save it, and an Instagram carousel shows its items to pick, over the app the
+        // link came from; anything else is added at once.
+        Choose.add(this, url, quality, -1, -1, i -> {
+            if (i != null) confirm(url, quality);
+            finish();
+        });
+    }
+
+    private void confirm(String url, String quality) {
+        if (!getSystemService(NotificationManager.class).areNotificationsEnabled()) {
             // Without notifications there is no progress and no "saved" message, so say where to look.
             Toast.makeText(this, "Haul: downloading from " + Haul.site(url) + ". Open Haul to see when it's done, "
                     + "or turn on its notifications.", Toast.LENGTH_LONG).show();
@@ -75,6 +84,5 @@ public class ShareActivity extends Activity {
             String what = Haul.AUDIO.equals(quality) ? "the sound from " : "from ";
             Toast.makeText(this, "Haul: downloading " + what + Haul.site(url), Toast.LENGTH_SHORT).show();
         }
-        finish();
     }
 }

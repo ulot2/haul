@@ -114,13 +114,11 @@ final class Sheets {
                 return;
             }
             boolean sameLink = url.equals(draft.url);
-            Haul.Item i = Downloads.add(a, url, draft.quality, sameLink ? draft.clipStart : -1, sameLink ? draft.clipEnd : -1);
-            if (i == null) {
-                Toast.makeText(a, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
-                return;
-            }
             d.dismiss();
-            added.on(url);
+            // A TikTok photo post asks how to save it; an Instagram carousel lets the user pick.
+            Choose.add(a, url, draft.quality, sameLink ? draft.clipStart : -1, sameLink ? draft.clipEnd : -1, i -> {
+                if (i != null) added.on(url);
+            });
         };
         d.findViewById(R.id.addGo).setOnClickListener(v -> go.run());
         link.setOnEditorActionListener((v, action, e) -> {

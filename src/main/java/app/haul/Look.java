@@ -45,6 +45,16 @@ final class Look {
         }
     }
 
+    /** What a haul is doing before there is a percent, in the notification and the hold. */
+    static String stage(Haul.Item i, float progress) {
+        if (progress == Engine.Progress.READING) return Haul.PHOTOS.equals(i.kind) || !i.as.isEmpty() ? "Reading the post" : "Reading the link";
+        if (progress == Engine.Progress.WORKING) {
+            if (Haul.AS_SLIDESHOW.equals(i.as)) return "Making the video";
+            return i.clipped() ? "Cutting the section" : "Downloading";
+        }
+        return "Starting";
+    }
+
     static String qualityName(String q) {
         return Haul.AUDIO.equals(q) ? "Audio" : Haul.SMALL.equals(q) ? "720p" : "Best";
     }

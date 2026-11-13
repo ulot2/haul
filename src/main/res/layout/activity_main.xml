@@ -237,6 +237,74 @@ FIRST VIEWPORT: the wordmark, the filters, the newest hauls, and the dock.
             </LinearLayout>
         </LinearLayout>
 
+        <!-- While selecting rows in the hold: how many, and what to do with them. -->
+        <LinearLayout
+            android:id="@+id/dockSelect"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/selectCount"
+                    style="@style/Haul.Heading"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="26sp" />
+
+                <Button
+                    android:id="@+id/selectAll"
+                    style="@style/Haul.Button.Outline"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="All"
+                    android:textSize="14sp" />
+
+                <ImageButton
+                    android:id="@+id/selectClose"
+                    style="@style/Haul.IconButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="Stop selecting"
+                    android:src="@drawable/ic_close" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/selectShare"
+                    style="@style/Haul.Button.Outline"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:drawableStart="@drawable/ic_share"
+                    android:drawablePadding="8dp"
+                    android:text="Share" />
+
+                <Button
+                    android:id="@+id/selectDelete"
+                    style="@style/Haul.Button.Primary"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:drawableStart="@drawable/ic_trash"
+                    android:text="Delete"
+                    android:textSize="16sp" />
+            </LinearLayout>
+        </LinearLayout>
+
         <Button
             android:id="@+id/dockAdd"
             style="@style/Haul.Button.Primary"
