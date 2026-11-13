@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A row in the hold: a ripple when tapped, and the raised grey while it is selected (setActivated). -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/ripple">
     <item android:id="@android:id/mask"><color android:color="#FFFFFFFF" /></item>
+    <item>
+        <selector>
+            <item android:state_activated="true"><color android:color="@color/raised" /></item>
+            <item><color android:color="@android:color/transparent" /></item>
+        </selector>
+    </item>
 </ripple>

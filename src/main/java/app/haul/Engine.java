@@ -55,6 +55,7 @@ final class Engine {
         if (ready) return;
         YoutubeDL.getInstance().init(c.getApplicationContext());
         FFmpeg.getInstance().init(c.getApplicationContext());
+        findFfmpeg(c.getApplicationContext());
         ready = true;
     }
 
@@ -134,9 +135,13 @@ final class Engine {
 
     // ---- Downloads ----
 
-    /** 0 to 100; or WORKING when there is no percent to show (a clip is being cut). */
+    /**
+     * 0 to 100 once there is a percent. Before that, what is going on: STARTING (Python and yt-dlp are starting up on the
+     * phone), READING (yt-dlp is reading the link: the site's page and the video's details), WORKING (busy, with no
+     * percent to show: a clip being cut, a slideshow being made).
+     */
     interface Progress {
-        float WORKING = -2;
+        float STARTING = -1, WORKING = -2, READING = -3;
 
         void on(float percent);
     }
@@ -148,34 +153,46 @@ final class Engine {
         int duration = -1, height = -1;
     }
 
-    /** Empties dir, downloads everything at the link into it (a section only, with clipStart/clipEnd in seconds). */
-    static Result download(Context c, String id, String url, String quality, int clipStart, int clipEnd, File dir,
-                           Progress progress) throws Exception {
-        Result r = fetch(c, id, url, quality, clipStart, clipEnd, dir, progress, false);
-        if (Haul.AUDIO.equals(quality)) return r;
+    /** Empties dir, downloads the haul into it: the link (or its chosen items, or a section), or a TikTok photo post. */
+    static Result download(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+        if (!item.as.isEmpty()) return tiktokPhotos(c, item, dir, progress);
+        Result r = fetch(c, item, dir, progress, false);
+        if (Haul.AUDIO.equals(item.quality)) return r;
         for (File f : r.files) {
             if (needsAac(f)) {
                 // Rare: the site has no AAC sound at all, so the video came with Opus or Vorbis, which WhatsApp and
                 // some players can't play. Fetch it again, converting the sound to AAC on the way.
-                return fetch(c, id, url, quality, clipStart, clipEnd, dir, progress, true);
+                return fetch(c, item, dir, progress, true);
             }
         }
         return r;
     }
 
-    private static Result fetch(Context c, String id, String url, String quality, int clipStart, int clipEnd, File dir,
-                                Progress progress, boolean toAac) throws Exception {
+    private static Result fetch(Context c, Haul.Item item, File dir, Progress progress, boolean toAac) throws Exception {
         init(c);
         deleteAll(dir);
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
-        boolean audio = Haul.AUDIO.equals(quality), clip = clipStart >= 0 && clipEnd > clipStart;
+        String quality = item.quality;
+        boolean audio = Haul.AUDIO.equals(quality), clip = item.clipped();
+        String url = item.url;
+        if (audio && Photos.tiktokPhotoId(url) != null) {
+            // The sound of a TikTok photo post: yt-dlp reads those only by their /video/ address.
+            url = "https://www.tiktok.com/@_/video/" + Photos.tiktokPhotoId(url);
+        }
         YoutubeDLRequest r = new YoutubeDLRequest(url);
+        // Read ahead: when Haul already read this link (while the copied link sat in the dock, or for the carousel
+        // picker), yt-dlp starts from those details instead of asking the site again. Stale details make yt-dlp
+        // fall back to the link by itself.
+        File ahead = Ahead.get(c, item.url);
+        if (ahead != null) r.addOption("--load-info-json", ahead.getAbsolutePath());
         r.addOption("-o", dir.getAbsolutePath() + "/%(title).70B [%(id)s].%(ext)s");
         r.addOption("--windows-filenames");      // no characters that the Gallery or Windows trip over
         r.addOption("--no-mtime");               // date the file today, so it shows at the top of the Gallery
         r.addOption("--no-playlist");            // a video in a playlist: just the video
-        r.addOption("-I", "1:20");               // posts with several videos or photos: at most 20
+        // Posts with several videos or photos: the chosen ones, or at most 20.
+        r.addOption("-I", item.pick.isEmpty() ? "1:20" : item.pick);
+        r.addOption("--concurrent-fragments", "4");   // X and YouTube serve video in pieces: fetch 4 at a time
         // A photo in a post is an entry without video formats: skip it instead of failing the whole post, and write
         // each entry's details, from which the photos are then fetched.
         r.addOption("--ignore-no-formats-error");
@@ -183,7 +200,7 @@ final class Engine {
         r.addOption("--no-write-playlist-metafiles");
         if (clip) {
             // Cuts at the nearest keyframe (no re-encoding, so it is quick): may start a second or two early.
-            r.addOption("--download-sections", "*" + clipStart + "-" + clipEnd);
+            r.addOption("--download-sections", "*" + item.clipStart + "-" + item.clipEnd);
         }
         if (audio) {
             r.addOption("-f", "ba[ext=m4a]/ba/b");   // M4A when the site has it, so it needs no converting
@@ -201,22 +218,9 @@ final class Engine {
                 r.addOption("--ppa", "VideoRemuxer+ffmpeg_o:-c:a aac -b:a 192k");
             }
         }
-        // yt-dlp reports each file on its own (video, then audio); add them up so the bar only moves forward.
-        // A clip is cut by FFmpeg, which reports no percent.
-        DownloadProgress overall = new DownloadProgress();
-        float[] shown = {-1};
-        Function3<Float, Long, String, Unit> cb = (percent, eta, line) -> {
-            float p = overall.on(line, percent == null ? -1 : percent);
-            if (clip && p >= 0) p = Progress.WORKING;
-            if (p > shown[0] || (p == Progress.WORKING && shown[0] != p)) {
-                shown[0] = p;
-                progress.on(p);
-            }
-            return Unit.INSTANCE;
-        };
         Exception failed = null;
         try {
-            run(r, id, cb);
+            run(r, item.id, callback(progress, clip));
         } catch (Exception e) {
             if (canceled(e)) throw e;
             failed = e;   // a post may still have photos, or a slideshow behind an "unsupported" link
@@ -225,10 +229,49 @@ final class Engine {
         Result out = collect(dir);
         if (!audio) {
             savePhotos(dir, out, progress);
-            if (out.files.isEmpty()) tiktokSlideshow(id, url, dir, out, progress);
+            if (out.files.isEmpty() && "TikTok".equals(item.site)) {
+                // A TikTok photo post added without asking (from the tile, or before Haul knew): its pictures.
+                Haul.Item photos = copy(item);
+                photos.as = Haul.AS_PHOTOS;
+                try {
+                    return tiktokPhotos(c, photos, dir, progress);
+                } catch (Exception e) {
+                    if (canceled(e)) throw e;
+                }
+            }
         }
         if (out.files.isEmpty()) throw failed != null ? failed : new Exception("NO_FILES");
         return out;
+    }
+
+    /**
+     * Reports what yt-dlp is doing: READING from its first line of output (until then Python and yt-dlp are still
+     * starting), then one percent for the whole link. yt-dlp counts each file from 0 to 100 on its own (video, then
+     * audio); DownloadProgress adds them up so the bar only moves forward. A clip is cut by FFmpeg, which reports no
+     * percent, so it shows WORKING.
+     */
+    private static Function3<Float, Long, String, Unit> callback(Progress progress, boolean clip) {
+        DownloadProgress overall = new DownloadProgress();
+        float[] shown = {Progress.STARTING};
+        return (percent, eta, line) -> {
+            float p = overall.on(line, percent == null ? -1 : percent);
+            if (clip && p >= 0) p = Progress.WORKING;
+            if (p < 0 && p != Progress.WORKING) p = Progress.READING;
+            if (p != shown[0] && (p >= shown[0] || shown[0] < 0)) {
+                shown[0] = p;
+                progress.on(p);
+            }
+            return Unit.INSTANCE;
+        };
+    }
+
+    private static Haul.Item copy(Haul.Item i) {
+        Haul.Item x = new Haul.Item();
+        x.id = i.id;
+        x.url = i.url;
+        x.site = i.site;
+        x.quality = i.quality;
+        return x;
     }
 
     /** The media files in dir, in name order, and the first video's details from its info JSON. */
@@ -283,54 +326,155 @@ final class Engine {
         }
     }
 
-    /** A TikTok slideshow: yt-dlp fetches and prints the post's page, and the photos are read from it. */
-    private static void tiktokSlideshow(String id, String url, File dir, Result out, Progress progress) {
-        if (!"TikTok".equals(Haul.site(url))) return;
-        String photoId = Photos.tiktokPhotoId(url);
-        if (photoId == null) photoId = Photos.tiktokPhotoId(resolve(url));
-        if (photoId == null) return;
+    // ---- TikTok photo posts ----
+
+    /**
+     * A TikTok photo post, as its pictures (AS_PHOTOS) or as a video of them with the post's sound (AS_SLIDESHOW).
+     * yt-dlp doesn't read these posts, but it gets past TikTok's checks: one yt-dlp run fetches the post's page and
+     * prints it (the pictures are listed in it) and, for the video, downloads the sound. FFmpeg then makes the video.
+     */
+    private static Result tiktokPhotos(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+        init(c);
+        deleteAll(dir);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        boolean video = Haul.AS_SLIDESHOW.equals(item.as);
+        String photoId = Photos.tiktokPhotoId(item.url);
+        if (photoId == null) photoId = Photos.tiktokPhotoId(resolve(item.url));
+        if (photoId == null) throw new Exception("NO_FILES");
         YoutubeDLRequest r = new YoutubeDLRequest("https://www.tiktok.com/@_/video/" + photoId);
         r.addOption("--dump-pages");
-        // yt-dlp may well complain that a slideshow has no video; this keeps the library from turning that into an
+        // yt-dlp may well complain that a photo post has no video; this keeps the library from turning that into an
         // exception, so the printed page still comes back.
         r.addOption("--ignore-errors");
-        r.addOption("--skip-download");
         r.addOption("--ignore-no-formats-error");
         r.addOption("--no-playlist");
-        String printed;
-        try {
-            printed = run(r, id, null).getOut();
-        } catch (Exception e) {
-            return;
+        File sounds = new File(dir, "sound");
+        if (video) {
+            r.addOption("-f", "ba/b");
+            r.addOption("-o", sounds.getAbsolutePath() + "/sound.%(ext)s");
+        } else {
+            r.addOption("--skip-download");
         }
+        String printed = run(r, item.id, callback(progress, video)).getOut();
+
         JSONObject headers = new JSONObject();
         try {
             headers.put("Referer", "https://www.tiktok.com/").put("User-Agent", BROWSER);
         } catch (Exception ignored) {
         }
+        Result out = new Result();
+        File pictures = video ? new File(dir, "pictures") : dir;
+        //noinspection ResultOfMethodCallIgnored
+        pictures.mkdirs();
         for (String page : Photos.dumpedPages(printed)) {
             List<String> images = Photos.tiktokImages(page);
+            if (images.isEmpty()) continue;
+            String desc = Photos.tiktokDesc(page);
+            out.title = desc.isEmpty() ? "TikTok photos" : desc;
             for (int k = 0; k < images.size(); k++) {
-                File f = fetchImage(images.get(k), headers, dir, "TikTok " + photoId + " " + (k + 1));
+                File f = fetchImage(images.get(k), headers, pictures, "TikTok " + photoId + " " + String.format(Locale.ROOT, "%02d", k + 1));
                 if (f != null) out.files.add(f);
-                progress.on(100f * (k + 1) / images.size());
+                progress.on((video ? 50f : 100f) * (k + 1) / images.size());
             }
-            if (!images.isEmpty()) {
-                out.title = "TikTok photos";
-                return;
+            break;
+        }
+        if (out.files.isEmpty()) throw new Exception("NO_FILES");
+        if (!video) return out;
+
+        File[] found = sounds.listFiles();
+        File sound = found != null && found.length > 0 ? found[0] : null;
+        progress.on(Progress.WORKING);
+        File mp4 = new File(dir, safeName(out.title) + " [" + photoId + "].mp4");
+        long soundMillis = sound == null ? 0 : durationMillis(sound);
+        int seconds = Slideshow.seconds(out.files.size(), soundMillis);
+        slideshow(item.id, out.files, sound, seconds, mp4);
+        Result made = new Result();
+        made.files.add(mp4);
+        made.title = out.title;
+        made.duration = seconds;
+        made.height = 1920;
+        return made;
+    }
+
+    private static long durationMillis(File media) {
+        MediaExtractor x = new MediaExtractor();
+        try {
+            x.setDataSource(media.getAbsolutePath());
+            long most = 0;
+            for (int t = 0; t < x.getTrackCount(); t++) {
+                MediaFormat f = x.getTrackFormat(t);
+                if (f.containsKey(MediaFormat.KEY_DURATION)) most = Math.max(most, f.getLong(MediaFormat.KEY_DURATION) / 1000);
             }
+            return most;
+        } catch (Exception e) {
+            return 0;
+        } finally {
+            x.release();
         }
     }
 
+    /** FFmpeg processes running for a haul, so Cancel stops them too. */
+    private static final Map<String, Process> FFMPEG = new ConcurrentHashMap<>();
+
+    /**
+     * The pictures as an H.264 + AAC video (plays everywhere), seconds long, with the sound looping under them.
+     * Runs the FFmpeg that came with the engine, the way the engine itself runs it.
+     */
+    private static void slideshow(String id, List<File> pictures, File sound, int seconds, File out) throws Exception {
+        File list = new File(out.getParentFile(), "pictures.txt");
+        List<String> paths = new ArrayList<>();
+        for (File f : pictures) paths.add(f.getAbsolutePath());
+        try (OutputStream os = new FileOutputStream(list)) {
+            os.write(Slideshow.concat(paths, seconds).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        List<String> cmd = new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "concat", "-safe", "0", "-i", list.getAbsolutePath()));
+        if (sound != null) cmd.addAll(Arrays.asList("-stream_loop", "-1", "-i", sound.getAbsolutePath()));
+        cmd.addAll(Arrays.asList("-t", String.valueOf(seconds), "-vf", Slideshow.FILTER,
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23"));
+        if (sound != null) cmd.addAll(Arrays.asList("-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "192k"));
+        cmd.addAll(Arrays.asList("-movflags", "+faststart", out.getAbsolutePath()));
+        ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
+        pb.environment().put("LD_LIBRARY_PATH", ffmpegLibs);
+        Process p = pb.start();
+        FFMPEG.put(id, p);
+        String said;
+        try (InputStream in = p.getInputStream()) {
+            said = Haul.readAll(in);
+        } finally {
+            FFMPEG.remove(id, p);
+        }
+        int exit = p.waitFor();
+        if (exit != 0 || !out.isFile() || out.length() == 0) {
+            if (exit == 137 || exit == 143) throw new InterruptedException();   // canceled
+            throw new Exception("Couldn't make the video: " + said.trim());
+        }
+    }
+
+    /**
+     * The engine's FFmpeg: the program among the app's native libraries, and the library path the engine itself runs
+     * it with (Python's, FFmpeg's and aria2c's unpacked libraries).
+     */
+    private static File ffmpegBinary;
+    private static String ffmpegLibs;
+
+    private static void findFfmpeg(Context c) {
+        ffmpegBinary = new File(c.getApplicationInfo().nativeLibraryDir, "libffmpeg.so");
+        File packages = new File(c.getFilesDir(), "youtubedl-android/packages");
+        ffmpegLibs = new File(packages, "python/usr/lib") + ":" + new File(packages, "ffmpeg/usr/lib") + ":"
+                + new File(packages, "aria2c/usr/lib");
+    }
+
     /** Where a short link (vm.tiktok.com/…) leads; the link itself when it can't be followed. */
-    private static String resolve(String url) {
+    static String resolve(String url) {
         try {
             HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
             con.setRequestMethod("HEAD");
             con.setInstanceFollowRedirects(true);
             con.setRequestProperty("User-Agent", "facebookexternalhit/1.1");   // what yt-dlp uses for these links
-            con.setConnectTimeout(10_000);
-            con.setReadTimeout(10_000);
+            con.setConnectTimeout(5_000);
+            con.setReadTimeout(5_000);
             con.getResponseCode();
             String to = con.getURL().toString();
             con.disconnect();
@@ -432,8 +576,10 @@ final class Engine {
         f.delete();
     }
 
-    /** Stops the yt-dlp process of this haul, if one is running. */
+    /** Stops the yt-dlp (or FFmpeg) process of this haul, if one is running. */
     static void cancel(String id) {
+        Process ff = FFMPEG.get(id);
+        if (ff != null) ff.destroy();
         String pid = PROCESS.get(id);
         if (pid == null) return;
         try {
@@ -441,6 +587,83 @@ final class Engine {
         } catch (Exception ignored) {
         }
     }
+
+    // ---- Reading ahead ----
+
+    /**
+     * A link's details from yt-dlp -J, kept in the cache for 20 minutes. Reading a link (the site's page, the video's
+     * details) is most of "reading the link" before a download; done while the user is still looking at the link (in
+     * the dock, in the carousel picker), the download that follows starts straight from these details.
+     */
+    static final class Ahead {
+        private static final long FRESH = 20 * 60_000L;
+        private static final Map<String, Object> LOCKS = new ConcurrentHashMap<>();
+
+        static File file(Context c, String url) {
+            return new File(c.getCacheDir(), "ahead/" + Integer.toHexString(url.hashCode()) + "-" + url.length() + ".json");
+        }
+
+        /** The details read for this link, if they are fresh; null otherwise. */
+        static File get(Context c, String url) {
+            File f = file(c, url);
+            return f.isFile() && f.length() > 0 && System.currentTimeMillis() - f.lastModified() < FRESH ? f : null;
+        }
+
+        static Object lock(String url) {
+            return LOCKS.computeIfAbsent(url, k -> new Object());
+        }
+
+        private Ahead() {}
+    }
+
+    /** Reads the link's details (or takes the fresh ones already read), keeps them for the download, returns them. */
+    static JSONObject read(Context c, String url) throws Exception {
+        synchronized (Ahead.lock(url)) {   // the dock's read-ahead and the picker wait for each other, not read twice
+            File f = Ahead.get(c, url);
+            if (f == null) {
+                init(c);
+                YoutubeDLRequest r = new YoutubeDLRequest(url);
+                r.addOption("-J");
+                r.addOption("--no-playlist");
+                r.addOption("--no-warnings");
+                r.addOption("--ignore-no-formats-error");
+                r.addOption("-I", "1:20");
+                String out = run(r, "ahead-" + Integer.toHexString(url.hashCode()), null).getOut();
+                String json = "";
+                for (String line : out.split("\n")) if (line.startsWith("{")) json = line;
+                if (json.isEmpty()) throw new Exception("NO_FILES");
+                f = Ahead.file(c, url);
+                //noinspection ResultOfMethodCallIgnored
+                f.getParentFile().mkdirs();
+                File tmp = new File(f.getPath() + ".tmp");
+                try (OutputStream os = new FileOutputStream(tmp)) {
+                    os.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+                if (!tmp.renameTo(f)) throw new Exception("Couldn't keep the link's details");
+            }
+            try (InputStream in = new FileInputStream(f)) {
+                return new JSONObject(Haul.readAll(in));
+            }
+        }
+    }
+
+    /** Reads ahead in the background, quietly; for a link the user is looking at and will likely download. */
+    static void readAhead(Context c, String url) {
+        Context app = c.getApplicationContext();
+        if (Ahead.get(app, url) != null || Photos.tiktokPhotoId(url) != null || !AHEAD.add(url)) return;
+        new Thread(() -> {
+            try {
+                read(app, url);
+            } catch (Exception ignored) {
+                // the download reads the link itself, as before
+            } finally {
+                AHEAD.remove(url);
+            }
+        }, "haul-ahead").start();
+    }
+
+    /** Links being read ahead right now, so a screen redrawing many times a second starts one read, not many. */
+    private static final java.util.Set<String> AHEAD = ConcurrentHashMap.newKeySet();
 
     static boolean canceled(Throwable e) {
         return e instanceof YoutubeDL.CanceledException;

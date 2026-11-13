@@ -30,12 +30,21 @@ public class ClipActivity extends Activity {
         }
         if (url == null) {
             Toast.makeText(this, "Haul: copy a link first", Toast.LENGTH_SHORT).show();
-        } else if (Downloads.add(this, url) == null) {
-            Toast.makeText(this, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
-        } else {
-            Haul.prefs(this).edit().putString("last_filled", url).apply();   // the hold won't offer it again
-            Toast.makeText(this, "Haul: downloading from " + Haul.site(url), Toast.LENGTH_SHORT).show();
+            close();
+            return;
         }
+        String link = url;
+        // Same questions as the share sheet: how to save a TikTok photo post, which items of an Instagram carousel.
+        Choose.add(this, link, Haul.quality(this), -1, -1, i -> {
+            if (i != null) {
+                Haul.prefs(this).edit().putString("last_filled", link).apply();   // the hold won't offer it again
+                Toast.makeText(this, "Haul: downloading from " + Haul.site(link), Toast.LENGTH_SHORT).show();
+            }
+            close();
+        });
+    }
+
+    private void close() {
         finish();
         overridePendingTransition(0, 0);
     }

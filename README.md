@@ -10,6 +10,15 @@ In TikTok (or any app), tap **Share**, then **Haul**. The video downloads in the
 
 When a download is done, its notification has **Share** (straight to WhatsApp, say) and **Delete**. In Haul, every download is a numbered row with its picture; tap one to play, share, copy its link, download it again or delete it.
 
+Some posts ask first:
+
+- An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
+- A **TikTok photo post** asks how to save it: **Video with sound** (the pictures in turn, with the music, made on the phone with FFmpeg), **Photos**, or **Sound only**.
+
+To delete or share several downloads at once, long-press one in Haul, tap the others, then **Delete** or **Share**.
+
+Downloads start faster when Haul has seen the link first: a copied link in the bottom bar, or a post in the picker, is read right away, and the download starts from what was read.
+
 No account, no ads, and no server of its own: everything runs on the phone.
 
 ## How it works

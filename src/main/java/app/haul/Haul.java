@@ -28,6 +28,8 @@ final class Haul {
     static final String QUEUED = "queued", WORKING = "working", DONE = "done", FAILED = "failed", CANCELED = "canceled";
     static final String BEST = "best", SMALL = "small", AUDIO = "audio";
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
+    /** How to save a TikTok photo post: its pictures, or a video of them with the post's sound. */
+    static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";
     private static final int KEEP = 50;
     private static final Pattern LINK = Pattern.compile("https?://[^\\s<>\"'{}|\\\\^`]+", Pattern.CASE_INSENSITIVE);
 
@@ -35,6 +37,8 @@ final class Haul {
     static final class Item {
         String id, url, title = "", site = "", status = QUEUED, error = "", uri = "", mime = "", quality = BEST;
         String kind = "";              // VIDEO, AUDIO or PHOTOS once saved
+        String pick = "";              // the chosen items of a post, as yt-dlp's -I takes them ("1,3"); "" for all
+        String as = "";                // AS_PHOTOS or AS_SLIDESHOW for a TikTok photo post; "" otherwise
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
         int count = 0;                 // files saved; a post with several videos or photos saves several
@@ -47,7 +51,8 @@ final class Haul {
                     .put("status", status).put("error", error).put("uri", uri).put("mime", mime)
                     .put("quality", quality).put("count", count).put("time", time).put("kind", kind)
                     .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
-                    .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt);
+                    .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
+                    .put("pick", pick).put("as", as);
         }
 
         static Item of(JSONObject o) {
@@ -74,6 +79,8 @@ final class Haul {
             i.height = o.optInt("height", -1);
             i.size = o.optLong("size");
             i.doneAt = o.optLong("doneAt", i.time);
+            i.pick = o.optString("pick");
+            i.as = o.optString("as");
             return i;
         }
 
@@ -139,7 +146,7 @@ final class Haul {
     }
 
     /** A new haul for this link, with its own quality and, if wanted, a section (seconds; -1 for the whole). */
-    static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd) {
+    static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as) {
         List<Item> list = load(c);
         Item i = new Item();
         i.time = System.currentTimeMillis();
@@ -149,6 +156,8 @@ final class Haul {
         i.quality = quality;
         i.clipStart = clipStart;
         i.clipEnd = clipEnd;
+        i.pick = pick == null ? "" : pick;
+        i.as = as == null ? "" : as;
         int no = prefs(c).getInt("next_no", 1);
         i.no = no;
         prefs(c).edit().putInt("next_no", no + 1).apply();

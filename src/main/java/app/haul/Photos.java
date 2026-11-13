@@ -87,5 +87,18 @@ final class Photos {
         return urls;
     }
 
+    /** The caption of a TikTok post page, for the title; "" when there is none. */
+    static String tiktokDesc(String html) {
+        Matcher m = REHYDRATION.matcher(html == null ? "" : html);
+        if (!m.find()) return "";
+        try {
+            String d = new JSONObject(m.group(1)).optJSONObject("__DEFAULT_SCOPE__").optJSONObject("webapp.video-detail")
+                    .optJSONObject("itemInfo").optJSONObject("itemStruct").optString("desc").trim();
+            return d.length() > 80 ? d.substring(0, 80).trim() + "…" : d;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     private Photos() {}
 }
