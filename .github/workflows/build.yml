@@ -68,4 +68,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.v.outputs.version }}
-        run: gh release create "$GITHUB_REF_NAME" Haul.apk --title "Haul $VERSION" --generate-notes --latest
+        # The tag can come from "git push" (no release yet) or from publishing a release on GitHub (release exists).
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" Haul.apk --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" Haul.apk --title "Haul $VERSION" --generate-notes --latest
+          fi
