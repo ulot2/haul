@@ -56,7 +56,7 @@ public class HaulService extends Service implements Downloads.Host {
      */
     @Override
     public void onTimeout(int startId, int fgsType) {
-        runner.stop(Downloads.TIME_OUT);
+        runner.stop(Downloads.FAIL_ALL, Downloads.TIMED_OUT);
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
     }

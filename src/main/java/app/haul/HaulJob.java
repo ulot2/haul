@@ -49,16 +49,41 @@ public class HaulJob extends JobService implements Downloads.Host {
     }
 
     /**
-     * Android stops the job when the connection drops, when the user stops Haul from the list of active apps, or to
-     * save the system. Must return at once. True asks Android to start it again later, which it does for everything
-     * but the user's own stop.
+     * Android stopped the job. Must return at once; true asks Android to start it again later.
+     * - The connection dropped: the link goes back in the queue, and the job starts again once there is one.
+     * - Anything else (battery or background restrictions, which some phones, Xiaomi's among them, apply to apps
+     *   installed from outside the Play Store): the downloads stop with Android's reason, and Haul switches to the
+     *   foreground service, which those phones leave alone, for good. A tap on the haul tries it again that way.
      */
     @Override
     public boolean onStopJob(JobParameters p) {
-        boolean byUser = p.getStopReason() == JobParameters.STOP_REASON_USER;
+        int reason = p.getStopReason();
         Downloads.Runner r = runner;
-        if (r != null) r.stop(byUser ? Downloads.CANCEL_ALL : Downloads.REQUEUE);
-        return !byUser;
+        if (reason == JobParameters.STOP_REASON_CONSTRAINT_CONNECTIVITY) {
+            if (r != null) r.stop(Downloads.REQUEUE, "");
+            return true;
+        }
+        Haul.prefs(this).edit().putBoolean(Downloads.USE_SERVICE, true).putInt("job_stop_reason", reason).apply();
+        boolean byUser = reason == JobParameters.STOP_REASON_USER;
+        if (r != null) r.stop(byUser ? Downloads.CANCEL_ALL : Downloads.FAIL_ALL, why(reason));
+        return false;
+    }
+
+    /** Android's stop reason, in words, for the haul's row. */
+    static String why(int reason) {
+        String what;
+        switch (reason) {
+            case JobParameters.STOP_REASON_USER: what = "it was stopped from Android's list of running apps (or the phone closed Haul)"; break;
+            case JobParameters.STOP_REASON_BACKGROUND_RESTRICTION: what = "of the phone's background restrictions for Haul"; break;
+            case JobParameters.STOP_REASON_APP_STANDBY: what = "of the phone's battery restrictions for Haul"; break;
+            case JobParameters.STOP_REASON_QUOTA: what = "Haul used up its background time"; break;
+            case JobParameters.STOP_REASON_DEVICE_STATE: what = "of battery saver or the phone's state"; break;
+            case JobParameters.STOP_REASON_TIMEOUT: what = "it ran too long"; break;
+            case JobParameters.STOP_REASON_SYSTEM_PROCESSING: what = "the phone needed the resources"; break;
+            default: what = "of reason " + reason;
+        }
+        return "Android stopped the download because " + what + ". Tap to try again: Haul now downloads in a way it "
+                + "leaves alone.";
     }
 
     @Override
