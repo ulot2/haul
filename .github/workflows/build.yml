@@ -38,7 +38,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.14.3
-      - name: Build signed APK
+      - name: Test and build signed APK
         env:
           HAUL_KEY: ${{ secrets.HAUL_KEY }}
           HAUL_KEY_PASSWORD: ${{ secrets.HAUL_KEY_PASSWORD }}
@@ -61,7 +61,7 @@ jobs:
               || { echo "::error::HAUL_KEY_PASSWORD does not open the key. Paste password.txt into it again."; exit 1; }
           fi
           export HAUL_KEY_ALIAS=$(keytool -list -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" | grep PrivateKeyEntry | cut -d, -f1)
-          gradle assembleRelease
+          gradle testDebugUnitTest assembleRelease
           cp build/outputs/apk/release/*.apk Haul.apk
       - uses: actions/upload-artifact@v4
         with:

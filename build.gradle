@@ -47,4 +47,7 @@ dependencies {
     implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
     // The engine is written in Kotlin and its helpers pull different Kotlin versions; align them, or the build sees duplicate classes.
     implementation platform('org.jetbrains.kotlin:kotlin-bom:2.0.21')
+
+    // Unit tests for the plain-Java parts (links, error messages, progress, versions); they run without a phone.
+    testImplementation 'junit:junit:4.13.2'
 }

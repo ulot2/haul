@@ -36,6 +36,7 @@ public class HaulService extends Service {
     static final String ACTION_ADD = "app.haul.ADD", ACTION_CANCEL = "app.haul.CANCEL", EXTRA_ID = "id";
     static final String CH_WORK = "work", CH_DONE = "done";
     private static final int ONGOING = 1;
+    static final String TIMED_OUT = "Android allows downloads in the background for 6 hours a day. Tap to try again later.";
     private static final AtomicInteger notifyIds = new AtomicInteger(100);
 
     static volatile boolean running;
@@ -43,6 +44,7 @@ public class HaulService extends Service {
     private final AtomicInteger pending = new AtomicInteger();
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile String current;
+    private volatile boolean timedOut, destroyed;
     private volatile Notification shown;
     private long lastNotify;
 
@@ -102,10 +104,15 @@ public class HaulService extends Service {
             worker.execute(() -> {
                 try {
                     run(id);
+                    // The daily yt-dlp update waits until the queue is empty, so it never delays a download.
+                    if (pending.get() == 1 && !timedOut && Engine.stale(this)) {
+                        showStatus("Updating the download engine…");
+                        Engine.updateIfStale(this);
+                    }
                 } finally {
                     // Stop on the main thread, where a new link may have just arrived (onStartCommand runs there too).
                     if (pending.decrementAndGet() == 0) main.post(() -> {
-                        if (pending.get() == 0) stopNow();
+                        if (pending.get() == 0 && !destroyed) stopNow();
                     });
                 }
             });
@@ -121,8 +128,27 @@ public class HaulService extends Service {
         stopSelf();
     }
 
+    /**
+     * Android 15+ lets a data-sync service run 6 hours a day, then calls this. The service must stop within seconds or
+     * Android crashes the app, so everything still going or waiting is marked as stopped, to try again later.
+     */
+    @Override
+    public void onTimeout(int startId, int fgsType) {
+        timedOut = true;
+        for (Haul.Item i : Haul.items(this)) {
+            if (i.active()) Haul.update(this, i.id, it -> {
+                it.status = Haul.FAILED;
+                it.error = TIMED_OUT;
+            });
+        }
+        String id = current;
+        if (id != null) Engine.cancel(id);
+        stopNow();
+    }
+
     @Override
     public void onDestroy() {
+        destroyed = true;
         running = false;
         worker.shutdownNow();
         super.onDestroy();
@@ -146,12 +172,11 @@ public class HaulService extends Service {
         File dir = new File(getCacheDir(), "haul/" + id);
         try {
             Engine.init(this);
-            Engine.updateIfStale(this);
             List<File> files;
             try {
                 files = fetch(item, dir);
             } catch (Exception first) {
-                if (Engine.canceled(first) || isCanceled(id)) throw first;
+                if (timedOut || Engine.canceled(first) || isCanceled(id)) throw first;
                 // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                 if (!Engine.updateAfterFailure(this)) throw first;
                 files = fetch(item, dir);
@@ -181,7 +206,9 @@ public class HaulService extends Service {
             });
             notifyDone(Haul.get(this, id));
         } catch (Exception e) {
-            if (Engine.canceled(e) || isCanceled(id) || e instanceof InterruptedException) {
+            if (timedOut) {
+                // onTimeout already marked it, with the reason.
+            } else if (Engine.canceled(e) || isCanceled(id) || e instanceof InterruptedException) {
                 Haul.update(this, id, i -> i.status = Haul.CANCELED);
             } else {
                 String why = Engine.friendly(e);
@@ -281,6 +308,12 @@ public class HaulService extends Service {
         String text = item.site + (waiting > 0 ? " · " + waiting + " more waiting" : "");
         shown = ongoing(title, text, percent, item.id);
         if (pending.get() > 0) getSystemService(NotificationManager.class).notify(ONGOING, shown);
+    }
+
+    /** A notification without a percent or a Cancel button, for work between downloads. */
+    private void showStatus(String title) {
+        shown = ongoing(title, null, -1);
+        getSystemService(NotificationManager.class).notify(ONGOING, shown);
     }
 
     private Notification ongoing(String title, String text, float percent) {

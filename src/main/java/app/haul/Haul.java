@@ -63,7 +63,10 @@ final class Haul {
         }
     }
 
-    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    /** Made on first use, so the link helpers below also load in unit tests, where there is no Android main thread. */
+    private static final class Main {
+        static final Handler HANDLER = new Handler(Looper.getMainLooper());
+    }
     private static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
     private static final Map<String, Float> progress = new ConcurrentHashMap<>();
     private static final Runnable NOTIFY = () -> {
@@ -164,8 +167,8 @@ final class Haul {
 
     /** Coalesces bursts (progress arrives many times a second) into one redraw. */
     private static void changed() {
-        MAIN.removeCallbacks(NOTIFY);
-        MAIN.postDelayed(NOTIFY, 120);
+        Main.HANDLER.removeCallbacks(NOTIFY);
+        Main.HANDLER.postDelayed(NOTIFY, 120);
     }
 
     private static List<Item> load(Context c) {

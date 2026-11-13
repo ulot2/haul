@@ -18,7 +18,8 @@ import kotlin.jvm.functions.Function3;
 /**
  * yt-dlp on the phone, through youtubedl-android: a bundled Python runs yt-dlp, and FFmpeg joins the separate
  * video and audio streams that YouTube, X and Instagram serve. Sites change often and break yt-dlp, so it updates
- * itself from GitHub once a day, and once more when a download fails.
+ * itself from GitHub once a day (when the queue is empty, so it never delays a download), and once more when a
+ * download fails.
  */
 final class Engine {
     private static final long DAY = 24 * 3600_000L, HOUR = 3600_000L;
@@ -52,8 +53,13 @@ final class Engine {
         return s == YoutubeDL.UpdateStatus.DONE;
     }
 
+    /** True when yt-dlp was last checked for updates more than a day ago. */
+    static boolean stale(Context c) {
+        return System.currentTimeMillis() - Haul.prefs(c).getLong("engine_checked", 0) >= DAY;
+    }
+
     static void updateIfStale(Context c) {
-        if (System.currentTimeMillis() - Haul.prefs(c).getLong("engine_checked", 0) < DAY) return;
+        if (!stale(c)) return;
         try {
             update(c);
         } catch (Exception ignored) {
@@ -94,8 +100,15 @@ final class Engine {
             r.addOption("-S", Haul.SMALL.equals(quality) ? "vcodec:h264,res:720,acodec:aac" : "vcodec:h264,res,acodec:aac");
             r.addOption("--merge-output-format", "mp4");
         }
+        // yt-dlp reports each file on its own (video, then audio); add them up so the bar only moves forward.
+        DownloadProgress overall = new DownloadProgress();
+        float[] shown = {-1};
         Function3<Float, Long, String, Unit> cb = (percent, eta, line) -> {
-            if (percent != null && percent >= 0) progress.on(Math.min(percent, 100f));
+            float p = overall.on(line, percent == null ? -1 : percent);
+            if (p > shown[0]) {
+                shown[0] = p;
+                progress.on(p);
+            }
             return Unit.INSTANCE;
         };
         YoutubeDL.getInstance().execute(r, id, cb);
@@ -126,29 +139,36 @@ final class Engine {
         return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
-    /** Turns yt-dlp's error into one sentence a person can act on. */
+    /** Turns yt-dlp's error into one sentence a person can act on. Most specific first: yt-dlp wraps nearly every
+     *  HTTP failure in "Unable to download webpage: HTTP Error 404", so the plain network check has to come last. */
     static String friendly(Throwable e) {
         String m = String.valueOf(e.getMessage());
         String low = m.toLowerCase(Locale.ROOT);
-        if (m.equals("NO_FILES") || low.contains("no video formats") || low.contains("no video could be found")
-                || low.contains("there's no video") || low.contains("no media found"))
+        if (m.equals("NO_FILES") || has(low, "no video formats", "no video could be found", "there's no video", "no media found"))
             return "No video in this post. Photo posts are not supported yet.";
         if (low.contains("unsupported url")) return "Haul can't read links from this site.";
-        if (low.contains("login") || low.contains("log in") || low.contains("sign in") || low.contains("cookies")
-                || low.contains("private") || low.contains("age-restricted") || low.contains("rate-limit"))
+        if (has(low, "login", "log in", "sign in", "cookies", "private", "age-restricted", "rate-limit",
+                "http error 429", "too many requests"))
             return "This post needs a signed-in account (private, age-restricted, or the site is limiting downloads). Try again later.";
-        if (low.contains("unable to download") || low.contains("timed out") || low.contains("network")
-                || low.contains("connection") || low.contains("resolve") || low.contains("http error 5"))
-            return "Couldn't reach the site. Check your connection and try again.";
-        if (low.contains("http error 404") || low.contains("not found") || low.contains("removed") || low.contains("unavailable"))
+        if (has(low, "no space", "errno 28")) return "The phone is out of storage.";
+        if (has(low, "your country", "your location", "geo restrict", "geo-restrict"))
+            return "This post isn't available in your country.";
+        if (has(low, "http error 404", "http error 410", "not found", "removed", "unavailable", "no longer available"))
             return "This post was deleted or isn't available.";
-        if (low.contains("no space")) return "The phone is out of storage.";
+        if (has(low, "http error 403", "forbidden")) return "The site refused the download. Try again later.";
+        if (has(low, "unable to download", "timed out", "network", "connection", "resolve", "name resolution", "http error 5"))
+            return "Couldn't reach the site. Check your connection and try again.";
         // Otherwise yt-dlp's own last "ERROR:" line, without the prefix.
         String last = "";
         for (String line : m.split("\n")) if (line.startsWith("ERROR:")) last = line.substring(6).trim();
         if (last.isEmpty()) last = m.trim();
         last = last.replaceFirst("^\\[[^\\]]+\\]\\s*([^:]+:\\s*)?", "");
         return last.length() > 160 ? last.substring(0, 157) + "…" : last;
+    }
+
+    private static boolean has(String text, String... parts) {
+        for (String p : parts) if (text.contains(p)) return true;
+        return false;
     }
 
     private Engine() {}
