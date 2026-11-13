@@ -14,9 +14,11 @@ Haul runs [yt-dlp](https://github.com/yt-dlp/yt-dlp), the open-source downloader
 Share sheet / pasted link  →  Haul  →  yt-dlp (on the phone)  →  site  →  Movies/Haul
 ```
 
-Sites change often, and each change can break yt-dlp for a while. So Haul updates yt-dlp from GitHub once a day, and again when a download fails, then tries once more. **Update engine** at the bottom of the screen does it by hand.
+Downloads run one at a time and keep going after you leave Haul. On Android 14 and later they run as a user-initiated download job: if you're offline, the link waits in the list and starts when the phone is back online. On older Android, a download that can't reach the site fails, and you tap it to try again.
 
-Videos come as MP4 with H.264 video and AAC audio, because those play everywhere: the Gallery, WhatsApp, an old laptop. Choose:
+Sites change often, and each change can break yt-dlp for a while. So Haul updates yt-dlp from GitHub once a day, after your downloads finish, and again when a download fails, then tries once more. **Update engine** at the bottom of the screen does it by hand.
+
+Videos come as MP4 with H.264 video and AAC audio, because those play everywhere: the Gallery, WhatsApp, an old laptop. When a site only offers another sound format, Haul converts the sound to AAC. Choose:
 
 - **Best**: the highest resolution in H.264.
 - **720p**: smaller files.
@@ -43,7 +45,9 @@ Haul is built for 64-bit phones (arm64), which is nearly every phone from the la
 
 ## Build
 
-GitHub Actions builds `Haul.apk` on every push (see `.github/workflows/build.yml`). Pushing a tag like `v1.0.0` publishes a release.
+GitHub Actions runs the unit tests and builds `Haul.apk` on every push to `main` or `dev` and on every pull request (see `.github/workflows/build.yml`). Pushing a tag like `v1.0.0` publishes a release.
+
+To build on a computer with the Android SDK: `./gradlew testDebugUnitTest assembleDebug`. The wrapper fetches the right Gradle.
 
 The APK is signed with a key kept in two repository secrets:
 

@@ -133,17 +133,49 @@ final class Haul {
         save(c);
     }
 
-    /** After the app was killed mid-download, nothing is working any more: mark those as interrupted. */
-    static synchronized void settle(Context c) {
+    /**
+     * In a new process nothing is downloading. If Android still holds a download job for us (waiting for a connection,
+     * or about to start), the queue is kept for it; otherwise whatever was going was cut off: mark it to try again.
+     */
+    static synchronized void settle(Context c, boolean jobWaiting) {
         boolean changed = false;
         for (Item i : load(c)) {
-            if (i.active()) {
+            if (!i.active()) continue;
+            if (jobWaiting) {
+                if (WORKING.equals(i.status)) i.status = QUEUED;
+            } else {
                 i.status = FAILED;
                 i.error = "Stopped before it finished. Tap to try again.";
-                changed = true;
             }
+            changed = true;
         }
         if (changed) save(c);
+    }
+
+    /** The oldest waiting haul, now marked as working, or null when none is waiting. */
+    static synchronized Item takeNext(Context c) {
+        List<Item> list = load(c);
+        for (int k = list.size() - 1; k >= 0; k--) {
+            Item i = list.get(k);
+            if (QUEUED.equals(i.status)) {
+                i.status = WORKING;
+                save(c);
+                return i;
+            }
+        }
+        return null;
+    }
+
+    static synchronized int waiting(Context c) {
+        int n = 0;
+        for (Item i : load(c)) if (QUEUED.equals(i.status)) n++;
+        return n;
+    }
+
+    /** The haul for this link that is waiting or downloading, if any. */
+    static synchronized Item activeFor(Context c, String url) {
+        for (Item i : load(c)) if (i.active() && i.url.equals(url)) return i;
+        return null;
     }
 
     static void setProgress(String id, float percent) {

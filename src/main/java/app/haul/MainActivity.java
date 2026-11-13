@@ -3,14 +3,19 @@ package app.haul;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
+import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,16 +32,35 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class MainActivity extends Activity {
-    private View header, wordmark, updateCard, clear, empty;
+    private View header, wordmark, updateCard, notifyCard, clear, empty;
     private EditText link;
     private LinearLayout hold;
     private TextView engine, updateTitle;
     private Button engineUpdate;
     private int headerHeight, wordmarkTop;
     private final Runnable render = this::render;
+    /** The hold's rows by haul id, and what each one shows, so a redraw only touches rows that changed. */
+    private final Map<String, View> rows = new HashMap<>();
+    private final Map<String, String> drawn = new HashMap<>();
+    private boolean offline;
+    private final ConnectivityManager.NetworkCallback network = new ConnectivityManager.NetworkCallback() {
+        @Override
+        public void onAvailable(Network n) {
+            runOnUiThread(MainActivity.this::render);
+        }
+
+        @Override
+        public void onLost(Network n) {
+            runOnUiThread(MainActivity.this::render);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle state) {
@@ -54,6 +78,7 @@ public class MainActivity extends Activity {
         engine = findViewById(R.id.engine);
         engineUpdate = findViewById(R.id.engineUpdate);
         updateCard = findViewById(R.id.updateCard);
+        notifyCard = findViewById(R.id.notifyCard);
         updateTitle = findViewById(R.id.updateTitle);
         headerHeight = header.getLayoutParams().height;
         wordmarkTop = ((ViewGroup.MarginLayoutParams) wordmark.getLayoutParams()).topMargin;
@@ -78,6 +103,8 @@ public class MainActivity extends Activity {
         });
         clear.setOnClickListener(v -> Haul.clearFinished(this));
         engineUpdate.setOnClickListener(v -> updateEngine());
+        findViewById(R.id.notifyOn).setOnClickListener(v -> open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
         findViewById(R.id.update).setOnClickListener(v -> {
             String url = Haul.prefs(this).getString("update_url", "");
             if (!url.isEmpty()) startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
@@ -113,6 +140,11 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Haul.listen(render);
+        try {
+            getSystemService(ConnectivityManager.class).registerDefaultNetworkCallback(network);
+        } catch (RuntimeException ignored) {
+            // without it, "waiting for a connection" just updates less often
+        }
         render();
         Updates.checkSoon(this, () -> runOnUiThread(this::render));
     }
@@ -120,14 +152,31 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         Haul.unlisten(render);
+        try {
+            getSystemService(ConnectivityManager.class).unregisterNetworkCallback(network);
+        } catch (RuntimeException ignored) {
+        }
         super.onPause();
     }
 
-    /** Android only lets an app read the clipboard once its window has focus, so the link is filled in here. */
+    /**
+     * Android only lets an app read the clipboard once its window has focus, so the link is filled in here. Reading
+     * it makes Android 12+ show "Haul pasted from your clipboard", so it is read only when something new was copied:
+     * the clip's description (which shows no message) carries the time it was copied.
+     */
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (!hasFocus || link.length() > 0) return;
+        ClipDescription d;
+        try {
+            d = getSystemService(ClipboardManager.class).getPrimaryClipDescription();
+        } catch (RuntimeException e) {
+            return;
+        }
+        if (d == null || !d.hasMimeType("text/*")) return;
+        if (d.getTimestamp() == Haul.prefs(this).getLong("clip_seen", -1)) return;
+        Haul.prefs(this).edit().putLong("clip_seen", d.getTimestamp()).apply();
         String url = clipboardLink();
         // Fill each copied link once: not again after it was downloaded or cleared.
         if (url != null && !url.equals(Haul.prefs(this).getString("last_filled", ""))) {
@@ -153,14 +202,14 @@ public class MainActivity extends Activity {
             link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
             return;
         }
-        HaulService.start(this, url);
+        if (Downloads.add(this, url) == null) Toast.makeText(this, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
         link.setText("");
         link.clearFocus();
         getSystemService(InputMethodManager.class).hideSoftInputFromWindow(link.getWindowToken(), 0);
     }
 
     private void updateEngine() {
-        if (HaulService.running) {
+        if (Downloads.busy()) {
             Toast.makeText(this, "Wait until the downloads finish", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -185,16 +234,37 @@ public class MainActivity extends Activity {
 
     // ---- Drawing ----
 
+    /** Runs many times a second while downloading, so it only rebinds the rows whose text changed. */
     private void render() {
         List<Haul.Item> items = Haul.items(this);
-        hold.removeAllViews();
+        // Only Android 14+ download jobs wait for a connection; on older Android an offline download fails instead.
+        offline = Build.VERSION.SDK_INT >= 34 && getSystemService(ConnectivityManager.class).getActiveNetwork() == null;
         boolean anyFinished = false;
         LayoutInflater inf = getLayoutInflater();
+        List<View> order = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
         for (Haul.Item i : items) {
-            View row = inf.inflate(R.layout.item_haul, hold, false);
-            bind(row, i);
-            hold.addView(row);
+            View row = rows.get(i.id);
+            if (row == null) {
+                row = inf.inflate(R.layout.item_haul, hold, false);
+                rows.put(i.id, row);
+            }
+            String look = look(i);
+            if (!look.equals(drawn.get(i.id))) {
+                bind(row, i);
+                drawn.put(i.id, look);
+            }
+            order.add(row);
+            ids.add(i.id);
             if (!i.active()) anyFinished = true;
+        }
+        rows.keySet().retainAll(ids);
+        drawn.keySet().retainAll(ids);
+        boolean same = hold.getChildCount() == order.size();
+        for (int k = 0; same && k < order.size(); k++) same = hold.getChildAt(k) == order.get(k);
+        if (!same) {
+            hold.removeAllViews();
+            for (View row : order) hold.addView(row);
         }
         empty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
         clear.setVisibility(anyFinished ? View.VISIBLE : View.GONE);
@@ -202,9 +272,18 @@ public class MainActivity extends Activity {
         String v = Engine.version(this);
         engine.setText(v.isEmpty() ? "Engine: yt-dlp" : "Engine: yt-dlp " + v);
 
+        notifyCard.setVisibility(getSystemService(NotificationManager.class).areNotificationsEnabled() ? View.GONE : View.VISIBLE);
+
         String newVersion = Haul.prefs(this).getString("update_version", "");
         updateCard.setVisibility(newVersion.isEmpty() ? View.GONE : View.VISIBLE);
         updateTitle.setText("Haul " + newVersion + " is out");
+    }
+
+    /** Everything a row shows, as one string: when it changes, the row is redrawn. */
+    private String look(Haul.Item i) {
+        float p = Haul.WORKING.equals(i.status) ? Math.round(Haul.progress(i.id)) : 0;
+        return i.status + '|' + p + '|' + i.title + '|' + i.error + '|' + i.count + '|' + i.mime + '|' + when(i.time)
+                + '|' + (Haul.QUEUED.equals(i.status) && offline);
     }
 
     private void bind(View row, Haul.Item i) {
@@ -218,7 +297,7 @@ public class MainActivity extends Activity {
         bar.setVisibility(View.GONE);
         switch (i.status) {
             case Haul.QUEUED:
-                status = "Waiting";
+                status = offline ? "Waiting for a connection" : "Waiting";
                 break;
             case Haul.WORKING:
                 float p = Haul.progress(i.id);
@@ -242,7 +321,7 @@ public class MainActivity extends Activity {
 
         row.setOnClickListener(v -> {
             if (Haul.DONE.equals(i.status)) play(i);
-            else if (Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status)) HaulService.retry(this, i.id);
+            else if (Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status)) Downloads.retry(this, i.id);
         });
         row.setOnLongClickListener(v -> {
             menu(i);
@@ -255,14 +334,14 @@ public class MainActivity extends Activity {
         List<Runnable> actions = new ArrayList<>();
         if (i.active()) {
             labels.add("Cancel download");
-            actions.add(() -> HaulService.cancel(this, i.id));
+            actions.add(() -> Downloads.cancel(this, i.id));
         } else {
             if (Haul.DONE.equals(i.status)) {
                 labels.add("Share");
                 actions.add(() -> share(i));
             }
             labels.add(Haul.DONE.equals(i.status) ? "Download again" : "Try again");
-            actions.add(() -> HaulService.retry(this, i.id));
+            actions.add(() -> Downloads.retry(this, i.id));
             labels.add("Remove from list");
             actions.add(() -> Haul.remove(this, i.id));
         }

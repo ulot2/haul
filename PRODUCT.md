@@ -20,6 +20,6 @@ No account, no ads, no server of its own. yt-dlp runs on the phone and updates i
 ## Capabilities and Constraints
 - yt-dlp, Python and FFmpeg via youtubedl-android; arm64 only, to keep the APK small.
 - Output: MP4 (H.264 + AAC), 720p option, or M4A audio. Saved through MediaStore to Movies/Haul, Music/Haul.
-- One download at a time, in a foreground service; others wait in the queue.
+- One download at a time; others wait in the queue. Android 14+: a user-initiated data transfer job (waits for a connection, no daily limit). Android 10-13, or if Android refuses the job: a foreground service.
 - No sign-in: private, age-restricted and some rate-limited posts fail with a clear reason.
-- Updates: the app checks GitHub releases (public repo ulot2/haul) every 6 hours; yt-dlp updates daily and after a failure.
+- Updates: the app checks GitHub releases (public repo ulot2/haul) every 6 hours; yt-dlp updates daily (after the queue empties) and after a failure.

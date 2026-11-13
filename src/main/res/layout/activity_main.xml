@@ -149,6 +149,33 @@ FIRST VIEWPORT: the chart with the wordmark, then the link field, the quality ch
                     android:text="Download update" />
             </LinearLayout>
 
+            <!-- Notifications are off: downloads from the share sheet would finish without a word. -->
+            <LinearLayout
+                android:id="@+id/notifyCard"
+                style="@style/Haul.Notice"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/Haul.Title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Notifications are off" />
+
+                <TextView
+                    style="@style/Haul.Body"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Haul uses them to show progress and to open each video once it's in your Gallery." />
+
+                <Button
+                    android:id="@+id/notifyOn"
+                    style="@style/Haul.Button.Secondary"
+                    android:layout_width="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Turn on" />
+            </LinearLayout>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

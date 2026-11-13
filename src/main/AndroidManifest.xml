@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 14+: downloads run as a user-initiated data transfer job (HaulJob), which waits for a connection. -->
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <!-- To say "waiting for a connection" in the hold. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:name=".App"
@@ -45,9 +49,21 @@
             </intent-filter>
         </activity>
 
+        <!-- Android 10-13, or when Android refuses the job: the queue runs in a foreground service. -->
         <service
             android:name=".HaulService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Android 14+: the queue runs as a user-initiated job. Only the system can bind it (BIND_JOB_SERVICE). -->
+        <service
+            android:name=".HaulJob"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- The Cancel button on the download notification. -->
+        <receiver
+            android:name=".CancelReceiver"
+            android:exported="false" />
     </application>
 </manifest>

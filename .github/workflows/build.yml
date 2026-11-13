@@ -1,16 +1,18 @@
 name: Build Haul
 
-# A push to main or dev only builds, to prove the code still compiles; the APK stays on the run page
-# (download it with "gh run download"). Pushing a tag like v1.2.0 builds and publishes the release
-# that the app offers as an update.
+# A push to main or dev, or a pull request, runs the unit tests and builds, to prove the code still works;
+# the APK stays on the run page (download it with "gh run download"). Pushing a tag like v1.2.0 also
+# publishes the release that the app offers as an update.
 on:
   push:
     branches: [main, dev]
     tags: ['v*.*.*']
+  pull_request:
   workflow_dispatch:
 
+# Read-only by default; only the release job below may write (to create the release).
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   android:
@@ -35,9 +37,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # Uses the Gradle version pinned in gradle/wrapper, and checks that the wrapper jar is an official one.
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.14.3
+          validate-wrappers: true
       - name: Test and build signed APK
         env:
           HAUL_KEY: ${{ secrets.HAUL_KEY }}
@@ -61,17 +64,30 @@ jobs:
               || { echo "::error::HAUL_KEY_PASSWORD does not open the key. Paste password.txt into it again."; exit 1; }
           fi
           export HAUL_KEY_ALIAS=$(keytool -list -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" | grep PrivateKeyEntry | cut -d, -f1)
-          gradle testDebugUnitTest assembleRelease
+          ./gradlew testDebugUnitTest assembleRelease
           cp build/outputs/apk/release/*.apk Haul.apk
       - uses: actions/upload-artifact@v4
         with:
           name: apk
           path: Haul.apk
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+
+  release:
+    needs: android
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.v.outputs.version }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.android.outputs.version }}
         # The tag can come from "git push" (no release yet) or from publishing a release on GitHub (release exists).
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then

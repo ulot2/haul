@@ -1,6 +1,7 @@
 package app.haul;
 
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
@@ -21,8 +22,13 @@ public class ShareActivity extends Activity {
         String url = Haul.firstLink(text);
         if (url == null) {
             Toast.makeText(this, "Haul: there's no link in what you shared", Toast.LENGTH_LONG).show();
+        } else if (Downloads.add(this, url) == null) {
+            Toast.makeText(this, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
+        } else if (!getSystemService(NotificationManager.class).areNotificationsEnabled()) {
+            // Without notifications there is no progress and no "saved" message, so say where to look.
+            Toast.makeText(this, "Haul: downloading from " + Haul.site(url) + ". Open Haul to see when it's done, "
+                    + "or turn on its notifications.", Toast.LENGTH_LONG).show();
         } else {
-            HaulService.start(this, url);
             Toast.makeText(this, "Haul: downloading from " + Haul.site(url), Toast.LENGTH_SHORT).show();
         }
         finish();
