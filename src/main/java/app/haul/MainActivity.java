@@ -388,7 +388,7 @@ public class MainActivity extends Activity {
                 row.findViewById(R.id.thumbTag), i, 162, 288);
         TextView len = row.findViewById(R.id.thumbLen);
         String lenText = !Haul.DONE.equals(i.status) ? ""
-                : Haul.PHOTOS.equals(i.kind) ? (i.count > 1 ? "×" + i.count : "")
+                : Haul.PHOTOS.equals(i.kind) ? (i.photos() > 1 ? "×" + i.photos() : "")
                 : i.duration > 0 ? Format.clock(i.duration) : "";
         len.setText(lenText);
         len.setVisibility(lenText.isEmpty() ? View.GONE : View.VISIBLE);

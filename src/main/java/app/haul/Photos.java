@@ -83,14 +83,50 @@ final class Photos {
         return pages;
     }
 
+    /** The post in a TikTok page's rehydration data; null when the page has none. */
+    private static JSONObject tiktokItem(String html) {
+        Matcher m = REHYDRATION.matcher(html == null ? "" : html);
+        if (!m.find()) return null;
+        try {
+            return new JSONObject(m.group(1)).optJSONObject("__DEFAULT_SCOPE__")
+                    .optJSONObject("webapp.video-detail").optJSONObject("itemInfo").optJSONObject("itemStruct");
+        } catch (Exception e) {
+            return null;   // the page changed shape
+        }
+    }
+
+    /** True when a TikTok post page names a sound to play under the pictures. */
+    static boolean tiktokHasSound(String html) {
+        return !tiktokSoundUrl(html).isEmpty();
+    }
+
+    /** Where a TikTok post's sound is, from its page; "" when it names none. */
+    static String tiktokSoundUrl(String html) {
+        JSONObject item = tiktokItem(html);
+        JSONObject music = item == null ? null : item.optJSONObject("music");
+        return music == null ? "" : music.optString("playUrl").trim();
+    }
+
+    /**
+     * The file extension for a sound, from the type the server gave it, else from its address; null when what came
+     * is plainly not a sound (a page saying no). TikTok's sounds are MP3, now and then M4A.
+     */
+    static String soundExt(String contentType, String url) {
+        String type = String.valueOf(contentType).toLowerCase(java.util.Locale.ROOT);
+        if (type.contains("html") || type.contains("json") || type.startsWith("text/")) return null;
+        if (type.contains("mpeg") || type.contains("mp3")) return "mp3";
+        if (type.contains("mp4") || type.contains("m4a") || type.contains("aac")) return "m4a";
+        String path = String.valueOf(url).replaceFirst("[?#].*$", "").toLowerCase(java.util.Locale.ROOT);
+        for (String ext : new String[]{"m4a", "aac", "ogg", "opus", "wav"}) if (path.endsWith("." + ext)) return ext.equals("aac") ? "m4a" : ext;
+        return "mp3";
+    }
+
     /** The photo URLs of a TikTok slideshow page, in order; empty when the page has none. */
     static List<String> tiktokImages(String html) {
         List<String> urls = new ArrayList<>();
-        Matcher m = REHYDRATION.matcher(html == null ? "" : html);
-        if (!m.find()) return urls;
+        JSONObject item = tiktokItem(html);
+        if (item == null) return urls;
         try {
-            JSONObject item = new JSONObject(m.group(1)).optJSONObject("__DEFAULT_SCOPE__")
-                    .optJSONObject("webapp.video-detail").optJSONObject("itemInfo").optJSONObject("itemStruct");
             JSONArray images = item.optJSONObject("imagePost").optJSONArray("images");
             for (int k = 0; images != null && k < images.length(); k++) {
                 JSONArray list = images.optJSONObject(k).optJSONObject("imageURL").optJSONArray("urlList");
@@ -104,15 +140,9 @@ final class Photos {
 
     /** The caption of a TikTok post page, for the title; "" when there is none. */
     static String tiktokDesc(String html) {
-        Matcher m = REHYDRATION.matcher(html == null ? "" : html);
-        if (!m.find()) return "";
-        try {
-            String d = new JSONObject(m.group(1)).optJSONObject("__DEFAULT_SCOPE__").optJSONObject("webapp.video-detail")
-                    .optJSONObject("itemInfo").optJSONObject("itemStruct").optString("desc").trim();
-            return d.length() > 80 ? d.substring(0, 80).trim() + "…" : d;
-        } catch (Exception e) {
-            return "";
-        }
+        JSONObject item = tiktokItem(html);
+        String d = item == null ? "" : item.optString("desc").trim();
+        return d.length() > 80 ? d.substring(0, 80).trim() + "…" : d;
     }
 
     private Photos() {}

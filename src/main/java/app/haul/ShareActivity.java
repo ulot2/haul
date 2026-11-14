@@ -44,6 +44,7 @@ public class ShareActivity extends Activity {
     /** HAUL THIS AS: three buttons over the app the link came from; the default quality is the filled one. */
     private void ask(String url) {
         setContentView(R.layout.sheet_quality);
+        Engine.readAhead(this, url);   // read the link while the user picks: the download then starts from what was read
         ((TextView) findViewById(R.id.qSite)).setText(Haul.site(url));
         ((TextView) findViewById(R.id.qLink)).setText(Look.shortLink(url));
         findViewById(R.id.qScrim).setOnClickListener(v -> finish());

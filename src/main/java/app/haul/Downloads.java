@@ -266,21 +266,24 @@ final class Downloads {
                     throw new IllegalStateException(NO_WIFI);
                 }
                 Engine.init(c);
+                Stages stages = new Stages(System.currentTimeMillis());
                 Engine.Result got;
                 try {
-                    got = fetch(item, dir);
+                    got = fetch(item, dir, stages);
                 } catch (Exception first) {
                     if (stopped != 0 || Engine.canceled(first) || isCanceled(id)) throw first;
                     // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                     if (!Engine.updateAfterFailure(c)) throw first;
-                    got = fetch(item, dir);
+                    stages.on(Engine.Progress.STARTING, System.currentTimeMillis());
+                    got = fetch(item, dir, stages);
                 }
                 if (stopped != 0 || isCanceled(id)) throw new InterruptedException();
+                stages.saving(System.currentTimeMillis());
 
                 List<String> uris = new ArrayList<>();
                 String firstMime = "";
                 long size = 0;
-                boolean anyVideo = false, anyAudio = false;
+                boolean anyVideo = false, anyAudio = false, anyImage = false;
                 for (File f : got.files) {
                     String mime = mime(f.getName());
                     size += f.length();
@@ -288,12 +291,16 @@ final class Downloads {
                     if (firstMime.isEmpty()) firstMime = mime;
                     anyVideo |= mime.startsWith("video/");
                     anyAudio |= mime.startsWith("audio/");
+                    anyImage |= mime.startsWith("image/");
                 }
-                final String m = firstMime, kind = anyVideo ? Haul.VIDEO : anyAudio ? Haul.AUDIO : Haul.PHOTOS;
+                // Pictures that came with their sound (a TikTok photo post) are still photos.
+                final String m = firstMime, kind = anyVideo ? Haul.VIDEO : anyImage || !anyAudio ? Haul.PHOTOS : Haul.AUDIO;
+                final boolean sound = Haul.PHOTOS.equals(kind) && anyAudio;
                 final String t = !got.title.isEmpty() ? got.title : titleOf(got.files.get(0).getName());
                 final long bytes = size;
                 final int count = got.files.size(), height = got.height;
                 final int duration = item.clipped() ? item.clipEnd - item.clipStart : got.duration;
+                final String took = stages.done(System.currentTimeMillis());
                 Haul.update(c, id, i -> {
                     i.status = Haul.DONE;
                     i.error = "";
@@ -301,6 +308,8 @@ final class Downloads {
                     i.uri = uris.get(0);
                     i.mime = m;
                     i.kind = kind;
+                    i.sound = sound;
+                    i.took = took;
                     i.title = t;
                     i.count = count;
                     i.size = bytes;
@@ -331,8 +340,9 @@ final class Downloads {
             }
         }
 
-        private Engine.Result fetch(Haul.Item item, File dir) throws Exception {
+        private Engine.Result fetch(Haul.Item item, File dir, Stages stages) throws Exception {
             return Engine.download(c, item, dir, p -> {
+                stages.on(p, System.currentTimeMillis());
                 Haul.setProgress(item.id, p);
                 showProgress(item, p);
             });
@@ -424,7 +434,8 @@ final class Downloads {
             PendingIntent delete = PendingIntent.getBroadcast(c, nid, new Intent(c, DeleteReceiver.class)
                     .putExtra(DeleteReceiver.EXTRA_ID, i.id).putExtra(DeleteReceiver.EXTRA_NOTIFICATION, nid),
                     PendingIntent.FLAG_IMMUTABLE);
-            String what = i.count > 1 ? i.count + (Haul.PHOTOS.equals(i.kind) ? " photos saved" : " files saved") : "Saved";
+            String what = i.count <= 1 ? "Saved" : !Haul.PHOTOS.equals(i.kind) ? i.count + " files saved"
+                    : (i.photos() == 1 ? "Photo" : i.photos() + " photos") + (i.sound ? " and the sound saved" : " saved");
             post(nid, new Notification.Builder(c, CH_DONE)
                     .setSmallIcon(R.drawable.ic_notify)
                     .setContentTitle(i.title.isEmpty() ? i.site : i.title)
@@ -469,7 +480,7 @@ final class Downloads {
         List<Uri> uris = new ArrayList<>();
         for (String u : i.uris) if (!u.isEmpty() && !"null".equals(u)) uris.add(Uri.parse(u));
         if (uris.isEmpty() && !i.uri.isEmpty()) uris.add(Uri.parse(i.uri));
-        String type = uris.size() > 1 ? (i.mime.isEmpty() ? "*/*" : i.mime.split("/")[0] + "/*") : i.mime;
+        String type = uris.size() > 1 ? (i.mime.isEmpty() || i.sound ? "*/*" : i.mime.split("/")[0] + "/*") : i.mime;
         return shareIntent(uris, type, i.title);
     }
 
@@ -493,6 +504,7 @@ final class Downloads {
 
     /** Where a haul's files are in the Gallery. */
     static String album(Haul.Item i) {
+        if (i.sound) return "Pictures/Haul and Music/Haul";
         return Haul.AUDIO.equals(i.kind) ? "Music/Haul" : Haul.PHOTOS.equals(i.kind) ? "Pictures/Haul" : "Movies/Haul";
     }
 

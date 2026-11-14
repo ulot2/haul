@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -46,7 +49,7 @@ final class Engine {
     private static final List<String> PLAYABLE_AUDIO = Arrays.asList(MediaFormat.MIMETYPE_AUDIO_AAC, MediaFormat.MIMETYPE_AUDIO_MPEG);
     /** Downloads hold it to read, an update to write: replacing yt-dlp in the middle of a download would break it. */
     private static final ReentrantReadWriteLock RUN = new ReentrantReadWriteLock();
-    private static final String BROWSER =
+    static final String BROWSER =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
     private static boolean ready;
 
@@ -159,16 +162,39 @@ final class Engine {
         Result r = fetch(c, item, dir, progress, false);
         if (Haul.AUDIO.equals(item.quality)) return r;
         if (!Haul.GIF.equals(item.quality)) {
-            for (File f : r.files) {
-                if (needsAac(f)) {
-                    // Rare: the site has no AAC sound at all, so the video came with Opus or Vorbis, which WhatsApp and
-                    // some players can't play. Fetch it again, converting the sound to AAC on the way.
+            boolean any = false;
+            for (File f : r.files) any |= needsAac(f);
+            if (any) {
+                // Rare: the site has no AAC sound at all, so the video came with Opus or Vorbis, which WhatsApp and
+                // some players can't play. Convert the sound here, keeping the picture as it came; only if that
+                // fails, fetch the video again, converting on the way.
+                try {
+                    toAac(item, dir, r, progress);
+                } catch (Exception e) {
+                    if (canceled(e) || e instanceof InterruptedException) throw e;
                     r = fetch(c, item, dir, progress, true);
-                    break;
                 }
             }
         }
         return gifs(item, dir, r, progress);
+    }
+
+    /** Gives each video whose sound won't play everywhere AAC sound, in an MP4 of the same name; the picture is copied. */
+    private static void toAac(Haul.Item item, File dir, Result r, Progress progress) throws Exception {
+        for (int k = 0; k < r.files.size(); k++) {
+            File f = r.files.get(k);
+            if (!needsAac(f)) continue;
+            progress.on(Progress.WORKING);
+            String base = f.getName().replaceFirst("\\.[^.]+$", "");
+            File made = new File(dir, base + ".aac.mp4"), named = new File(dir, base + ".mp4");
+            ffmpeg(item.id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", f.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                    "-movflags", "+faststart", made.getAbsolutePath())), made);
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
+            if (!made.renameTo(named)) throw new Exception(MADE + "couldn't rename the converted video");
+            r.files.set(k, named);
+        }
     }
 
     private static Result fetch(Context c, Haul.Item item, File dir, Progress progress, boolean toAac) throws Exception {
@@ -187,6 +213,7 @@ final class Engine {
         // Read ahead: when Haul already read this link (while the copied link sat in the dock, or for the carousel
         // picker), yt-dlp starts from those details instead of asking the site again. Stale details make yt-dlp
         // fall back to the link by itself.
+        awaitAhead(c, item, progress);
         File ahead = Ahead.get(c, item.url);
         if (ahead != null) r.addOption("--load-info-json", ahead.getAbsolutePath());
         r.addOption("-o", dir.getAbsolutePath() + "/%(title).70B [%(id)s].%(ext)s");
@@ -235,7 +262,7 @@ final class Engine {
         if (!audio) {
             savePhotos(dir, out, progress);
             if (out.files.isEmpty() && "TikTok".equals(item.site)) {
-                // A TikTok photo post added without asking (from the tile, or before Haul knew): its pictures.
+                // A TikTok photo post added without asking (from the tile, or before Haul knew): its pictures and sound.
                 Haul.Item photos = copy(item);
                 photos.as = Haul.AS_PHOTOS;
                 try {
@@ -319,24 +346,75 @@ final class Engine {
         List<JSONObject> photos = new ArrayList<>();
         for (JSONObject info : infos(dir)) if (Photos.bestImage(info) != null) photos.add(info);
         boolean onlyPhotos = out.files.isEmpty();   // with videos too, the bar already reached 100
+        List<Want> wants = new ArrayList<>();
         for (int k = 0; k < photos.size(); k++) {
             JSONObject info = photos.get(k);
             String base = safeName(info.optString("title", "Photo")) + " [" + safeName(info.optString("id", "" + k)) + "]";
-            File f = fetchImage(Photos.bestImage(info), info.optJSONObject("http_headers"), dir, base);
-            if (f != null) {
-                out.files.add(f);
-                if (out.title.isEmpty()) out.title = info.optString("title");
-            }
-            if (onlyPhotos) progress.on(100f * (k + 1) / photos.size());
+            wants.add(new Want(Photos.bestImage(info), info.optJSONObject("http_headers"), base));
         }
+        List<File> got = fetchImages(wants, dir, onlyPhotos ? progress : null, 100f);
+        for (int k = 0; k < got.size(); k++) {
+            if (got.get(k) == null) continue;
+            out.files.add(got.get(k));
+            if (out.title.isEmpty()) out.title = photos.get(k).optString("title");
+        }
+    }
+
+    /** One photo to fetch: where from, with which headers, and its file name without the extension. */
+    private static final class Want {
+        final String url, base;
+        final JSONObject headers;
+
+        Want(String url, JSONObject headers, String base) {
+            this.url = url;
+            this.headers = headers;
+            this.base = base;
+        }
+    }
+
+    /**
+     * Downloads photos into dir, four at a time. Returns a file for each, in the order asked; null where one failed.
+     * Reports progress (when given) from 0 to full as they arrive.
+     */
+    private static List<File> fetchImages(List<Want> wants, File dir, Progress progress, float full) {
+        List<File> out = new ArrayList<>();
+        if (wants.isEmpty()) return out;
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(4, wants.size()));
+        try {
+            int[] arrived = {0};
+            List<Future<File>> jobs = new ArrayList<>();
+            for (Want w : wants) {
+                jobs.add(pool.submit(() -> {
+                    File f = fetchImage(w.url, w.headers, dir, w.base);
+                    synchronized (arrived) {   // in turn, so the bar only moves forward
+                        arrived[0]++;
+                        if (progress != null) progress.on(full * arrived[0] / wants.size());
+                    }
+                    return f;
+                }));
+            }
+            for (Future<File> job : jobs) {
+                File f = null;
+                try {
+                    f = job.get();
+                } catch (Exception ignored) {
+                    // that photo failed; the others still count
+                }
+                out.add(f);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        return out;
     }
 
     // ---- TikTok photo posts ----
 
     /**
-     * A TikTok photo post, as its pictures (AS_PHOTOS) or as a video of them with the post's sound (AS_SLIDESHOW).
-     * yt-dlp doesn't read these posts, but it gets past TikTok's checks: one yt-dlp run fetches the post's page and
-     * prints it (the pictures are listed in it) and, for the video, downloads the sound. FFmpeg then makes the video.
+     * A TikTok photo post, as its pictures and its sound (AS_PHOTOS) or as a video of them with the sound
+     * (AS_SLIDESHOW); only the chosen pictures, when some were chosen. yt-dlp doesn't read these posts, but it gets
+     * past TikTok's checks: one yt-dlp run fetches the post's page and prints it (the pictures are listed in it) and
+     * downloads the sound. For the video, FFmpeg then puts the two together.
      */
     private static Result tiktokPhotos(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
         init(c);
@@ -347,48 +425,80 @@ final class Engine {
         String photoId = Photos.tiktokPhotoId(item.url);
         if (photoId == null) photoId = Photos.tiktokPhotoId(resolve(item.url));
         if (photoId == null) throw new Exception("NO_FILES");
-        YoutubeDLRequest r = new YoutubeDLRequest("https://www.tiktok.com/@_/video/" + photoId);
-        r.addOption("--dump-pages");
-        // yt-dlp may well complain that a photo post has no video; this keeps the library from turning that into an
-        // exception, so the printed page still comes back.
-        r.addOption("--ignore-errors");
-        r.addOption("--ignore-no-formats-error");
-        r.addOption("--no-playlist");
-        File sounds = new File(dir, "sound");
-        if (video) {
-            r.addOption("-f", "ba/b");
-            r.addOption("-o", sounds.getAbsolutePath() + "/sound.%(ext)s");
-        } else {
-            r.addOption("--skip-download");
-        }
-        String printed = run(r, item.id, callback(progress, video)).getOut();
-
         JSONObject headers = new JSONObject();
         try {
             headers.put("Referer", "https://www.tiktok.com/").put("User-Agent", BROWSER);
         } catch (Exception ignored) {
         }
+        File sounds = new File(dir, "sound");
+        //noinspection ResultOfMethodCallIgnored
+        sounds.mkdirs();
+        List<String> pages = new ArrayList<>();
+        File sound = null;
+        // Read for the picker a moment ago: the page is here already, and it names the sound's address, so the sound
+        // is fetched straight from there and yt-dlp doesn't have to start at all.
+        String read = TikTokPage.get(c, photoId);
+        if (read != null) {
+            progress.on(Progress.WORKING);
+            sound = fetchSound(Photos.tiktokSoundUrl(read), headers, sounds);
+        }
+        boolean asked = read == null || (sound == null && Photos.tiktokHasSound(read));
+        if (asked) {
+            YoutubeDLRequest r = tiktokPage(photoId);
+            r.addOption("-o", sounds.getAbsolutePath() + "/sound.%(ext)s");
+            if (video) {
+                r.addOption("-f", "ba/b");
+            } else {
+                // Saved as a file of its own, so the same as the sound alone: M4A.
+                r.addOption("-f", "ba[ext=m4a]/ba/b");
+                r.addOption("-x");
+                r.addOption("--audio-format", "m4a");
+            }
+            // The sound counts from 0 to 100 on its own, before the pictures do: show it as busy, so the bar only moves forward.
+            pages.addAll(Photos.dumpedPages(run(r, item.id, callback(progress, true)).getOut()));
+            File[] found = sounds.listFiles();
+            if (found != null) {
+                Arrays.sort(found, (x, y) -> x.getName().compareTo(y.getName()));
+                for (File f : found) {
+                    if (sound == null && f.isFile() && f.length() > 0 && MEDIA.contains(ext(f.getName()))) sound = f;
+                }
+            }
+        }
+        if (read != null) pages.add(read);
+
         Result out = new Result();
         File pictures = video ? new File(dir, "pictures") : dir;
         //noinspection ResultOfMethodCallIgnored
         pictures.mkdirs();
-        for (String page : Photos.dumpedPages(printed)) {
+        for (String page : pages) {
             List<String> images = Photos.tiktokImages(page);
             if (images.isEmpty()) continue;
             String desc = Photos.tiktokDesc(page);
             out.title = desc.isEmpty() ? "TikTok photos" : desc;
-            for (int k = 0; k < images.size(); k++) {
-                File f = fetchImage(images.get(k), headers, pictures, "TikTok " + photoId + " " + String.format(Locale.ROOT, "%02d", k + 1));
-                if (f != null) out.files.add(f);
-                progress.on((video ? 50f : 100f) * (k + 1) / images.size());
+            List<Want> wants = new ArrayList<>();
+            for (int n : Post.chosen(item.pick, images.size())) {
+                // named by its place in the post, whichever were chosen
+                wants.add(new Want(images.get(n - 1), headers, "TikTok " + photoId + " " + String.format(Locale.ROOT, "%02d", n)));
             }
+            for (File f : fetchImages(wants, pictures, progress, video ? 50f : 100f)) if (f != null) out.files.add(f);
             break;
         }
+        if (out.files.isEmpty() && !asked) {
+            // The page kept from the picker no longer leads to the pictures: read the post afresh.
+            TikTokPage.forget(c, photoId);
+            return tiktokPhotos(c, item, dir, progress);
+        }
         if (out.files.isEmpty()) throw new Exception("NO_FILES");
-        if (!video) return out;
 
-        File[] found = sounds.listFiles();
-        File sound = found != null && found.length > 0 ? found[0] : null;
+        if (!video) {
+            // The sound comes along as a file of its own, after the pictures. A post without one is just its pictures.
+            if (sound != null) {
+                File named = new File(dir, safeName(out.title) + " [" + photoId + "]." + ext(sound.getName()));
+                if (sound.renameTo(named)) out.files.add(named);
+            }
+            return out;
+        }
+
         progress.on(Progress.WORKING);
         File mp4 = new File(dir, safeName(out.title) + " [" + photoId + "].mp4");
         long soundMillis = sound == null ? 0 : durationMillis(sound);
@@ -400,6 +510,104 @@ final class Engine {
         made.duration = seconds;
         made.height = 1920;
         return made;
+    }
+
+    /** A yt-dlp run that fetches a TikTok photo post's page and prints it. */
+    private static YoutubeDLRequest tiktokPage(String photoId) {
+        YoutubeDLRequest r = new YoutubeDLRequest("https://www.tiktok.com/@_/video/" + photoId);
+        r.addOption("--dump-pages");
+        // yt-dlp may well complain that a photo post has no video; this keeps the library from turning that into an
+        // exception, so the printed page still comes back.
+        r.addOption("--ignore-errors");
+        r.addOption("--ignore-no-formats-error");
+        r.addOption("--no-playlist");
+        return r;
+    }
+
+    /** A TikTok photo post's pictures (and whether it has a sound), read for the picker without downloading anything. */
+    static Post readTikTok(Context c, String url) throws Exception {
+        init(c);
+        String photoId = Photos.tiktokPhotoId(url);
+        if (photoId == null) throw new Exception("NO_FILES");
+        YoutubeDLRequest r = tiktokPage(photoId);
+        r.addOption("--skip-download");
+        String printed = run(r, "ahead-tiktok-" + photoId, null).getOut();
+        for (String page : Photos.dumpedPages(printed)) {
+            Post post = Post.tiktok(page);
+            if (post.entries.isEmpty()) continue;
+            TikTokPage.keep(c, photoId, page);   // the download that follows starts from it
+            return post;
+        }
+        throw new Exception("NO_FILES");
+    }
+
+    /** A TikTok photo post's page as the picker read it, kept in the cache for 20 minutes for the download. */
+    private static final class TikTokPage {
+        private static File file(Context c, String photoId) {
+            return new File(c.getCacheDir(), "ahead/tiktok-" + photoId + ".html");
+        }
+
+        static void keep(Context c, String photoId, String page) {
+            File f = file(c, photoId);
+            //noinspection ResultOfMethodCallIgnored
+            f.getParentFile().mkdirs();
+            try (OutputStream os = new FileOutputStream(f)) {
+                os.write(page.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();   // the download reads the post itself, as before
+            }
+        }
+
+        /** The page, if it was read lately and still lists pictures; null otherwise. */
+        static String get(Context c, String photoId) {
+            File f = file(c, photoId);
+            if (!f.isFile() || System.currentTimeMillis() - f.lastModified() >= 20 * 60_000L) return null;
+            try (InputStream in = new FileInputStream(f)) {
+                String page = Haul.readAll(in);
+                return Photos.tiktokImages(page).isEmpty() ? null : page;
+            } catch (Exception e) {
+                return null;
+            }
+        }
+
+        static void forget(Context c, String photoId) {
+            //noinspection ResultOfMethodCallIgnored
+            file(c, photoId).delete();
+        }
+
+        private TikTokPage() {}
+    }
+
+    /** Downloads a sound from its address into dir as "sound" + its type's extension; null when there is none or it fails. */
+    private static File fetchSound(String url, JSONObject headers, File dir) {
+        if (url == null || !url.startsWith("http")) return null;
+        HttpURLConnection con = null;
+        try {
+            con = (HttpURLConnection) new URL(url).openConnection();
+            con.setConnectTimeout(15_000);
+            con.setReadTimeout(30_000);
+            for (java.util.Iterator<String> k = headers.keys(); k.hasNext(); ) {
+                String name = k.next();
+                con.setRequestProperty(name, headers.optString(name));
+            }
+            if (con.getResponseCode() / 100 != 2) return null;
+            String ext = Photos.soundExt(con.getContentType(), url);
+            if (ext == null) return null;   // a page saying no, not a sound
+            File f = new File(dir, "sound." + ext);
+            try (InputStream in = con.getInputStream(); OutputStream os = new FileOutputStream(f)) {
+                byte[] buf = new byte[64 * 1024];
+                for (int n; (n = in.read(buf)) > 0; ) os.write(buf, 0, n);
+            }
+            if (f.length() > 0 && durationMillis(f) > 0) return f;
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();   // not something that plays: let yt-dlp fetch the sound instead
+            return null;
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (con != null) con.disconnect();
+        }
     }
 
     private static long durationMillis(File media) {
@@ -421,6 +629,8 @@ final class Engine {
 
     /** FFmpeg processes running for a haul, so Cancel stops them too. */
     private static final Map<String, Process> FFMPEG = new ConcurrentHashMap<>();
+    /** Hauls whose FFmpeg was stopped by Cancel: FFmpeg then ends like any failure, and this tells the two apart. */
+    private static final java.util.Set<String> STOPPED = ConcurrentHashMap.newKeySet();
 
     /**
      * The pictures as an H.264 + AAC video (plays everywhere), seconds long, with the sound looping under them.
@@ -430,6 +640,30 @@ final class Engine {
         File list = new File(out.getParentFile(), "pictures.txt");
         List<String> paths = new ArrayList<>();
         for (File f : pictures) paths.add(f.getAbsolutePath());
+        int once = Slideshow.seconds(pictures.size(), 0);
+        if (sound != null && seconds > once) {
+            // The sound outlasts the pictures, so they come round again. Encoding is the slow part: encode one round
+            // (without B-frames, so the rounds join cleanly), then repeat it under the sound as it is.
+            try {
+                File round = new File(out.getParentFile(), "round.mp4");
+                try (OutputStream os = new FileOutputStream(list)) {
+                    os.write(Slideshow.concat(paths, once).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+                ffmpeg(id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                        "-f", "concat", "-safe", "0", "-i", list.getAbsolutePath(), "-t", String.valueOf(once),
+                        "-vf", Slideshow.FILTER, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-bf", "0", "-an",
+                        round.getAbsolutePath())), round);
+                ffmpeg(id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                        "-stream_loop", "-1", "-i", round.getAbsolutePath(), "-stream_loop", "-1", "-i", sound.getAbsolutePath(),
+                        "-t", String.valueOf(seconds), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                        "-movflags", "+faststart", out.getAbsolutePath())), out);
+                return;
+            } catch (InterruptedException e) {
+                throw e;   // canceled
+            } catch (Exception e) {
+                // this FFmpeg wouldn't repeat it: make the whole video in one go, as below
+            }
+        }
         try (OutputStream os = new FileOutputStream(list)) {
             os.write(Slideshow.concat(paths, seconds).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
@@ -447,6 +681,7 @@ final class Engine {
     private static void ffmpeg(String id, List<String> cmd, File out) throws Exception {
         ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
         pb.environment().put("LD_LIBRARY_PATH", ffmpegLibs);
+        STOPPED.remove(id);
         Process p = pb.start();
         FFMPEG.put(id, p);
         String said;
@@ -457,7 +692,7 @@ final class Engine {
         }
         int exit = p.waitFor();
         if (exit != 0 || !out.isFile() || out.length() == 0) {
-            if (exit == 137 || exit == 143) throw new InterruptedException();   // canceled
+            if (STOPPED.remove(id) || exit == 137 || exit == 143) throw new InterruptedException();   // canceled
             throw new Exception(MADE + lastLine(said));
         }
     }
@@ -582,27 +817,31 @@ final class Engine {
         int duration = -1;
     }
 
+    /**
+     * Reads the link the way a download does and keeps what was read, so a download that follows (of the section
+     * picked) starts from it instead of reading the link again.
+     */
     static Info info(Context c, String url) throws Exception {
-        init(c);
-        YoutubeDLRequest r = new YoutubeDLRequest(url);
-        r.addOption("--skip-download");
-        r.addOption("--no-playlist");
-        r.addOption("--no-warnings");
-        r.addOption("-I", "1");
-        r.addOption("--print", "%(duration)s");
-        r.addOption("--print", "%(thumbnail)s");
-        r.addOption("--print", "%(title)s");
-        String[] lines = run(r, "info-" + url.hashCode(), null).getOut().trim().split("\n");
+        return info(read(c, url));
+    }
+
+    /** The first item's title, length and picture, from yt-dlp's details of a link. */
+    static Info info(JSONObject details) {
+        JSONObject o = details;
+        JSONArray entries = "playlist".equals(o.optString("_type")) ? o.optJSONArray("entries") : null;
+        if (entries != null && entries.optJSONObject(0) != null) o = entries.optJSONObject(0);
         Info i = new Info();
-        if (lines.length > 0) {
-            try {
-                i.duration = (int) Math.round(Double.parseDouble(lines[0].trim()));
-            } catch (NumberFormatException ignored) {
-                // "NA": a live stream or a site that doesn't say
-            }
+        i.title = o.optString("title");
+        double d = o.optDouble("duration", -1);   // absent for a live stream, or a site that doesn't say
+        i.duration = Double.isNaN(d) || d <= 0 ? -1 : (int) Math.round(d);
+        String t = o.optString("thumbnail");
+        JSONArray thumbs = o.optJSONArray("thumbnails");
+        // yt-dlp lists thumbnails worst to best.
+        for (int k = 0; t.isEmpty() && thumbs != null && k < thumbs.length(); k++) {
+            JSONObject x = thumbs.optJSONObject(thumbs.length() - 1 - k);
+            if (x != null) t = x.optString("url");
         }
-        if (lines.length > 1 && lines[1].startsWith("http")) i.thumbnail = lines[1].trim();
-        if (lines.length > 2 && !"NA".equals(lines[2].trim())) i.title = lines[2].trim();
+        if (t.startsWith("http")) i.thumbnail = t;
         return i;
     }
 
@@ -634,7 +873,10 @@ final class Engine {
     /** Stops the yt-dlp (or FFmpeg) process of this haul, if one is running. */
     static void cancel(String id) {
         Process ff = FFMPEG.get(id);
-        if (ff != null) ff.destroy();
+        if (ff != null) {
+            STOPPED.add(id);
+            ff.destroy();
+        }
         String pid = PROCESS.get(id);
         if (pid == null) return;
         try {
@@ -715,6 +957,22 @@ final class Engine {
                 AHEAD.remove(url);
             }
         }, "haul-ahead").start();
+    }
+
+    /**
+     * A download asked for while its link is still being read ahead waits for that read (up to half a minute) and
+     * starts from it, rather than reading the link a second time alongside.
+     */
+    private static void awaitAhead(Context c, Haul.Item item, Progress progress) throws InterruptedException {
+        long until = System.currentTimeMillis() + 30_000;
+        boolean said = false;
+        while (AHEAD.contains(item.url) && System.currentTimeMillis() < until) {
+            Haul.Item now = Haul.get(c, item.id);
+            if (now == null || Haul.CANCELED.equals(now.status)) throw new InterruptedException();
+            if (!said) progress.on(Progress.READING);
+            said = true;
+            Thread.sleep(150);
+        }
     }
 
     /** Links being read ahead right now, so a screen redrawing many times a second starts one read, not many. */

@@ -28,7 +28,7 @@ final class Haul {
     static final String QUEUED = "queued", WORKING = "working", DONE = "done", FAILED = "failed", CANCELED = "canceled";
     static final String BEST = "best", SMALL = "small", AUDIO = "audio", GIF = "gif";
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
-    /** How to save a TikTok photo post: its pictures, or a video of them with the post's sound. */
+    /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of them with the sound. */
     static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";
     private static final int KEEP = 50;
     private static final Pattern LINK = Pattern.compile("https?://[^\\s<>\"'{}|\\\\^`]+", Pattern.CASE_INSENSITIVE);
@@ -38,6 +38,8 @@ final class Haul {
         String id, url, title = "", site = "", status = QUEUED, error = "", uri = "", mime = "", quality = BEST;
         String kind = "";              // VIDEO, AUDIO or PHOTOS once saved
         String pick = "";              // the chosen items of a post, as yt-dlp's -I takes them ("1,3"); "" for all
+        String took = "";              // where the download's time went, from Stages ("12.4 s: start 2.1 · read 3.4 …")
+        boolean sound;                 // saved photos whose last file is the post's sound (a TikTok photo post)
         String as = "";                // AS_PHOTOS or AS_SLIDESHOW for a TikTok photo post; "" otherwise
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
@@ -52,7 +54,7 @@ final class Haul {
                     .put("quality", quality).put("count", count).put("time", time).put("kind", kind)
                     .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
-                    .put("pick", pick).put("as", as);
+                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took);
         }
 
         static Item of(JSONObject o) {
@@ -81,7 +83,14 @@ final class Haul {
             i.doneAt = o.optLong("doneAt", i.time);
             i.pick = o.optString("pick");
             i.as = o.optString("as");
+            i.sound = o.optBoolean("sound");
+            i.took = o.optString("took");
             return i;
+        }
+
+        /** How many of the saved files are pictures: all of them, but for the sound that came with them. */
+        int photos() {
+            return sound ? count - 1 : count;
         }
 
         boolean active() {

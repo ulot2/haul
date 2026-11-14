@@ -91,6 +91,8 @@ final class Sheets {
             });
         }
         mark.run();
+        // Read the link while the user picks a quality: the download then starts from what was read.
+        if (Haul.firstLink(draft.url) != null) Engine.readAhead(a, Haul.firstLink(draft.url));
         TextView clipValue = d.findViewById(R.id.addClipValue);
         clipValue.setText(draft.clipped() ? Format.clock(draft.clipStart) + "–" + Format.clock(draft.clipEnd) : "Whole video");
 
@@ -272,6 +274,7 @@ final class Sheets {
             facts.add(new String[]{"Saved", Look.when(a, i.doneAt)});
             facts.add(new String[]{"Album", Downloads.album(i)});
             facts.add(new String[]{"From", i.site});
+            if (!i.took.isEmpty()) facts.add(new String[]{"Took", i.took});
         } else {
             facts.add(new String[]{"Quality", Look.what(i)});
             facts.add(new String[]{"Added", Look.when(a, i.time)});
@@ -339,7 +342,7 @@ final class Sheets {
 
     /** A saved haul: delete the file too, or only take it off the list. */
     private static void confirmDelete(Activity a, Haul.Item i) {
-        String what = Haul.PHOTOS.equals(i.kind) ? (i.count > 1 ? "photos" : "photo") : Haul.AUDIO.equals(i.kind) ? "audio" : (i.count > 1 ? "videos" : "video");
+        String what = Haul.PHOTOS.equals(i.kind) ? (i.photos() > 1 ? "photos" : "photo") + (i.sound ? " and sound" : "") : Haul.AUDIO.equals(i.kind) ? "audio" : (i.count > 1 ? "videos" : "video");
         new AlertDialog.Builder(a)
                 .setTitle(Look.title(i))
                 .setMessage("Delete the " + what + " from your Gallery too, or only take it off this list?")

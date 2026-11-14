@@ -74,6 +74,20 @@ public class PhotosTest {
     }
 
     @Test
+    public void theSoundOfATikTokPostAndItsFileType() {
+        String page = "<script id=\"__UNIVERSAL_DATA_FOR_REHYDRATION__\" type=\"application/json\">"
+                + "{\"__DEFAULT_SCOPE__\":{\"webapp.video-detail\":{\"itemInfo\":{\"itemStruct\":{"
+                + "\"music\":{\"playUrl\":\"https://sf16/obj/sound.mp3\"}}}}}}</script>";
+        assertEquals("https://sf16/obj/sound.mp3", Photos.tiktokSoundUrl(page));
+        assertEquals("", Photos.tiktokSoundUrl("<html>no data</html>"));
+        assertEquals("mp3", Photos.soundExt("audio/mpeg", "https://sf16/obj/abc"));
+        assertEquals("m4a", Photos.soundExt("audio/mp4", "https://sf16/obj/abc"));
+        assertEquals("m4a", Photos.soundExt("application/octet-stream", "https://sf16/obj/abc.m4a?x=1"));
+        assertEquals("mp3", Photos.soundExt(null, "https://sf16/obj/abc"));
+        assertNull(Photos.soundExt("text/html; charset=utf-8", "https://sf16/obj/abc.mp3"));   // a page saying no
+    }
+
+    @Test
     public void aPageWithoutPhotosGivesNone() {
         assertTrue(Photos.tiktokImages("<html>no data</html>").isEmpty());
         assertTrue(Photos.tiktokImages("<script id=\"__UNIVERSAL_DATA_FOR_REHYDRATION__\">{\"__DEFAULT_SCOPE__\":{}}</script>").isEmpty());

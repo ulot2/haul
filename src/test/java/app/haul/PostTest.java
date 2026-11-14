@@ -47,6 +47,34 @@ public class PostTest {
     }
 
     @Test
+    public void aTikTokPhotoPostIsItsPicturesAndWhetherItHasSound() {
+        String start = "<script id=\"__UNIVERSAL_DATA_FOR_REHYDRATION__\" type=\"application/json\">"
+                + "{\"__DEFAULT_SCOPE__\":{\"webapp.video-detail\":{\"itemInfo\":{\"itemStruct\":{\"desc\":\"Three rooms\",";
+        String images = "\"imagePost\":{\"images\":[{\"imageURL\":{\"urlList\":[\"https://p16/1.jpeg\"]}},"
+                + "{\"imageURL\":{\"urlList\":[\"https://p16/2.jpeg\"]}}]}";
+        String end = "}}}}}</script>";
+        Post p = Post.tiktok(start + "\"music\":{\"playUrl\":\"https://v16/sound.mp3\"}," + images + end);
+        assertEquals(2, p.entries.size());
+        assertEquals(2, p.entries.get(1).index);
+        assertEquals("https://p16/2.jpeg", p.entries.get(1).thumbnail);
+        assertFalse(p.entries.get(0).video);
+        assertEquals("Three rooms", p.title);
+        assertTrue(p.sound);
+        assertFalse(Post.tiktok(start + "\"music\":{\"playUrl\":\"\"}," + images + end).sound);
+        assertFalse(Post.tiktok(start + images + end).sound);
+        assertEquals(0, Post.tiktok("<html>no data</html>").entries.size());
+    }
+
+    @Test
+    public void chosenPicturesComeBackInOrder() {
+        assertEquals(Arrays.asList(1, 3, 4), Post.chosen("1,3,4", 5));
+        assertEquals(Arrays.asList(1, 2, 3), Post.chosen("", 3));          // nothing chosen: all
+        assertEquals(Arrays.asList(2), Post.chosen("2,2,9,x", 3));         // only those the post has, each once
+        assertEquals(Arrays.asList(1, 2), Post.chosen("7,8", 2));          // the post changed: all of it
+        assertTrue(Post.chosen(null, 0).isEmpty());
+    }
+
+    @Test
     public void chosenItemsForYtDlp() {
         assertEquals("1,3,4", Post.items(Arrays.asList(1, 3, 4)));
         assertEquals("2", Post.items(Arrays.asList(2)));

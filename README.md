@@ -13,7 +13,7 @@ When a download is done, its notification has **Share** (straight to WhatsApp, s
 Some posts ask first:
 
 - An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
-- A **TikTok photo post** asks how to save it: **Video with sound** (the pictures in turn, with the music, made on the phone with FFmpeg), **Photos**, or **Sound only**.
+- A **TikTok photo post** shows its pictures the same way; tap the ones to leave out. Then choose how to save the rest: **Video** (the chosen pictures in turn, with the post's sound, made on the phone with FFmpeg), **Photos** (each chosen picture, and the sound next to them as a sound file in Music/Haul), or **Sound** (just the sound).
 
 Tap a download, then **Play**, to watch or hear it in Haul's own player (photos and GIFs too; swipe through a post's files). The button at the top opens it in the Gallery instead.
 
@@ -21,7 +21,9 @@ Tap a download, then **Play**, to watch or hear it in Haul's own player (photos 
 
 To delete or share several downloads at once, long-press one in Haul, tap the others, then **Delete** or **Share**.
 
-Downloads start faster when Haul has seen the link first: a copied link in the bottom bar, or a post in the picker, is read right away, and the download starts from what was read.
+Downloads start faster when Haul has seen the link first: a copied link in the bottom bar, a link you are picking a quality or a section for, or a post in the picker, is read right away, and the download starts from what was read. A post's photos come down four at a time.
+
+Tap a finished download to see what it **Took**, and where the time went: starting the engine, reading the link, getting the file, making it (a clip, a slideshow, a GIF) and saving it.
 
 No account, no ads, and no server of its own: everything runs on the phone.
 

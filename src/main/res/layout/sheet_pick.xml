@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- PICK FROM THE POST: an Instagram carousel's photos and videos in a grid; tap to leave one out or put it back.
+<!-- PICK FROM THE POST: an Instagram carousel's photos and videos, or a TikTok photo post's pictures, in a grid; tap to
+     leave one out or put it back. A TikTok photo post also asks how to save it: a video of the pictures with the
+     sound, the pictures and the sound as files, or just the sound.
      Also the brief "Reading the link" sheet while Haul looks up a TikTok short link. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -68,6 +70,38 @@
             android:columnCount="3"
             android:useDefaultMargins="false" />
     </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/pickAs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            style="@style/Haul.Label"
+            android:text="Save as" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button android:id="@+id/asVideo" style="@style/Haul.Segment" android:text="Video" />
+            <Button android:id="@+id/asPhotos" style="@style/Haul.Segment" android:text="Photos" />
+            <Button android:id="@+id/asSound" style="@style/Haul.Segment" android:layout_marginEnd="0dp" android:text="Sound" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/pickAsNote"
+            style="@style/Haul.Body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:minLines="2" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/pickButtons"
