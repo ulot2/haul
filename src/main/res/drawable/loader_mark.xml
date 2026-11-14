@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The loader's first frame: the card in line. avd_loader steps it out and back, again and again. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="30dp" android:height="34dp"
+    android:viewportWidth="68" android:viewportHeight="80">
+    <group android:translateX="-20" android:translateY="-14">
+        <group android:name="feed">
+            <path android:pathData="M29,18 H71 A5,5 0 0 1 76,23 V33 A5,5 0 0 1 71,38 H29 A5,5 0 0 1 24,33 V23 A5,5 0 0 1 29,18 Z" android:fillColor="@color/line" />
+            <path android:pathData="M29,70 H71 A5,5 0 0 1 76,75 V85 A5,5 0 0 1 71,90 H29 A5,5 0 0 1 24,85 V75 A5,5 0 0 1 29,70 Z" android:fillColor="@color/line" />
+            <group android:name="pick" android:pivotX="58" android:pivotY="54" android:rotation="0" android:translateX="-8">
+                <path android:name="card" android:pathData="M37,44 H79 A5,5 0 0 1 84,49 V59 A5,5 0 0 1 79,64 H37 A5,5 0 0 1 32,59 V49 A5,5 0 0 1 37,44 Z" android:fillColor="@color/line" />
+                <path android:name="play" android:pathData="M51,49 L60,54 L51,59 Z" android:fillColor="@color/on_clay" android:fillAlpha="0" />
+            </group>
+        </group>
+    </group>
+</vector>

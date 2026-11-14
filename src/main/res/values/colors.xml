@@ -20,8 +20,10 @@
     <color name="tone3">#4B4436</color>
     <color name="tone4">#3E3550</color>
     <color name="tone5">#55503F</color>
-    <!-- The launcher icon is dark in both themes (not overridden in values-night). -->
-    <color name="icon_ground">#121110</color>
-    <color name="icon_ink">#F4F0E8</color>
+    <!-- The logo (Pull) is dark in both themes, not overridden in values-night: the tile, the feed's cards, the caught
+         clay card and the play sign on it. -->
+    <color name="icon_ground">#1C1B19</color>
+    <color name="icon_dim">#3A3733</color>
     <color name="icon_clay">#C8775A</color>
+    <color name="icon_ink">#1E1408</color>
 </resources>

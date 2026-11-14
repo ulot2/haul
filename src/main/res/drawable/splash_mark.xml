@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch mark's first frame on Android 12+: the feed scrolled down, the card still in line. avd_splash plays it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp" android:height="240dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.76" android:scaleY="0.76">
+        <group android:name="feed" android:translateY="104">
+            <path android:pathData="M29,-34 H71 A5,5 0 0 1 76,-29 V-19 A5,5 0 0 1 71,-14 H29 A5,5 0 0 1 24,-19 V-29 A5,5 0 0 1 29,-34 Z" android:fillColor="#2A2825" />
+            <path android:pathData="M29,-8 H71 A5,5 0 0 1 76,-3 V7 A5,5 0 0 1 71,12 H29 A5,5 0 0 1 24,7 V-3 A5,5 0 0 1 29,-8 Z" android:fillColor="#2A2825" />
+            <path android:pathData="M29,18 H71 A5,5 0 0 1 76,23 V33 A5,5 0 0 1 71,38 H29 A5,5 0 0 1 24,33 V23 A5,5 0 0 1 29,18 Z" android:fillColor="@color/icon_dim" />
+            <path android:pathData="M29,70 H71 A5,5 0 0 1 76,75 V85 A5,5 0 0 1 71,90 H29 A5,5 0 0 1 24,85 V75 A5,5 0 0 1 29,70 Z" android:fillColor="@color/icon_dim" />
+            <path android:pathData="M29,96 H71 A5,5 0 0 1 76,101 V111 A5,5 0 0 1 71,116 H29 A5,5 0 0 1 24,111 V101 A5,5 0 0 1 29,96 Z" android:fillColor="#2A2825" />
+            <group android:name="pick" android:pivotX="58" android:pivotY="54" android:rotation="0" android:translateX="-8">
+                <path android:name="shadow" android:pathData="M35,48 H77 A5,5 0 0 1 82,53 V63 A5,5 0 0 1 77,68 H35 A5,5 0 0 1 30,63 V53 A5,5 0 0 1 35,48 Z" android:fillColor="#000000" android:fillAlpha="0" />
+                <path android:name="card" android:pathData="M37,44 H79 A5,5 0 0 1 84,49 V59 A5,5 0 0 1 79,64 H37 A5,5 0 0 1 32,59 V49 A5,5 0 0 1 37,44 Z" android:fillColor="@color/icon_dim" />
+                <path android:name="play" android:pathData="M51,49 L60,54 L51,59 Z" android:fillColor="@color/icon_ink" android:fillAlpha="0" />
+            </group>
+        </group>
+    </group>
+</vector>

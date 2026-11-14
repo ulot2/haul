@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clay when out, the feed's grey when back in line. -->
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:propertyName="fillColor"
+    android:valueFrom="#FF6E6860"
+    android:valueTo="#FFC8775A"
+    android:valueType="colorType"
+    android:duration="600"
+    android:interpolator="@android:interpolator/fast_out_slow_in"
+    android:repeatCount="infinite"
+    android:repeatMode="reverse" />

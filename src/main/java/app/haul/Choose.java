@@ -233,8 +233,16 @@ final class Choose {
         Dialog d = sheet(a, R.layout.sheet_pick, done);
         ((TextView) d.findViewById(R.id.pickTitle)).setText(title);
         ((TextView) d.findViewById(R.id.pickStatus)).setText(status);
+        spin(d.findViewById(R.id.pickLoader));
         d.show();
         return d;
+    }
+
+    /** Starts Haul's loading sign (the Pull card stepping out and back) in an image view showing avd_loader. */
+    static void spin(ImageView v) {
+        if (v.getDrawable() instanceof android.graphics.drawable.Animatable) {
+            ((android.graphics.drawable.Animatable) v.getDrawable()).start();
+        }
     }
 
     /** Closes the sheet and reports what was added (instead of the "nothing" a plain dismiss reports). */

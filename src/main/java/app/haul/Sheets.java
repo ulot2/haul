@@ -140,7 +140,8 @@ final class Sheets {
         Dialog d = sheet(a, R.layout.sheet_clip);
         ImageView preview = d.findViewById(R.id.clipPreview);
         TextView previewLabel = d.findViewById(R.id.clipPreviewLabel);
-        ProgressBar loading = d.findViewById(R.id.clipLoading);
+        ImageView loading = d.findViewById(R.id.clipLoading);
+        Choose.spin(loading);
         TextView status = d.findViewById(R.id.clipStatus);
         View controls = d.findViewById(R.id.clipControls);
         TextView range = d.findViewById(R.id.clipRange), length = d.findViewById(R.id.clipLength);

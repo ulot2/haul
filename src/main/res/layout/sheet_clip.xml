@@ -61,12 +61,13 @@
             android:textColor="@android:color/white"
             android:textSize="11sp" />
 
-        <ProgressBar
+        <ImageView
             android:id="@+id/clipLoading"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="40dp"
+            android:layout_height="46dp"
             android:layout_gravity="center"
-            android:indeterminateTint="@android:color/white" />
+            android:importantForAccessibility="no"
+            android:src="@drawable/avd_loader" />
     </FrameLayout>
 
     <TextView

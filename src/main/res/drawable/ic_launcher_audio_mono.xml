@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Haul audio", one color. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.76" android:scaleY="0.76">
+        <path android:pathData="M29,18 H71 A5,5 0 0 1 76,23 V33 A5,5 0 0 1 71,38 H29 A5,5 0 0 1 24,33 V23 A5,5 0 0 1 29,18 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="0.5" />
+        <path android:pathData="M29,70 H71 A5,5 0 0 1 76,75 V85 A5,5 0 0 1 71,90 H29 A5,5 0 0 1 24,85 V75 A5,5 0 0 1 29,70 Z" android:fillColor="#FFFFFFFF" android:fillAlpha="0.5" />
+        <group android:pivotX="58" android:pivotY="54" android:rotation="-6">
+            <path android:pathData="M37,44 H79 A5,5 0 0 1 84,49 V59 A5,5 0 0 1 79,64 H37 A5,5 0 0 1 32,59 V49 A5,5 0 0 1 37,44 Z M50,58 A3,2.4 0 1 0 56,58 A3,2.4 0 1 0 50,58 Z M55.2,58 V47.5 L61,49.5 V51.6 L56.8,50.2 V58 Z" android:fillColor="#FFFFFFFF" android:fillType="evenOdd" />
+        </group>
+    </group>
+</vector>

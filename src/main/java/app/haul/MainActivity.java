@@ -67,7 +67,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle state) {
+        setTheme(R.style.Theme_Haul);   // the launch screen's theme (the Pull mark) has done its part
         super.onCreate(state);
+        if (Build.VERSION.SDK_INT >= 31) fadeInFromLaunch();
         setContentView(R.layout.activity_main);
         edgeToEdge(this);
 
@@ -139,6 +141,23 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handle(intent);
+    }
+
+    /**
+     * Android 12+ plays the Pull mark on the launch screen. Haul is often ready before the mark has played, which would
+     * cut it short: keep the launch screen until the mark is done, then fade it out over the app.
+     */
+    @android.annotation.TargetApi(31)
+    private void fadeInFromLaunch() {
+        getSplashScreen().setOnExitAnimationListener(view -> {
+            long left = 0;
+            java.time.Instant start = view.getIconAnimationStart();
+            java.time.Duration length = view.getIconAnimationDuration();
+            if (start != null && length != null) {
+                left = Math.max(0, Math.min(1000, start.toEpochMilli() + length.toMillis() - System.currentTimeMillis()));
+            }
+            view.animate().alpha(0f).setStartDelay(left).setDuration(220).withEndAction(view::remove).start();
+        });
     }
 
     /** "Try again" on a failed-download notification lands here: Android lets an app on screen start a download. */
