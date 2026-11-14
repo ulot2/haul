@@ -50,20 +50,23 @@ final class Look {
         if (progress == Engine.Progress.READING) return Haul.PHOTOS.equals(i.kind) || !i.as.isEmpty() ? "Reading the post" : "Reading the link";
         if (progress == Engine.Progress.WORKING) {
             if (Haul.AS_SLIDESHOW.equals(i.as)) return "Making the video";
-            return i.clipped() ? "Cutting the section" : "Downloading";
+            if (Haul.GIF.equals(i.quality)) return "Making the GIF";
+            if (i.clipped()) return "Cutting the section";
+            return "X".equals(i.site) ? "Making the GIF" : "Downloading";   // X GIFs arrive as video, made into GIFs
         }
         return "Starting";
     }
 
     static String qualityName(String q) {
-        return Haul.AUDIO.equals(q) ? "Audio" : Haul.SMALL.equals(q) ? "720p" : "Best";
+        return Haul.AUDIO.equals(q) ? "Audio" : Haul.SMALL.equals(q) ? "720p" : Haul.GIF.equals(q) ? "GIF" : "Best";
     }
 
     /** What was saved, or asked for: "1080p", "Audio · M4A", "5 photos", plus "· clip 1:20–2:05". */
     static String what(Haul.Item i) {
         String s;
         if (Haul.DONE.equals(i.status)) {
-            if (Haul.PHOTOS.equals(i.kind)) s = i.count == 1 ? "Photo" : i.count + " photos";
+            boolean gif = i.mime.equals("image/gif");
+            if (Haul.PHOTOS.equals(i.kind)) s = i.count == 1 ? (gif ? "GIF" : "Photo") : i.count + (gif ? " GIFs" : " photos");
             else if (Haul.AUDIO.equals(i.kind)) s = "Audio · M4A";
             else s = (i.height > 0 ? i.height + "p" : qualityName(i.quality)) + (i.count > 1 ? " · " + i.count + " files" : "");
         } else {

@@ -74,9 +74,9 @@ final class Sheets {
         Dialog d = sheet(a, R.layout.sheet_add);
         EditText link = d.findViewById(R.id.addLink);
         link.setText(draft.url);
-        Button[] q = {d.findViewById(R.id.addBest), d.findViewById(R.id.addSmall), d.findViewById(R.id.addAudio)};
-        String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO};
-        String[] subs = {"Highest H.264", "Smaller files", "M4A"};
+        Button[] q = {d.findViewById(R.id.addBest), d.findViewById(R.id.addSmall), d.findViewById(R.id.addAudio), d.findViewById(R.id.addGif)};
+        String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO, Haul.GIF};
+        String[] subs = {"H.264", "Smaller", "M4A", "No sound"};
         Runnable mark = () -> {
             for (int k = 0; k < q.length; k++) {
                 q[k].setActivated(ids[k].equals(draft.quality));
@@ -290,8 +290,7 @@ final class Sheets {
             primary.setText(Haul.PHOTOS.equals(i.kind) ? "Open" : "Play");
             primary.setOnClickListener(v -> {
                 d.dismiss();
-                open(a, new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(i.uri), i.mime)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
+                a.startActivity(PlayerActivity.open(a, i.id, 0));   // Haul's own player; it can open the Gallery too
             });
         } else if (failed) {
             primary.setText("Try again");

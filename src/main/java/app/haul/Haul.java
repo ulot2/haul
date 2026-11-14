@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 /** Shared bits: settings, the list of hauls (the hold), and links. */
 final class Haul {
     static final String QUEUED = "queued", WORKING = "working", DONE = "done", FAILED = "failed", CANCELED = "canceled";
-    static final String BEST = "best", SMALL = "small", AUDIO = "audio";
+    static final String BEST = "best", SMALL = "small", AUDIO = "audio", GIF = "gif";
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
     /** How to save a TikTok photo post: its pictures, or a video of them with the post's sound. */
     static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";

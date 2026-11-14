@@ -46,6 +46,21 @@ final class Photos {
         return best;
     }
 
+    /**
+     * True for a post that is a GIF: X keeps GIFs as silent MP4s, served from /tweet_video/ (its other videos come from
+     * /ext_tw_video/ or /amplify_video/), with a tweet_video_thumb picture.
+     */
+    static boolean isGif(JSONObject info) {
+        if (info == null) return false;
+        if (info.optString("thumbnail").contains("/tweet_video_thumb/")) return true;
+        JSONArray formats = info.optJSONArray("formats");
+        for (int k = 0; formats != null && k < formats.length(); k++) {
+            JSONObject f = formats.optJSONObject(k);
+            if (f != null && f.optString("url").contains("video.twimg.com/tweet_video/")) return true;
+        }
+        return false;
+    }
+
     /** The id of a TikTok photo post ("/@user/photo/7301234"), or null. */
     static String tiktokPhotoId(String url) {
         Matcher m = url == null ? null : TIKTOK_PHOTO.matcher(url);

@@ -15,6 +15,10 @@ Some posts ask first:
 - An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
 - A **TikTok photo post** asks how to save it: **Video with sound** (the pictures in turn, with the music, made on the phone with FFmpeg), **Photos**, or **Sound only**.
 
+Tap a download, then **Play**, to watch or hear it in Haul's own player (photos and GIFs too; swipe through a post's files). The button at the top opens it in the Gallery instead.
+
+**GIFs** stay GIFs: an X post that is a GIF is saved as a `.gif` in Pictures/Haul (X serves GIFs as silent videos; Haul turns them back). The **GIF** quality turns any video into a GIF, up to 30 seconds, 480 pixels wide.
+
 To delete or share several downloads at once, long-press one in Haul, tap the others, then **Delete** or **Share**.
 
 Downloads start faster when Haul has seen the link first: a copied link in the bottom bar, or a post in the picker, is read right away, and the download starts from what was read.

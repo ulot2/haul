@@ -54,8 +54,8 @@ public class ShareActivity extends Activity {
             sheet.setPadding(sheet.getPaddingLeft(), sheet.getPaddingTop(), sheet.getPaddingRight(), pad + MainActivity.bars(insets)[3]);
             return insets;
         });
-        int[] ids = {R.id.qBest, R.id.qSmall, R.id.qAudio};
-        String[] qs = {Haul.BEST, Haul.SMALL, Haul.AUDIO};
+        int[] ids = {R.id.qBest, R.id.qSmall, R.id.qAudio, R.id.qGif};
+        String[] qs = {Haul.BEST, Haul.SMALL, Haul.AUDIO, Haul.GIF};
         for (int k = 0; k < ids.length; k++) {
             Button b = findViewById(ids[k]);
             String q = qs[k];
