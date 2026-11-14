@@ -20,7 +20,7 @@ No account, no ads, no server of its own. yt-dlp runs on the phone and updates i
 ## Capabilities and Constraints
 - yt-dlp, Python and FFmpeg via youtubedl-android; arm64 only, to keep the APK small.
 - Output: MP4 (H.264 + AAC), 720p option, or M4A audio; photos as the site serves them. Saved through MediaStore to Movies/Haul, Pictures/Haul, Music/Haul.
-- Photos: Instagram photo entries come from yt-dlp's info JSON (largest thumbnail = the photo); TikTok slideshows from the post page, which yt-dlp fetches and prints (--dump-pages).
+- Photos: Instagram photo entries come from yt-dlp's info JSON (largest thumbnail = the photo); TikTok slideshows from the post page, which yt-dlp fetches and prints (--dump-pages). Both show their items in a picker first; a TikTok photo post brings its sound along, in the video made of the pictures or as an M4A next to them.
 - One download at a time; others wait in the queue. Android 14+: a user-initiated data transfer job (waits for a connection, no daily limit). Android 10-13, or if Android refuses the job: a foreground service.
 - No sign-in: private, age-restricted and some rate-limited posts fail with a clear reason.
 - Updates: the app checks GitHub releases (public repo ulot2/haul) every 6 hours; yt-dlp updates daily (after the queue empties) and after a failure.

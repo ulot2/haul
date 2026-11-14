@@ -46,7 +46,7 @@ final class Engine {
     private static final List<String> PLAYABLE_AUDIO = Arrays.asList(MediaFormat.MIMETYPE_AUDIO_AAC, MediaFormat.MIMETYPE_AUDIO_MPEG);
     /** Downloads hold it to read, an update to write: replacing yt-dlp in the middle of a download would break it. */
     private static final ReentrantReadWriteLock RUN = new ReentrantReadWriteLock();
-    private static final String BROWSER =
+    static final String BROWSER =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36";
     private static boolean ready;
 
@@ -235,7 +235,7 @@ final class Engine {
         if (!audio) {
             savePhotos(dir, out, progress);
             if (out.files.isEmpty() && "TikTok".equals(item.site)) {
-                // A TikTok photo post added without asking (from the tile, or before Haul knew): its pictures.
+                // A TikTok photo post added without asking (from the tile, or before Haul knew): its pictures and sound.
                 Haul.Item photos = copy(item);
                 photos.as = Haul.AS_PHOTOS;
                 try {
@@ -334,9 +334,10 @@ final class Engine {
     // ---- TikTok photo posts ----
 
     /**
-     * A TikTok photo post, as its pictures (AS_PHOTOS) or as a video of them with the post's sound (AS_SLIDESHOW).
-     * yt-dlp doesn't read these posts, but it gets past TikTok's checks: one yt-dlp run fetches the post's page and
-     * prints it (the pictures are listed in it) and, for the video, downloads the sound. FFmpeg then makes the video.
+     * A TikTok photo post, as its pictures and its sound (AS_PHOTOS) or as a video of them with the sound
+     * (AS_SLIDESHOW); only the chosen pictures, when some were chosen. yt-dlp doesn't read these posts, but it gets
+     * past TikTok's checks: one yt-dlp run fetches the post's page and prints it (the pictures are listed in it) and
+     * downloads the sound. For the video, FFmpeg then puts the two together.
      */
     private static Result tiktokPhotos(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
         init(c);
@@ -347,21 +348,19 @@ final class Engine {
         String photoId = Photos.tiktokPhotoId(item.url);
         if (photoId == null) photoId = Photos.tiktokPhotoId(resolve(item.url));
         if (photoId == null) throw new Exception("NO_FILES");
-        YoutubeDLRequest r = new YoutubeDLRequest("https://www.tiktok.com/@_/video/" + photoId);
-        r.addOption("--dump-pages");
-        // yt-dlp may well complain that a photo post has no video; this keeps the library from turning that into an
-        // exception, so the printed page still comes back.
-        r.addOption("--ignore-errors");
-        r.addOption("--ignore-no-formats-error");
-        r.addOption("--no-playlist");
+        YoutubeDLRequest r = tiktokPage(photoId);
         File sounds = new File(dir, "sound");
+        r.addOption("-o", sounds.getAbsolutePath() + "/sound.%(ext)s");
         if (video) {
             r.addOption("-f", "ba/b");
-            r.addOption("-o", sounds.getAbsolutePath() + "/sound.%(ext)s");
         } else {
-            r.addOption("--skip-download");
+            // Saved as a file of its own, so the same as the sound alone: M4A.
+            r.addOption("-f", "ba[ext=m4a]/ba/b");
+            r.addOption("-x");
+            r.addOption("--audio-format", "m4a");
         }
-        String printed = run(r, item.id, callback(progress, video)).getOut();
+        // The sound counts from 0 to 100 on its own, before the pictures do: show it as busy, so the bar only moves forward.
+        String printed = run(r, item.id, callback(progress, true)).getOut();
 
         JSONObject headers = new JSONObject();
         try {
@@ -377,18 +376,34 @@ final class Engine {
             if (images.isEmpty()) continue;
             String desc = Photos.tiktokDesc(page);
             out.title = desc.isEmpty() ? "TikTok photos" : desc;
-            for (int k = 0; k < images.size(); k++) {
-                File f = fetchImage(images.get(k), headers, pictures, "TikTok " + photoId + " " + String.format(Locale.ROOT, "%02d", k + 1));
+            List<Integer> chosen = Post.chosen(item.pick, images.size());
+            for (int k = 0; k < chosen.size(); k++) {
+                int n = chosen.get(k);   // named by its place in the post, whichever were chosen
+                File f = fetchImage(images.get(n - 1), headers, pictures, "TikTok " + photoId + " " + String.format(Locale.ROOT, "%02d", n));
                 if (f != null) out.files.add(f);
-                progress.on((video ? 50f : 100f) * (k + 1) / images.size());
+                progress.on((video ? 50f : 100f) * (k + 1) / chosen.size());
             }
             break;
         }
         if (out.files.isEmpty()) throw new Exception("NO_FILES");
-        if (!video) return out;
 
+        File sound = null;
         File[] found = sounds.listFiles();
-        File sound = found != null && found.length > 0 ? found[0] : null;
+        if (found != null) {
+            Arrays.sort(found, (a, b) -> a.getName().compareTo(b.getName()));
+            for (File f : found) {
+                if (sound == null && f.isFile() && f.length() > 0 && MEDIA.contains(ext(f.getName()))) sound = f;
+            }
+        }
+        if (!video) {
+            // The sound comes along as a file of its own, after the pictures. A post without one is just its pictures.
+            if (sound != null) {
+                File named = new File(dir, safeName(out.title) + " [" + photoId + "]." + ext(sound.getName()));
+                if (sound.renameTo(named)) out.files.add(named);
+            }
+            return out;
+        }
+
         progress.on(Progress.WORKING);
         File mp4 = new File(dir, safeName(out.title) + " [" + photoId + "].mp4");
         long soundMillis = sound == null ? 0 : durationMillis(sound);
@@ -400,6 +415,33 @@ final class Engine {
         made.duration = seconds;
         made.height = 1920;
         return made;
+    }
+
+    /** A yt-dlp run that fetches a TikTok photo post's page and prints it. */
+    private static YoutubeDLRequest tiktokPage(String photoId) {
+        YoutubeDLRequest r = new YoutubeDLRequest("https://www.tiktok.com/@_/video/" + photoId);
+        r.addOption("--dump-pages");
+        // yt-dlp may well complain that a photo post has no video; this keeps the library from turning that into an
+        // exception, so the printed page still comes back.
+        r.addOption("--ignore-errors");
+        r.addOption("--ignore-no-formats-error");
+        r.addOption("--no-playlist");
+        return r;
+    }
+
+    /** A TikTok photo post's pictures (and whether it has a sound), read for the picker without downloading anything. */
+    static Post readTikTok(Context c, String url) throws Exception {
+        init(c);
+        String photoId = Photos.tiktokPhotoId(url);
+        if (photoId == null) throw new Exception("NO_FILES");
+        YoutubeDLRequest r = tiktokPage(photoId);
+        r.addOption("--skip-download");
+        String printed = run(r, "ahead-tiktok-" + photoId, null).getOut();
+        for (String page : Photos.dumpedPages(printed)) {
+            Post post = Post.tiktok(page);
+            if (!post.entries.isEmpty()) return post;
+        }
+        throw new Exception("NO_FILES");
     }
 
     private static long durationMillis(File media) {

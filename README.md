@@ -13,7 +13,7 @@ When a download is done, its notification has **Share** (straight to WhatsApp, s
 Some posts ask first:
 
 - An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
-- A **TikTok photo post** asks how to save it: **Video with sound** (the pictures in turn, with the music, made on the phone with FFmpeg), **Photos**, or **Sound only**.
+- A **TikTok photo post** shows its pictures the same way; tap the ones to leave out. Then choose how to save the rest: **Video** (the chosen pictures in turn, with the post's sound, made on the phone with FFmpeg), **Photos** (each chosen picture, and the sound next to them as an M4A in Music/Haul), or **Sound** (just the sound).
 
 Tap a download, then **Play**, to watch or hear it in Haul's own player (photos and GIFs too; swipe through a post's files). The button at the top opens it in the Gallery instead.
 

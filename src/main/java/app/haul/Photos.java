@@ -83,14 +83,31 @@ final class Photos {
         return pages;
     }
 
+    /** The post in a TikTok page's rehydration data; null when the page has none. */
+    private static JSONObject tiktokItem(String html) {
+        Matcher m = REHYDRATION.matcher(html == null ? "" : html);
+        if (!m.find()) return null;
+        try {
+            return new JSONObject(m.group(1)).optJSONObject("__DEFAULT_SCOPE__")
+                    .optJSONObject("webapp.video-detail").optJSONObject("itemInfo").optJSONObject("itemStruct");
+        } catch (Exception e) {
+            return null;   // the page changed shape
+        }
+    }
+
+    /** True when a TikTok post page names a sound to play under the pictures. */
+    static boolean tiktokHasSound(String html) {
+        JSONObject item = tiktokItem(html);
+        JSONObject music = item == null ? null : item.optJSONObject("music");
+        return music != null && !music.optString("playUrl").isEmpty();
+    }
+
     /** The photo URLs of a TikTok slideshow page, in order; empty when the page has none. */
     static List<String> tiktokImages(String html) {
         List<String> urls = new ArrayList<>();
-        Matcher m = REHYDRATION.matcher(html == null ? "" : html);
-        if (!m.find()) return urls;
+        JSONObject item = tiktokItem(html);
+        if (item == null) return urls;
         try {
-            JSONObject item = new JSONObject(m.group(1)).optJSONObject("__DEFAULT_SCOPE__")
-                    .optJSONObject("webapp.video-detail").optJSONObject("itemInfo").optJSONObject("itemStruct");
             JSONArray images = item.optJSONObject("imagePost").optJSONArray("images");
             for (int k = 0; images != null && k < images.length(); k++) {
                 JSONArray list = images.optJSONObject(k).optJSONObject("imageURL").optJSONArray("urlList");
@@ -104,15 +121,9 @@ final class Photos {
 
     /** The caption of a TikTok post page, for the title; "" when there is none. */
     static String tiktokDesc(String html) {
-        Matcher m = REHYDRATION.matcher(html == null ? "" : html);
-        if (!m.find()) return "";
-        try {
-            String d = new JSONObject(m.group(1)).optJSONObject("__DEFAULT_SCOPE__").optJSONObject("webapp.video-detail")
-                    .optJSONObject("itemInfo").optJSONObject("itemStruct").optString("desc").trim();
-            return d.length() > 80 ? d.substring(0, 80).trim() + "…" : d;
-        } catch (Exception e) {
-            return "";
-        }
+        JSONObject item = tiktokItem(html);
+        String d = item == null ? "" : item.optString("desc").trim();
+        return d.length() > 80 ? d.substring(0, 80).trim() + "…" : d;
     }
 
     private Photos() {}

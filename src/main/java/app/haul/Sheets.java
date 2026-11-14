@@ -339,7 +339,7 @@ final class Sheets {
 
     /** A saved haul: delete the file too, or only take it off the list. */
     private static void confirmDelete(Activity a, Haul.Item i) {
-        String what = Haul.PHOTOS.equals(i.kind) ? (i.count > 1 ? "photos" : "photo") : Haul.AUDIO.equals(i.kind) ? "audio" : (i.count > 1 ? "videos" : "video");
+        String what = Haul.PHOTOS.equals(i.kind) ? (i.photos() > 1 ? "photos" : "photo") + (i.sound ? " and sound" : "") : Haul.AUDIO.equals(i.kind) ? "audio" : (i.count > 1 ? "videos" : "video");
         new AlertDialog.Builder(a)
                 .setTitle(Look.title(i))
                 .setMessage("Delete the " + what + " from your Gallery too, or only take it off this list?")

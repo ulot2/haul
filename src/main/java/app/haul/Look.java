@@ -66,7 +66,10 @@ final class Look {
         String s;
         if (Haul.DONE.equals(i.status)) {
             boolean gif = i.mime.equals("image/gif");
-            if (Haul.PHOTOS.equals(i.kind)) s = i.count == 1 ? (gif ? "GIF" : "Photo") : i.count + (gif ? " GIFs" : " photos");
+            if (Haul.PHOTOS.equals(i.kind)) {
+                s = i.photos() == 1 ? (gif ? "GIF" : "Photo") : i.photos() + (gif ? " GIFs" : " photos");
+                if (i.sound) s += " + sound";
+            }
             else if (Haul.AUDIO.equals(i.kind)) s = "Audio · M4A";
             else s = (i.height > 0 ? i.height + "p" : qualityName(i.quality)) + (i.count > 1 ? " · " + i.count + " files" : "");
         } else {

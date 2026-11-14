@@ -7,8 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What a post holds, from yt-dlp's details of the link (yt-dlp -J): one item, or several (an Instagram carousel).
- * The picker shows these; the download then takes the chosen ones with yt-dlp's -I. Plain Java, unit-tested.
+ * What a post holds: one item, or several. An Instagram carousel comes from yt-dlp's details of the link
+ * (yt-dlp -J), a TikTok photo post from its page. The picker shows these; the download then takes the chosen ones
+ * (with yt-dlp's -I, or picture by picture for TikTok). Plain Java, unit-tested.
  */
 final class Post {
     /** One photo or video of the post. */
@@ -21,6 +22,22 @@ final class Post {
 
     final List<Entry> entries = new ArrayList<>();
     String title = "";
+    boolean sound;   // a TikTok photo post with a sound to play under its pictures
+
+    /** A TikTok photo post, from its page: every picture, and whether there is a sound. Empty when the page has none. */
+    static Post tiktok(String html) {
+        Post p = new Post();
+        List<String> images = Photos.tiktokImages(html);
+        for (int k = 0; k < images.size(); k++) {
+            Entry x = new Entry();
+            x.index = k + 1;
+            x.thumbnail = images.get(k);
+            p.entries.add(x);
+        }
+        p.title = Photos.tiktokDesc(html);
+        p.sound = Photos.tiktokHasSound(html);
+        return p;
+    }
 
     static Post parse(JSONObject info) {
         Post p = new Post();
@@ -67,6 +84,24 @@ final class Post {
             }
         }
         return fit != null ? fit : largest;
+    }
+
+    /**
+     * The chosen 1-based indexes back from "1,3,4", for a post of count items: those that exist, in order, each once.
+     * All of them when nothing was chosen, or when none of the chosen exist any more (the post changed).
+     */
+    static List<Integer> chosen(String pick, int count) {
+        List<Integer> out = new ArrayList<>();
+        for (String part : (pick == null ? "" : pick).split(",")) {
+            try {
+                int i = Integer.parseInt(part.trim());
+                if (i >= 1 && i <= count && !out.contains(i)) out.add(i);
+            } catch (NumberFormatException ignored) {
+                // not a number: skip it
+            }
+        }
+        if (out.isEmpty()) for (int i = 1; i <= count; i++) out.add(i);
+        return out;
     }
 
     /** "1,3,4" for yt-dlp's -I, from the chosen 1-based indexes. */
