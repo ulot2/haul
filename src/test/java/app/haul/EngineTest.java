@@ -65,6 +65,13 @@ public class EngineTest {
     }
 
     @Test
+    public void haulsOwnFfmpegErrorsAreShownAsTheyAre() {
+        // An FFmpeg error saying "not found" once read as "This post was deleted".
+        String m = Engine.MADE + "CANNOT LINK EXECUTABLE: library \"libavdevice.so.61\" not found";
+        assertEquals(m, friendly(m));
+    }
+
+    @Test
     public void otherwiseYtDlpsOwnLastErrorWithoutPrefix() {
         assertEquals("Something odd happened", friendly("WARNING: meh\nERROR: [vimeo] 123: Something odd happened"));
     }

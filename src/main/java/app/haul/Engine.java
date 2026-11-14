@@ -158,14 +158,17 @@ final class Engine {
         if (!item.as.isEmpty()) return tiktokPhotos(c, item, dir, progress);
         Result r = fetch(c, item, dir, progress, false);
         if (Haul.AUDIO.equals(item.quality)) return r;
-        for (File f : r.files) {
-            if (needsAac(f)) {
-                // Rare: the site has no AAC sound at all, so the video came with Opus or Vorbis, which WhatsApp and
-                // some players can't play. Fetch it again, converting the sound to AAC on the way.
-                return fetch(c, item, dir, progress, true);
+        if (!Haul.GIF.equals(item.quality)) {
+            for (File f : r.files) {
+                if (needsAac(f)) {
+                    // Rare: the site has no AAC sound at all, so the video came with Opus or Vorbis, which WhatsApp and
+                    // some players can't play. Fetch it again, converting the sound to AAC on the way.
+                    r = fetch(c, item, dir, progress, true);
+                    break;
+                }
             }
         }
-        return r;
+        return gifs(item, dir, r, progress);
     }
 
     private static Result fetch(Context c, Haul.Item item, File dir, Progress progress, boolean toAac) throws Exception {
@@ -208,8 +211,10 @@ final class Engine {
             r.addOption("--audio-format", "m4a");
         } else {
             // H.264 + AAC in MP4 plays everywhere (Gallery, WhatsApp status, old laptops); VP9/AV1 often does not.
-            r.addOption("-f", "bv*+ba/b");
-            r.addOption("-S", Haul.SMALL.equals(quality) ? "vcodec:h264,res:720,acodec:aac" : "vcodec:h264,res,acodec:aac");
+            // For a GIF, a small video without sound is all that's needed.
+            boolean gif = Haul.GIF.equals(quality);
+            r.addOption("-f", gif ? "bv*/b" : "bv*+ba/b");
+            r.addOption("-S", gif ? "res:720" : Haul.SMALL.equals(quality) ? "vcodec:h264,res:720,acodec:aac" : "vcodec:h264,res,acodec:aac");
             r.addOption("--merge-output-format", "mp4");
             if (toAac) {
                 // yt-dlp joins and remuxes with "-c copy"; a later "-c:a aac" makes FFmpeg convert only the sound.
@@ -435,6 +440,11 @@ final class Engine {
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "23"));
         if (sound != null) cmd.addAll(Arrays.asList("-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "192k"));
         cmd.addAll(Arrays.asList("-movflags", "+faststart", out.getAbsolutePath()));
+        ffmpeg(id, cmd, out);
+    }
+
+    /** Runs the engine's FFmpeg with these arguments (the program first) for a haul, until out is written. */
+    private static void ffmpeg(String id, List<String> cmd, File out) throws Exception {
         ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
         pb.environment().put("LD_LIBRARY_PATH", ffmpegLibs);
         Process p = pb.start();
@@ -448,20 +458,65 @@ final class Engine {
         int exit = p.waitFor();
         if (exit != 0 || !out.isFile() || out.length() == 0) {
             if (exit == 137 || exit == 143) throw new InterruptedException();   // canceled
-            throw new Exception("Couldn't make the video: " + said.trim());
+            throw new Exception(MADE + lastLine(said));
+        }
+    }
+
+    // ---- GIFs ----
+
+    /** GIFs last at most this long: a GIF holds every frame as a picture, so longer ones grow huge. */
+    static final int GIF_SECONDS = 30;
+
+    /**
+     * Turns videos into GIFs where wanted: all of them for the GIF quality, and on its own for a post that was a GIF to
+     * begin with (X keeps "GIFs" as silent MP4s). Each video's info JSON sits next to it under the same name.
+     */
+    private static Result gifs(Haul.Item item, File dir, Result r, Progress progress) throws Exception {
+        boolean all = Haul.GIF.equals(item.quality);
+        List<File> out = new ArrayList<>();
+        boolean any = false;
+        for (File f : r.files) {
+            boolean video = Arrays.asList("mp4", "m4v", "mov", "mkv", "webm").contains(ext(f.getName()));
+            if (!video || !(all || Photos.isGif(info(dir, f)))) {
+                out.add(f);
+                continue;
+            }
+            if (!any) progress.on(Progress.WORKING);
+            any = true;
+            File gif = new File(dir, f.getName().replaceFirst("\\.[^.]+$", "") + ".gif");
+            ffmpeg(item.id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", f.getAbsolutePath(), "-t", String.valueOf(GIF_SECONDS), "-an", "-vf", Slideshow.GIF_FILTER, "-loop", "0",
+                    gif.getAbsolutePath())), gif);
+            out.add(gif);
+        }
+        if (!any) return r;
+        r.files.clear();
+        r.files.addAll(out);
+        r.height = -1;
+        return r;
+    }
+
+    /** The info JSON yt-dlp wrote next to a downloaded file ("Title [id].mp4" → "Title [id].info.json"), or null. */
+    private static JSONObject info(File dir, File media) {
+        File f = new File(dir, media.getName().replaceFirst("\\.[^.]+$", "") + ".info.json");
+        try (InputStream in = new FileInputStream(f)) {
+            return new JSONObject(Haul.readAll(in));
+        } catch (Exception e) {
+            return null;
         }
     }
 
     /**
      * The engine's FFmpeg: the program among the app's native libraries, and the library path the engine itself runs
-     * it with (Python's, FFmpeg's and aria2c's unpacked libraries).
+     * it with (Python's, FFmpeg's and aria2c's unpacked libraries). The engine unpacks them into the no-backup files
+     * folder; pointing anywhere else leaves FFmpeg unable to start ("library … not found").
      */
     private static File ffmpegBinary;
     private static String ffmpegLibs;
 
     private static void findFfmpeg(Context c) {
         ffmpegBinary = new File(c.getApplicationInfo().nativeLibraryDir, "libffmpeg.so");
-        File packages = new File(c.getFilesDir(), "youtubedl-android/packages");
+        File packages = new File(c.getNoBackupFilesDir(), "youtubedl-android/packages");
         ffmpegLibs = new File(packages, "python/usr/lib") + ":" + new File(packages, "ffmpeg/usr/lib") + ":"
                 + new File(packages, "aria2c/usr/lib");
     }
@@ -674,10 +729,20 @@ final class Engine {
         return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
+    /** Errors from Haul's own FFmpeg work start with this, and are shown as they are, not guessed at like a site's. */
+    static final String MADE = "Couldn't make the file. FFmpeg said: ";
+
+    static String lastLine(String text) {
+        String last = "";
+        for (String line : String.valueOf(text).split("\n")) if (!line.trim().isEmpty()) last = line.trim();
+        return last.length() > 200 ? last.substring(0, 197) + "…" : last;
+    }
+
     /** Turns yt-dlp's error into one sentence a person can act on. Most specific first: yt-dlp wraps nearly every
      *  HTTP failure in "Unable to download webpage: HTTP Error 404", so the plain network check has to come last. */
     static String friendly(Throwable e) {
         String m = String.valueOf(e.getMessage());
+        if (m.startsWith(MADE)) return m;
         String low = m.toLowerCase(Locale.ROOT);
         if (m.equals("NO_FILES") || has(low, "no video formats", "no video could be found", "there's no video", "no media found"))
             return "Haul found no video or photos in this post.";

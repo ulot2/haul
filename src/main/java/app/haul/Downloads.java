@@ -416,8 +416,8 @@ final class Downloads {
         private void notifyDone(Haul.Item i) {
             if (i == null) return;
             int nid = notifyIds.incrementAndGet();
-            Intent view = new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(i.uri), i.mime)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            // A tap opens it in Haul's own player.
+            Intent view = PlayerActivity.open(c, i.id, 0).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent open = PendingIntent.getActivity(c, nid, view, PendingIntent.FLAG_IMMUTABLE);
             PendingIntent share = PendingIntent.getActivity(c, nid, shareIntent(i).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     PendingIntent.FLAG_IMMUTABLE);

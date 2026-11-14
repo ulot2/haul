@@ -1,6 +1,7 @@
 package app.haul;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -34,6 +35,17 @@ public class PhotosTest {
         assertNull(Photos.bestImage(new JSONObject("{\"_type\":\"playlist\",\"thumbnails\":[{\"url\":\"t.jpg\"}]}")));
         assertNull(Photos.bestImage(new JSONObject("{\"formats\":[]}")));
         assertNull(Photos.bestImage(null));
+    }
+
+    @Test
+    public void xGifsAreToldFromXVideos() throws Exception {
+        // yt-dlp's X extractor doesn't flag GIFs; their MP4s come from /tweet_video/, other videos from elsewhere.
+        assertTrue(Photos.isGif(new JSONObject("{\"formats\":[{\"url\":\"https://video.twimg.com/tweet_video/AbC.mp4\"}]}")));
+        assertTrue(Photos.isGif(new JSONObject("{\"thumbnail\":\"https://pbs.twimg.com/tweet_video_thumb/AbC.jpg\"}")));
+        assertFalse(Photos.isGif(new JSONObject("{\"formats\":[{\"url\":\"https://video.twimg.com/ext_tw_video/1/pu/vid/720x1280/x.mp4\"}],"
+                + "\"thumbnail\":\"https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/x.jpg\"}")));
+        assertFalse(Photos.isGif(new JSONObject("{\"formats\":[{\"url\":\"https://video.twimg.com/amplify_video/1/vid/x.mp4\"}]}")));
+        assertFalse(Photos.isGif(null));
     }
 
     @Test

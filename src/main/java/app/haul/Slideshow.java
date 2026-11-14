@@ -40,5 +40,12 @@ final class Slideshow {
     static final String FILTER =
             "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30,format=yuv420p";
 
+    /**
+     * Video to GIF: 15 frames a second, at most 480 wide, with a palette made for this clip (a GIF has 256 colors),
+     * dithered so gradients don't band.
+     */
+    static final String GIF_FILTER = "fps=15,scale='min(480,iw)':-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];"
+            + "[b][p]paletteuse=dither=bayer:bayer_scale=4";
+
     private Slideshow() {}
 }
