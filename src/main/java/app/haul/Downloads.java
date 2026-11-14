@@ -72,7 +72,7 @@ final class Downloads {
     static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
         Haul.Item i;
         synchronized (Downloads.class) {   // two quick shares of one link: only the first gets in
-            if (Haul.activeFor(c, url) != null) return null;
+            if (Haul.activeFor(c, url, pick == null ? "" : pick, as == null ? "" : as) != null) return null;
             i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as, seconds);
         }
         start(c);
@@ -305,7 +305,8 @@ final class Downloads {
                 final long bytes = size;
                 final int count = got.files.size(), height = got.height;
                 final int duration = item.clipped() ? item.clipEnd - item.clipStart : got.duration;
-                final String took = stages.done(System.currentTimeMillis());
+                final String took = stages.done(System.currentTimeMillis())
+                        + (got.slow.isEmpty() ? "" : " · " + String.join(" · ", got.slow));
                 Haul.update(c, id, i -> {
                     i.status = Haul.DONE;
                     i.error = "";

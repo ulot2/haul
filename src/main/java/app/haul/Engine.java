@@ -154,11 +154,13 @@ final class Engine {
         final List<File> files = new ArrayList<>();
         String title = "";
         int duration = -1, height = -1;
+        /** Shortcuts that didn't work, so the slower way was taken ("page by yt-dlp"); shown with what the download took. */
+        final List<String> slow = new ArrayList<>();
     }
 
     /** Empties dir, downloads the haul into it: the link (or its chosen items, or a section), or a TikTok photo post. */
     static Result download(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
-        if (!item.as.isEmpty()) return tiktokPhotos(c, item, dir, progress);
+        if (!item.as.isEmpty()) return tiktokPhotos(c, item, dir, progress, false);
         Result r = fetch(c, item, dir, progress, false);
         if (Haul.AUDIO.equals(item.quality)) return r;
         if (!Haul.GIF.equals(item.quality)) {
@@ -266,7 +268,7 @@ final class Engine {
                 Haul.Item photos = copy(item);
                 photos.as = Haul.AS_PHOTOS;
                 try {
-                    return tiktokPhotos(c, photos, dir, progress);
+                    return tiktokPhotos(c, photos, dir, progress, false);
                 } catch (Exception e) {
                     if (canceled(e)) throw e;
                 }
@@ -416,7 +418,7 @@ final class Engine {
      * past TikTok's checks: one yt-dlp run fetches the post's page and prints it (the pictures are listed in it) and
      * downloads the sound. For the video, FFmpeg then puts the two together.
      */
-    private static Result tiktokPhotos(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+    private static Result tiktokPhotos(Context c, Haul.Item item, File dir, Progress progress, boolean afresh) throws Exception {
         init(c);
         deleteAll(dir);
         //noinspection ResultOfMethodCallIgnored
@@ -437,10 +439,19 @@ final class Engine {
         File sound = null;
         // Read for the picker a moment ago: the page is here already, and it names the sound's address, so the sound
         // is fetched straight from there and yt-dlp doesn't have to start at all.
-        String read = TikTokPage.get(c, photoId);
+        // Not read yet (a link from the tile, or the picker's page has gone stale): the page fetched plainly, which takes
+        // a second where yt-dlp takes many. afresh: those shortcuts led nowhere, so yt-dlp reads the post.
+        List<String> slow = new ArrayList<>();
+        String read = afresh ? null : TikTokPage.get(c, photoId);
+        if (read == null && !afresh) {
+            progress.on(Progress.READING);
+            read = tiktokPageDirect(photoId);
+            if (read == null) slow.add("page by yt-dlp");
+        }
         if (read != null) {
             progress.on(Progress.WORKING);
             sound = fetchSound(Photos.tiktokSoundUrl(read), headers, sounds);
+            if (sound == null && Photos.tiktokHasSound(read)) slow.add("sound by yt-dlp");
         }
         boolean asked = read == null || (sound == null && Photos.tiktokHasSound(read));
         if (asked) {
@@ -467,6 +478,7 @@ final class Engine {
         if (read != null) pages.add(read);
 
         Result out = new Result();
+        out.slow.addAll(slow);
         File pictures = video ? new File(dir, "pictures") : dir;
         //noinspection ResultOfMethodCallIgnored
         pictures.mkdirs();
@@ -486,7 +498,7 @@ final class Engine {
         if (out.files.isEmpty() && !asked) {
             // The page kept from the picker no longer leads to the pictures: read the post afresh.
             TikTokPage.forget(c, photoId);
-            return tiktokPhotos(c, item, dir, progress);
+            return tiktokPhotos(c, item, dir, progress, true);
         }
         if (out.files.isEmpty()) throw new Exception("NO_FILES");
 
@@ -508,10 +520,14 @@ final class Engine {
             java.util.regex.Matcher place = java.util.regex.Pattern.compile(" (\\d+)\\.[^.]+$").matcher(picture.getName());
             String no = place.find() ? " " + place.group(1) : " " + (made.files.size() + 1);
             File mp4 = new File(dir, safeName(out.title) + " [" + photoId + "]" + no + ".mp4");
-            slideshow(item.id, java.util.Collections.singletonList(picture), sound, seconds, mp4);
+            String how = slideshow(item.id, java.util.Collections.singletonList(picture), sound, seconds, mp4);
+            if (how != null && !slow.contains(how)) slow.add(how);
             made.files.add(mp4);
         }
-        made.title = out.title;
+        made.slow.addAll(slow);
+        // One picture of several, asked for on its own: say which, so the hold tells the videos of a post apart.
+        boolean one = item.pick.matches("\\d+") && made.files.size() == 1;
+        made.title = one ? out.title + " · " + item.pick : out.title;
         made.duration = seconds;
         made.height = 1920;
         return made;
@@ -534,6 +550,12 @@ final class Engine {
         init(c);
         String photoId = Photos.tiktokPhotoId(url);
         if (photoId == null) throw new Exception("NO_FILES");
+        // Plainly first: a second, where starting yt-dlp for it takes many. yt-dlp when TikTok doesn't hand it over.
+        String plain = tiktokPageDirect(photoId);
+        if (plain != null) {
+            TikTokPage.keep(c, photoId, plain);
+            return Post.tiktok(plain);
+        }
         YoutubeDLRequest r = tiktokPage(photoId);
         r.addOption("--skip-download");
         String printed = run(r, "ahead-tiktok-" + photoId, null).getOut();
@@ -544,6 +566,37 @@ final class Engine {
             return post;
         }
         throw new Exception("NO_FILES");
+    }
+
+    /** What a desktop browser calls itself; TikTok gives it the full page, with the post's details in it. */
+    private static final String DESKTOP =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
+    /**
+     * A TikTok photo post's page, fetched the way a browser would, without yt-dlp. Null when TikTok doesn't hand over
+     * a page that lists the pictures (it asks some visitors to prove themselves first); yt-dlp then gets it.
+     */
+    private static String tiktokPageDirect(String photoId) {
+        HttpURLConnection con = null;
+        try {
+            con = (HttpURLConnection) new URL("https://www.tiktok.com/@_/video/" + photoId).openConnection();
+            con.setInstanceFollowRedirects(true);
+            con.setConnectTimeout(6_000);
+            con.setReadTimeout(8_000);
+            con.setRequestProperty("User-Agent", DESKTOP);
+            con.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+            con.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+            if (con.getResponseCode() / 100 != 2) return null;
+            String page;
+            try (InputStream in = con.getInputStream()) {
+                page = Haul.readAll(in);
+            }
+            return Photos.tiktokImages(page).isEmpty() ? null : page;
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (con != null) con.disconnect();
+        }
     }
 
     /** A TikTok photo post's page as the picker read it, kept in the cache for 20 minutes for the download. */
@@ -604,9 +657,9 @@ final class Engine {
                 byte[] buf = new byte[64 * 1024];
                 for (int n; (n = in.read(buf)) > 0; ) os.write(buf, 0, n);
             }
-            if (f.length() > 0 && durationMillis(f) > 0) return f;
+            if (f.length() > 4096) return f;
             //noinspection ResultOfMethodCallIgnored
-            f.delete();   // not something that plays: let yt-dlp fetch the sound instead
+            f.delete();   // too small to be a sound: let yt-dlp fetch it instead
             return null;
         } catch (Exception e) {
             return null;
@@ -640,18 +693,21 @@ final class Engine {
     /**
      * The pictures (or just one) as an H.264 + AAC video (plays everywhere), seconds long, with the sound under them,
      * from its start, repeated if it is shorter.
-     * Runs the FFmpeg that came with the engine, the way the engine itself runs it.
+     * Runs the FFmpeg that came with the engine, the way the engine itself runs it. Returns null, or, when the quick
+     * way failed and the whole video had to be encoded, a few words on why.
      */
-    private static void slideshow(String id, List<File> pictures, File sound, int seconds, File out) throws Exception {
+    private static String slideshow(String id, List<File> pictures, File sound, int seconds, File out) throws Exception {
         File list = new File(out.getParentFile(), "pictures.txt");
         List<String> paths = new ArrayList<>();
         for (File f : pictures) paths.add(f.getAbsolutePath());
         int once = Slideshow.seconds(pictures.size(), 0);
-        if (sound != null && seconds > once) {
-            // The sound outlasts the pictures, so they come round again. Encoding is the slow part: encode one round
-            // (without B-frames, so the rounds join cleanly), then repeat it under the sound as it is.
+        String slow = null;
+        if (seconds > once) {
+            // Longer than one round of the pictures (always, for one picture). Encoding is the slow part, and every
+            // round looks the same: encode one (without B-frames, so rounds join cleanly), then lay it end to end
+            // under the sound, as it is. A 30-second video costs no more to make than a 3-second one.
             try {
-                File round = new File(out.getParentFile(), "round.mp4");
+                File round = new File(out.getParentFile(), "round.mp4"), rounds = new File(out.getParentFile(), "rounds.txt");
                 try (OutputStream os = new FileOutputStream(list)) {
                     os.write(Slideshow.concat(paths, once).getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 }
@@ -659,15 +715,22 @@ final class Engine {
                         "-f", "concat", "-safe", "0", "-i", list.getAbsolutePath(), "-t", String.valueOf(once),
                         "-vf", Slideshow.FILTER, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-bf", "0", "-an",
                         round.getAbsolutePath())), round);
-                ffmpeg(id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
-                        "-stream_loop", "-1", "-i", round.getAbsolutePath(), "-stream_loop", "-1", "-i", sound.getAbsolutePath(),
-                        "-t", String.valueOf(seconds), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-                        "-movflags", "+faststart", out.getAbsolutePath())), out);
-                return;
+                try (OutputStream os = new FileOutputStream(rounds)) {
+                    os.write(Slideshow.repeat(round.getAbsolutePath(), once, seconds).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+                List<String> cmd = new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                        "-f", "concat", "-safe", "0", "-i", rounds.getAbsolutePath()));
+                if (sound != null) cmd.addAll(Arrays.asList("-stream_loop", "-1", "-i", sound.getAbsolutePath()));
+                cmd.addAll(Arrays.asList("-t", String.valueOf(seconds), "-map", "0:v:0", "-c:v", "copy"));
+                if (sound != null) cmd.addAll(Arrays.asList("-map", "1:a:0", "-c:a", "aac", "-b:a", "192k"));
+                cmd.addAll(Arrays.asList("-movflags", "+faststart", out.getAbsolutePath()));
+                ffmpeg(id, cmd, out);
+                return null;
             } catch (InterruptedException e) {
                 throw e;   // canceled
             } catch (Exception e) {
-                // this FFmpeg wouldn't repeat it: make the whole video in one go, as below
+                // this FFmpeg wouldn't: make the whole video in one go, as below, and say why with what it took
+                slow = "video encoded whole (" + String.valueOf(e.getMessage()).replace(MADE, "") + ")";
             }
         }
         try (OutputStream os = new FileOutputStream(list)) {
@@ -677,10 +740,11 @@ final class Engine {
                 "-f", "concat", "-safe", "0", "-i", list.getAbsolutePath()));
         if (sound != null) cmd.addAll(Arrays.asList("-stream_loop", "-1", "-i", sound.getAbsolutePath()));
         cmd.addAll(Arrays.asList("-t", String.valueOf(seconds), "-vf", Slideshow.FILTER,
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23"));
+                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-crf", "20", "-g", "300"));
         if (sound != null) cmd.addAll(Arrays.asList("-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "192k"));
         cmd.addAll(Arrays.asList("-movflags", "+faststart", out.getAbsolutePath()));
         ffmpeg(id, cmd, out);
+        return slow;
     }
 
     /** Runs the engine's FFmpeg with these arguments (the program first) for a haul, until out is written. */

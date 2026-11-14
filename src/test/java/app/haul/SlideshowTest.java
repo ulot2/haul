@@ -36,6 +36,13 @@ public class SlideshowTest {
     }
 
     @Test
+    public void oneRoundEndToEndFillsTheLength() {
+        assertEquals("ffconcat version 1.0\nfile '/d/round.mp4'\nfile '/d/round.mp4'\nfile '/d/round.mp4'\nfile '/d/round.mp4'\n",
+                Slideshow.repeat("/d/round.mp4", 3, 10));   // 4 rounds of 3 s cover 10 s; FFmpeg cuts at 10
+        assertEquals("ffconcat version 1.0\nfile '/d/round.mp4'\n", Slideshow.repeat("/d/round.mp4", 3, 3));
+    }
+
+    @Test
     public void quotesInPathsAreEscaped() {
         assertTrue(Slideshow.concat(Arrays.asList("/d/it's.jpg"), 3).contains("file '/d/it'\\''s.jpg'"));
     }

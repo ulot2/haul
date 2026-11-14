@@ -44,6 +44,14 @@ final class Slideshow {
         return b.toString();
     }
 
+    /** FFmpeg's concat list of one encoded round (each seconds long), end to end, enough times to fill total seconds. */
+    static String repeat(String path, int each, int total) {
+        StringBuilder b = new StringBuilder("ffconcat version 1.0\n");
+        int times = Math.max(1, (total + Math.max(1, each) - 1) / Math.max(1, each));
+        for (int k = 0; k < times; k++) b.append("file '").append(path.replace("'", "'\\''")).append("'\n");
+        return b.toString();
+    }
+
     /** Fits any picture into the portrait frame, black around it, at 30 frames a second, in a pixel format every player reads. */
     static final String FILTER =
             "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30,format=yuv420p";
