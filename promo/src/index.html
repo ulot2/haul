@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Haul promo</title>
+<style>
+  /* The app's own font files (SIL OFL), straight from res/font. */
+  @font-face { font-family: 'ArchivoCond'; src: url('../../src/main/res/font/archivo_condensed_black.ttf'); font-weight: 900; }
+  @font-face { font-family: 'ArchivoCond'; src: url('../../src/main/res/font/archivo_condensed_extrabold.ttf'); font-weight: 800; }
+  @font-face { font-family: 'Archivo'; src: url('../../src/main/res/font/archivo_regular.ttf'); font-weight: 400; }
+  @font-face { font-family: 'Archivo'; src: url('../../src/main/res/font/archivo_semibold.ttf'); font-weight: 600 700; }
+  @font-face { font-family: 'Archivo'; src: url('../../src/main/res/font/archivo_extrabold.ttf'); font-weight: 800; }
+  @font-face { font-family: 'JBMono'; src: url('../../src/main/res/font/jetbrains_mono_regular.ttf'); font-weight: 400; }
+  @font-face { font-family: 'JBMono'; src: url('../../src/main/res/font/jetbrains_mono_semibold.ttf'); font-weight: 600; }
+  html, body { margin: 0; background: #121110; overflow: hidden; }
+  #stage { position: relative; overflow: hidden; background: #121110; font-family: 'Archivo', sans-serif; color: #F4F0E8; -webkit-font-smoothing: antialiased; }
+  .cond { font-family: 'ArchivoCond'; font-weight: 900; }
+  .condx { font-family: 'ArchivoCond'; font-weight: 800; }
+  .ar { font-family: 'Archivo'; }
+  .mono { font-family: 'JBMono'; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<!-- Preload every face so the first captured frame already has them. -->
+<div style="position:absolute;left:-9999px;top:0">
+  <span class="cond">A</span><span class="condx">A</span><span class="ar" style="font-weight:400">A</span><span class="ar" style="font-weight:600">A</span><span class="ar" style="font-weight:800">A</span><span class="mono">A</span><span class="mono" style="font-weight:600">A</span>
+</div>
+<script src="lib.js"></script>
+<script src="timeline.js"></script>
+<script src="ui.js"></script>
+<script src="scenes.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
