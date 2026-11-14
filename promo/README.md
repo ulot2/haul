@@ -9,7 +9,6 @@ for the beat sheet.
 | `haul-promo-9x16.mp4` | 1080×1920, 60 fps, 42 s, H.264 + AAC |
 | `haul-promo-1x1.mp4` | 1080×1080, 60 fps, 42 s |
 | `haul-teaser-9x16.mp4` | 1080×1920, 60 fps, 9.5 s |
-
 | `haul-motion-9x16.mp4` | The second piece, "From link to Gallery": 1080×1920, 60 fps, 34 s |
 
 The renders go to `out/` (not committed).
