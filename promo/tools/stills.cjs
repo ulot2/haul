@@ -13,7 +13,7 @@ const { serve, openPage, arg } = require('./common.cjs');
   fs.mkdirSync(out, { recursive: true });
   const server = await serve();
   const browser = await chromium.launch();
-  const { page } = await openPage(browser, server.address().port, format, scale);
+  const { page } = await openPage(browser, server.address().port, format, scale, arg('page', 'promo/src/index.html'));
   for (const t of times) {
     await page.evaluate((t) => window.renderFrame(t), t);
     const file = path.join(out, `${format}-${t.toFixed(2)}.${type === 'png' ? 'png' : 'jpg'}`);

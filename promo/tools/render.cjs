@@ -6,7 +6,8 @@ const fs = require('fs');
 const { spawn, execFileSync } = require('child_process');
 const { chromium } = require('playwright');
 const { serve, openPage, arg } = require('./common.cjs');
-const TL = require('../src/timeline.js');
+const pagePath = arg('page', 'promo/src/index.html');
+const TL = require(path.resolve(__dirname, '..', '..', path.dirname(pagePath), 'timeline.js'));
 
 const format = arg('format', 'vertical');
 const cut = arg('cut', 'main');
@@ -33,7 +34,7 @@ function frameTimes() {
 }
 
 async function renderChunk(browser, port, times, file) {
-  const { page } = await openPage(browser, port, format, scale);
+  const { page } = await openPage(browser, port, format, scale, pagePath);
   const crf = quality === 'final' ? '14' : '20';
   const preset = quality === 'final' ? 'slow' : 'veryfast';
   const ff = spawn('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-',

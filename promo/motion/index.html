@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Haul motion</title>
+<style>
+  /* The app's own font files (SIL OFL), straight from res/font. */
+  @font-face { font-family: 'ArchivoCond'; src: url('../../src/main/res/font/archivo_condensed_black.ttf'); font-weight: 900; }
+  @font-face { font-family: 'Archivo'; src: url('../../src/main/res/font/archivo_semibold.ttf'); font-weight: 600; }
+  @font-face { font-family: 'JBMono'; src: url('../../src/main/res/font/jetbrains_mono_regular.ttf'); font-weight: 400; }
+  @font-face { font-family: 'JBMono'; src: url('../../src/main/res/font/jetbrains_mono_semibold.ttf'); font-weight: 600; }
+  html, body { margin: 0; overflow: hidden; background: #fff; }
+  #stage { position: relative; overflow: hidden; width: 1080px; height: 1920px; -webkit-font-smoothing: antialiased; }
+  .cond { font-family: 'ArchivoCond'; font-weight: 900; }
+  .ar { font-family: 'Archivo'; font-weight: 600; }
+  .mono { font-family: 'JBMono'; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div style="position:absolute;left:-9999px;top:0"><span class="cond">A</span><span class="ar">A</span><span class="mono">A</span><span class="mono" style="font-weight:600">A</span></div>
+<script src="../src/lib.js"></script>
+<script src="timeline.js"></script>
+<script src="mg.js"></script>
+<script src="scenes.js"></script>
+<script>
+  // Draws one frame. Open with ?t=12.3 to look at one moment, or &play to watch it run (no sound).
+  const q = new URLSearchParams(location.search);
+  const stage = document.getElementById('stage');
+  const shakes = TL.sfx.filter((c) => c.shake).map((c) => [c.t, c.shake]);
+  window.renderFrame = function (t) {
+    const { bg, html } = MOTION.frame(t);
+    let sx = 0, sy = 0;
+    for (const [t0, a] of shakes) { const d = t - t0; if (d >= 0 && d < 0.3) { const k = a * Math.exp(-d * 16); sx += k * Math.sin(d * 95); sy += k * Math.cos(d * 75); } }
+    stage.style.background = bg;
+    stage.innerHTML = `<div style="position:absolute;inset:0;transform:translate(${sx}px,${sy}px)">${html}</div>`;
+  };
+  window.ready = document.fonts.ready.then(() => Promise.all([...document.fonts].map((f) => f.load())));
+  window.ready.then(() => {
+    if (q.has('play')) {
+      const t0 = performance.now() - parseFloat(q.get('t') || '0') * 1000;
+      const loop = () => { renderFrame(((performance.now() - t0) / 1000) % TL.DURATION); requestAnimationFrame(loop); };
+      loop();
+    } else renderFrame(parseFloat(q.get('t') || '0'));
+  });
+</script>
+</body>
+</html>

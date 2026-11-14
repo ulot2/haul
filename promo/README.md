@@ -10,7 +10,23 @@ for the beat sheet.
 | `haul-promo-1x1.mp4` | 1080×1080, 60 fps, 42 s |
 | `haul-teaser-9x16.mp4` | 1080×1920, 60 fps, 9.5 s |
 
+| `haul-motion-9x16.mp4` | The second piece, "From link to Gallery": 1080×1920, 60 fps, 34 s |
+
 The renders go to `out/` (not committed).
+
+## The second piece: `motion/`
+Flat motion graphics with no phone: shape morphs (▶ → ♥ → ↓ → the logo's card), stroke draw-ons, kinetic type,
+a slot-machine reel of sites, a gallery grid, a progress ring, a snipped timeline, a fanned carousel, a GIF loop and
+the Quick Settings tile. White and dark grounds alternate, and it ends on white. `motion/mg.js` has the morphable
+outlines and the type, `motion/scenes.js` the ten scenes, `motion/timeline.js` the sound cues. The music is
+`audio/synth_motion.py`: F major, plucked arpeggios, a bouncy bass and snaps, reusing the voices in `synth.py`.
+
+```sh
+node -e "process.stdout.write(JSON.stringify(require('./motion/timeline.js')))" > out/motion-timeline.json
+(cd audio && python3 synth_motion.py ../out/motion-timeline.json ../out/audio)
+node tools/render.cjs --page promo/motion/index.html --audio out/audio/motion-mix.wav --out out/haul-motion-9x16.mp4
+```
+The delivered mix was then normalized to -14 LUFS with FFmpeg's two-pass `loudnorm`.
 
 ## How it's built
 - `src/timeline.js`: the one timing file, at 120 BPM (a beat is 0.5 s, a bar 2 s). It holds the captions, every

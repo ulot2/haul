@@ -18,11 +18,11 @@ function serve() {
   });
 }
 
-async function openPage(browser, port, format, scale) {
+async function openPage(browser, port, format, scale, pagePath = 'promo/src/index.html') {
   const dims = format === 'square' ? { width: 1080, height: 1080 } : { width: 1080, height: 1920 };
   const page = await browser.newPage({ viewport: dims, deviceScaleFactor: scale });
   page.on('pageerror', (e) => console.error('page error:', e.message));
-  await page.goto(`http://127.0.0.1:${port}/promo/src/index.html?format=${format}`);
+  await page.goto(`http://127.0.0.1:${port}/${pagePath}?format=${format}`);
   await page.evaluate(() => window.ready);
   return { page, dims };
 }
