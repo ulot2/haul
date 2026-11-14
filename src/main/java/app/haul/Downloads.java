@@ -65,10 +65,15 @@ final class Downloads {
      * those are set. Null when this link is already waiting or downloading.
      */
     static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as) {
+        return add(c, url, quality, clipStart, clipEnd, pick, as, 0);
+    }
+
+    /** The same, for a TikTok photo post saved as videos: seconds is how long each runs (0: as long as the sound). */
+    static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
         Haul.Item i;
         synchronized (Downloads.class) {   // two quick shares of one link: only the first gets in
             if (Haul.activeFor(c, url) != null) return null;
-            i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as);
+            i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as, seconds);
         }
         start(c);
         return i;

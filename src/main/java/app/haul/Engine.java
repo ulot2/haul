@@ -411,8 +411,8 @@ final class Engine {
     // ---- TikTok photo posts ----
 
     /**
-     * A TikTok photo post, as its pictures and its sound (AS_PHOTOS) or as a video of them with the sound
-     * (AS_SLIDESHOW); only the chosen pictures, when some were chosen. yt-dlp doesn't read these posts, but it gets
+     * A TikTok photo post, as its pictures and its sound (AS_PHOTOS) or as videos, one for each picture, with the
+     * sound (AS_SLIDESHOW); only the chosen pictures, when some were chosen. yt-dlp doesn't read these posts, but it gets
      * past TikTok's checks: one yt-dlp run fetches the post's page and prints it (the pictures are listed in it) and
      * downloads the sound. For the video, FFmpeg then puts the two together.
      */
@@ -500,12 +500,17 @@ final class Engine {
         }
 
         progress.on(Progress.WORKING);
-        File mp4 = new File(dir, safeName(out.title) + " [" + photoId + "].mp4");
-        long soundMillis = sound == null ? 0 : durationMillis(sound);
-        int seconds = Slideshow.seconds(out.files.size(), soundMillis);
-        slideshow(item.id, out.files, sound, seconds, mp4);
+        // One video for each chosen picture: the picture, still, over the sound, for as long as was asked.
+        int seconds = Slideshow.length(item.seconds, sound == null ? 0 : durationMillis(sound));
         Result made = new Result();
-        made.files.add(mp4);
+        for (File picture : out.files) {
+            // "TikTok 7301234 03.jpg" → "Caption [7301234] 03.mp4": numbered by the picture's place in the post
+            java.util.regex.Matcher place = java.util.regex.Pattern.compile(" (\\d+)\\.[^.]+$").matcher(picture.getName());
+            String no = place.find() ? " " + place.group(1) : " " + (made.files.size() + 1);
+            File mp4 = new File(dir, safeName(out.title) + " [" + photoId + "]" + no + ".mp4");
+            slideshow(item.id, java.util.Collections.singletonList(picture), sound, seconds, mp4);
+            made.files.add(mp4);
+        }
         made.title = out.title;
         made.duration = seconds;
         made.height = 1920;
@@ -633,7 +638,8 @@ final class Engine {
     private static final java.util.Set<String> STOPPED = ConcurrentHashMap.newKeySet();
 
     /**
-     * The pictures as an H.264 + AAC video (plays everywhere), seconds long, with the sound looping under them.
+     * The pictures (or just one) as an H.264 + AAC video (plays everywhere), seconds long, with the sound under them,
+     * from its start, repeated if it is shorter.
      * Runs the FFmpeg that came with the engine, the way the engine itself runs it.
      */
     private static void slideshow(String id, List<File> pictures, File sound, int seconds, File out) throws Exception {

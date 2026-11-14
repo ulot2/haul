@@ -28,7 +28,7 @@ final class Haul {
     static final String QUEUED = "queued", WORKING = "working", DONE = "done", FAILED = "failed", CANCELED = "canceled";
     static final String BEST = "best", SMALL = "small", AUDIO = "audio", GIF = "gif";
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
-    /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of them with the sound. */
+    /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of each with the sound. */
     static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";
     private static final int KEEP = 50;
     private static final Pattern LINK = Pattern.compile("https?://[^\\s<>\"'{}|\\\\^`]+", Pattern.CASE_INSENSITIVE);
@@ -38,6 +38,7 @@ final class Haul {
         String id, url, title = "", site = "", status = QUEUED, error = "", uri = "", mime = "", quality = BEST;
         String kind = "";              // VIDEO, AUDIO or PHOTOS once saved
         String pick = "";              // the chosen items of a post, as yt-dlp's -I takes them ("1,3"); "" for all
+        int seconds;                   // how long each video of a TikTok picture runs; 0 for as long as the sound
         String took = "";              // where the download's time went, from Stages ("12.4 s: start 2.1 · read 3.4 …")
         boolean sound;                 // saved photos whose last file is the post's sound (a TikTok photo post)
         String as = "";                // AS_PHOTOS or AS_SLIDESHOW for a TikTok photo post; "" otherwise
@@ -54,7 +55,7 @@ final class Haul {
                     .put("quality", quality).put("count", count).put("time", time).put("kind", kind)
                     .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
-                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took);
+                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds);
         }
 
         static Item of(JSONObject o) {
@@ -85,6 +86,7 @@ final class Haul {
             i.as = o.optString("as");
             i.sound = o.optBoolean("sound");
             i.took = o.optString("took");
+            i.seconds = o.optInt("seconds");
             return i;
         }
 
@@ -155,7 +157,7 @@ final class Haul {
     }
 
     /** A new haul for this link, with its own quality and, if wanted, a section (seconds; -1 for the whole). */
-    static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as) {
+    static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
         List<Item> list = load(c);
         Item i = new Item();
         i.time = System.currentTimeMillis();
@@ -167,6 +169,7 @@ final class Haul {
         i.clipEnd = clipEnd;
         i.pick = pick == null ? "" : pick;
         i.as = as == null ? "" : as;
+        i.seconds = Math.max(0, seconds);
         int no = prefs(c).getInt("next_no", 1);
         i.no = no;
         prefs(c).edit().putInt("next_no", no + 1).apply();

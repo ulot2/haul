@@ -49,7 +49,7 @@ final class Look {
     static String stage(Haul.Item i, float progress) {
         if (progress == Engine.Progress.READING) return Haul.PHOTOS.equals(i.kind) || !i.as.isEmpty() ? "Reading the post" : "Reading the link";
         if (progress == Engine.Progress.WORKING) {
-            if (Haul.AS_SLIDESHOW.equals(i.as)) return "Making the video";
+            if (Haul.AS_SLIDESHOW.equals(i.as)) return i.pick.contains(",") || i.pick.isEmpty() ? "Making the videos" : "Making the video";
             if (Haul.GIF.equals(i.quality)) return "Making the GIF";
             if (i.clipped()) return "Cutting the section";
             return "X".equals(i.site) ? "Making the GIF" : "Downloading";   // X GIFs arrive as video, made into GIFs

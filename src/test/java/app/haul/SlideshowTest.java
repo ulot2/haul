@@ -17,6 +17,15 @@ public class SlideshowTest {
     }
 
     @Test
+    public void aPicturesVideoRunsAsLongAsAskedOrAsTheSound() {
+        assertEquals(10, Slideshow.length(10, 47_300));     // asked: that long, whatever the sound
+        assertEquals(10, Slideshow.length(10, 0));
+        assertEquals(48, Slideshow.length(0, 47_300));      // not asked: as long as the sound
+        assertEquals(3, Slideshow.length(0, 0));            // no sound: a few seconds
+        assertEquals(600, Slideshow.length(9_999, 0));      // at most 10 minutes
+    }
+
+    @Test
     public void concatLoopsThePicturesAndRepeatsTheLast() {
         String list = Slideshow.concat(Arrays.asList("/d/1.jpg", "/d/2.jpg"), 8);
         assertEquals("ffconcat version 1.0\n"
