@@ -35,7 +35,7 @@
     const push = 1 + 0.06 * tw(t, 1.0, 1.0, E.out) * (1 - rise);
 
     let cards = '';
-    for (let k = -14; k <= 22; k++) {
+    for (let k = -34; k <= 22; k++) {
       if (k === 0) continue;
       const yU = 26 * k + scroll; // card's offset from the picked slot, in units
       const y = cy + yU * u;
@@ -64,6 +64,8 @@
         <div style="position:absolute;left:${-26 * u - 2 * u}px;top:${-10 * u + 4 * u}px;width:${CW}px;height:${20 * u}px;border-radius:${5 * u}px;background:rgba(0,0,0,${shadowA});filter:blur(${0.5 * u}px)"></div>
         <div style="position:absolute;left:${-26 * u}px;top:${-10 * u}px;width:${CW}px;height:${20 * u}px;border-radius:${5 * u}px;overflow:hidden">
           ${U.art(0 + 3, CW, 20 * u, t, { dim: 0.82, dimColor: '#3A3733' })}
+          <div class="mono" style="position:absolute;left:${2.2 * u}px;top:${1.8 * u}px;font-size:${2.4 * u}px;font-weight:600;color:${rgba(C.ink, 0.55)}">TT · 0:48</div>
+          <svg style="position:absolute;left:${19 * u}px;top:${5 * u}px" width="${9 * u}" height="${10 * u}" viewBox="0 0 9 10"><path d="M0,0 L9,5 L0,10 Z" fill="${rgba(C.ink, 0.18)}"/></svg>
           <div style="position:absolute;inset:0;background:${C.clay};opacity:${clayP}"></div>
           <svg style="position:absolute;left:${19 * u}px;top:${5 * u}px;opacity:${playA}" width="${9 * u}" height="${10 * u}" viewBox="0 0 9 10"><path d="M0,0 L9,5 L0,10 Z" fill="${C.onClay}"/></svg>
           ${stampA > 0 ? `<div class="mono" style="position:absolute;right:${3 * u}px;top:${3.2 * u}px;text-align:right;opacity:${stampA};transform:scale(${lerp(1.7, 1, stampP)});transform-origin:100% 0">
@@ -100,13 +102,30 @@
       }
     }
 
+    // The counter: posts scrolled past, frozen on the pick and flipped to KEPT: 1.
+    let counter = '';
+    const cOut = tw(t, 1.9, 0.3, E.in);
+    if (cOut < 1) {
+      const n = Math.round(1204 * (1 - scroll / travel));
+      const flip = tw(t, 1.0, 0.22, E.expoOut);
+      const lfs = F.square ? 20 : 26, nfs = F.square ? 96 : 150;
+      const cyC = F.square ? H * 0.86 : H * 0.84;
+      const block = (lab, num, y, a) => `<div style="position:absolute;left:0;right:0;top:0;transform:translateY(${y}%);opacity:${a};display:flex;flex-direction:column;align-items:center">
+          <span class="mono" style="font-size:${lfs}px;letter-spacing:.16em;color:${C.muted}">${lab}</span>
+          <span class="cond" style="font-size:${nfs}px;line-height:${nfs * 0.95}px;color:${C.ink};font-variant-numeric:tabular-nums">${num}</span></div>`;
+      counter = `<div style="position:absolute;left:0;right:0;bottom:0;height:${H * 0.3}px;background:linear-gradient(0deg, rgba(18,17,16,.92), rgba(18,17,16,0));opacity:${1 - cOut}"></div>
+        <div style="position:absolute;left:0;right:0;top:${cyC - nfs * 0.75}px;height:${nfs * 1.4}px;overflow:hidden;z-index:36;opacity:${1 - cOut}">
+          ${block('SCROLLED PAST', n.toLocaleString('en-US'), -flip * 100, 1 - flip)}
+          ${block('KEPT', '1', (1 - flip) * 100, flip)}</div>`;
+    }
+
     const filter = blur > 0.5 ? `<svg width="0" height="0" style="position:absolute"><filter id="vblur" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="0 ${blur.toFixed(1)}"/></filter></svg>` : '';
     return `<div style="position:absolute;inset:0;transform:translateY(${-exit * H * 0.3}px);opacity:${1 - exit}">
       ${filter}
       <div style="position:absolute;inset:0;transform-origin:${cx + 8 * u}px ${cy}px;transform:scale(${push})">
         <div style="position:absolute;inset:0;${blur > 0.5 ? 'filter:url(#vblur);' : ''}">${cards}</div>
         ${picked}
-      </div>${sites}</div>`;
+      </div>${sites}${counter}</div>`;
   }
 
   // ---------------------------------------------------------------- 0:04–0:32 the phone
@@ -275,7 +294,7 @@
     const leave = tw(t, 32.0, 0.45, E.in);
     const z0 = kf(t, [[0, 1], [8.25, 1], [8.6, 1.3, E.fos], [11.5, 1.3], [11.9, 1, E.fos], [20.15, 1], [20.45, 1.08, E.fos], [21.85, 1.08], [22.1, 1, E.fos], [25.2, 1], [25.5, 1.15, E.fos], [25.85, 1.15], [26.1, 1, E.fos]]);
     const fy = kf(t, [[0, 432], [8.25, 432], [8.4, 80], [11.5, 80], [11.9, 432], [20.15, 432], [20.3, 560], [21.85, 560], [22.1, 432], [25.2, 432], [25.35, 250], [25.85, 250], [26.1, 432]]);
-    const z = z0 * (1 + 0.012 * Math.sin(t * 0.9));
+    const z = (F.square ? 1 + (z0 - 1) * 0.45 : z0) * (1 + 0.012 * Math.sin(t * 0.9));
     const s = P.s * z;
     const fx = U.DEV.w / 2;
     const bx = P.cx - (U.DEV.w / 2) * P.s, by = P.top;

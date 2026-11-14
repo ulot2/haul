@@ -11,7 +11,7 @@
     square: {
       W: 1080, H: 1080, square: true,
       phone: { s: 1.12, cx: 300, top: 70 },
-      cap: { align: 'left', x: 600, w: 450, y: 470, size: 78, kicker: 20 },
+      cap: { align: 'left', x: 590, w: 470, y: 470, size: 64, kicker: 18 },
       capFull: { align: 'center', y: 70, size: 120, kicker: 20 },
     },
   };

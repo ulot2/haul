@@ -11,8 +11,8 @@
 
   // Burned-in captions. `kicker` is the small manifest label above. `full` captions belong to full-screen scenes.
   const captions = [
-    { t0: 0.05, t1: 0.98, text: 'SEEN IT?', full: true },
-    { t0: 1.0, t1: 1.98, text: 'KEEP IT.', full: true },
+    { t0: -0.6, t1: 0.98, text: 'STOP\nSCROLLING.', full: true }, // already on screen at frame 0 (the thumbnail)
+    { t0: 1.0, t1: 1.98, text: 'KEEP\nTHE ONE.', full: true },
     { t0: 4.0, t1: 8.0, text: 'SHARE ANY POST\nTO HAUL.', kicker: '01 / SHARE SHEET' },
     { t0: 8.0, t1: 10.0, text: 'KEEP\nSCROLLING.', kicker: '02 / IN THE BACKGROUND' },
     { t0: 10.0, t1: 12.0, text: "IT'S IN YOUR\nGALLERY.", kicker: '02 / IN THE BACKGROUND' },
@@ -33,6 +33,8 @@
   const sfx = [
     // Hook
     { t: 0.0, type: 'whoosh', gain: 0.8, dur: 0.9 },
+    { t: 0.0, type: 'scrollticks', gain: 0.55 },
+    { t: 1.0, type: 'flip', gain: 0.6 },
     { t: 0.62, type: 'brake', gain: 0.5 },
     { t: 1.0, type: 'thunk', gain: 1.0 },
     // Sites
