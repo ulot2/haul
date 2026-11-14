@@ -21,8 +21,8 @@ import java.util.Locale;
 
 /**
  * Adds a link the way it needs, from the dock, the new-haul sheet, the share sheet or the tile:
- * - a TikTok photo post shows its pictures, to pick the ones to save, and asks how: a video of them with the sound,
- *   the pictures themselves with the sound next to them, or just the sound;
+ * - a TikTok photo post shows its pictures, to pick the ones to save, and asks how: a video of each with the sound
+ *   (and how long), the pictures themselves with the sound next to them, or just the sound;
  * - an Instagram post with several photos or videos shows them, to pick the ones to download;
  * - anything else goes straight into the queue.
  * TikTok short links (vm.tiktok.com) are looked up first, to tell a photo post from a video.
@@ -61,7 +61,11 @@ final class Choose {
     }
 
     private static Haul.Item put(Activity a, String url, String quality, int clipStart, int clipEnd, String pick, String as) {
-        Haul.Item i = Downloads.add(a, url, quality, clipStart, clipEnd, pick, as);
+        return put(a, url, quality, clipStart, clipEnd, pick, as, 0);
+    }
+
+    private static Haul.Item put(Activity a, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
+        Haul.Item i = Downloads.add(a, url, quality, clipStart, clipEnd, pick, as, seconds);
         if (i == null) Toast.makeText(a, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
         return i;
     }
@@ -147,7 +151,7 @@ final class Choose {
         scroll.setVisibility(total == 0 ? View.GONE : View.VISIBLE);
         // At most about half the screen of pictures (less for TikTok, which asks more below them); the rest scrolls.
         int screen = a.getResources().getDisplayMetrics().heightPixels;
-        int maxHeight = tiktok ? screen * 2 / 5 : screen / 2;
+        int maxHeight = tiktok ? screen / 3 : screen / 2;
         GridLayout grid = d.findViewById(R.id.pickGrid);
         int gap = Sheets.dp(a, 6);
         int width = a.getResources().getDisplayMetrics().widthPixels - Sheets.dp(a, 40);
@@ -163,6 +167,12 @@ final class Choose {
         String[] as = {tiktok ? Haul.prefs(a).getString("tiktok_as", Haul.AS_SLIDESHOW) : ""};
         Button asVideo = d.findViewById(R.id.asVideo), asPhotos = d.findViewById(R.id.asPhotos), asSound = d.findViewById(R.id.asSound);
         TextView note = d.findViewById(R.id.pickAsNote);
+        // How long each video runs; 0 is as long as the sound. Also remembered.
+        int[] lengths = {5, 10, 15, 30, 0};
+        int[] seconds = {Haul.prefs(a).getInt("tiktok_seconds", 10)};
+        Button[] lens = {d.findViewById(R.id.len5), d.findViewById(R.id.len10), d.findViewById(R.id.len15),
+                d.findViewById(R.id.len30), d.findViewById(R.id.lenFull)};
+        View lenRow = d.findViewById(R.id.pickLen);
 
         Runnable mark = () -> {
             boolean soundOnly = Haul.AUDIO.equals(as[0]);
@@ -185,11 +195,15 @@ final class Choose {
             asVideo.setActivated(Haul.AS_SLIDESHOW.equals(as[0]));
             asPhotos.setActivated(Haul.AS_PHOTOS.equals(as[0]));
             asSound.setActivated(soundOnly);
+            boolean asVideos = Haul.AS_SLIDESHOW.equals(as[0]);
+            lenRow.setVisibility(asVideos ? View.VISIBLE : View.GONE);
+            for (int k = 0; k < lens.length; k++) lens[k].setActivated(lengths[k] == seconds[0]);
             String with = total > 0 && !post.sound ? "" : ", with the sound";
+            String howLong = seconds[0] > 0 ? seconds[0] + " seconds long" : with.isEmpty() ? "a few seconds long" : "as long as the sound";
             note.setText(soundOnly ? "Just the sound, as M4A, in Music/Haul."
                     : Haul.AS_PHOTOS.equals(as[0])
                     ? "Each chosen picture in Pictures/Haul" + (with.isEmpty() ? "." : ", and the sound in Music/Haul.")
-                    : "One video of the chosen pictures in turn" + with + ", in Movies/Haul.");
+                    : "A video for each chosen picture" + with + ", " + howLong + ", in Movies/Haul.");
         };
         if (tiktok) {
             if (!Haul.AS_PHOTOS.equals(as[0]) && !Haul.AUDIO.equals(as[0])) as[0] = Haul.AS_SLIDESHOW;
@@ -200,6 +214,16 @@ final class Choose {
                 String value = values[k];
                 ways[k].setOnClickListener(v -> {
                     as[0] = value;
+                    mark.run();
+                });
+            }
+            boolean known = false;
+            for (int length : lengths) known |= length == seconds[0];
+            if (!known) seconds[0] = 10;
+            for (int k = 0; k < lens.length; k++) {
+                int length = lengths[k];
+                lens[k].setOnClickListener(v -> {
+                    seconds[0] = length;
                     mark.run();
                 });
             }
@@ -269,9 +293,9 @@ final class Choose {
                 finish(d, done, put(a, url, quality, -1, -1, items, ""));
                 return;
             }
-            Haul.prefs(a).edit().putString("tiktok_as", as[0]).apply();
+            Haul.prefs(a).edit().putString("tiktok_as", as[0]).putInt("tiktok_seconds", seconds[0]).apply();
             if (Haul.AUDIO.equals(as[0])) finish(d, done, put(a, url, Haul.AUDIO, -1, -1, "", ""));
-            else finish(d, done, put(a, url, quality, -1, -1, items, as[0]));
+            else finish(d, done, put(a, url, quality, -1, -1, items, as[0], Haul.AS_SLIDESHOW.equals(as[0]) ? seconds[0] : 0));
         });
         d.findViewById(R.id.pickButtons).setVisibility(View.VISIBLE);
         mark.run();

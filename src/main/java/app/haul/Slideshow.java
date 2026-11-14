@@ -18,6 +18,14 @@ final class Slideshow {
         return Math.min(MAX_SECONDS, Math.max(once, sound));
     }
 
+    /**
+     * How long the video of one picture runs: as long as was asked (at most 10 minutes), or, when nothing was asked
+     * (0), as long as the sound, and a few seconds when there is no sound.
+     */
+    static int length(int asked, long soundMillis) {
+        return asked > 0 ? Math.min(MAX_SECONDS, asked) : seconds(1, soundMillis);
+    }
+
     /** FFmpeg's concat list: the pictures in turn, SECONDS_EACH apiece, repeated to fill total seconds. */
     static String concat(List<String> paths, int total) {
         StringBuilder b = new StringBuilder("ffconcat version 1.0\n");
