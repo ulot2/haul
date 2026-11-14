@@ -240,9 +240,12 @@ final class Haul {
         return n;
     }
 
-    /** The haul for this link that is waiting or downloading, if any. */
-    static synchronized Item activeFor(Context c, String url) {
-        for (Item i : load(c)) if (i.active() && i.url.equals(url)) return i;
+    /**
+     * The haul for this link that is waiting or downloading, if any: the same items of it, saved the same way. (The
+     * pictures of one TikTok post, each as its own video, are hauls of one link, and wait side by side.)
+     */
+    static synchronized Item activeFor(Context c, String url, String pick, String as) {
+        for (Item i : load(c)) if (i.active() && i.url.equals(url) && i.pick.equals(pick) && i.as.equals(as)) return i;
         return null;
     }
 

@@ -294,8 +294,20 @@ final class Choose {
                 return;
             }
             Haul.prefs(a).edit().putString("tiktok_as", as[0]).putInt("tiktok_seconds", seconds[0]).apply();
-            if (Haul.AUDIO.equals(as[0])) finish(d, done, put(a, url, Haul.AUDIO, -1, -1, "", ""));
-            else finish(d, done, put(a, url, quality, -1, -1, items, as[0], Haul.AS_SLIDESHOW.equals(as[0]) ? seconds[0] : 0));
+            if (Haul.AUDIO.equals(as[0])) {
+                finish(d, done, put(a, url, Haul.AUDIO, -1, -1, "", ""));
+            } else if (Haul.AS_SLIDESHOW.equals(as[0]) && picked.size() > 1) {
+                // Each picture's video is a haul of its own: its own row in the hold, waiting, downloading and saved.
+                Haul.Item first = null;
+                for (int index : picked) {
+                    Haul.Item i = Downloads.add(a, url, quality, -1, -1, String.valueOf(index), as[0], seconds[0]);
+                    if (first == null) first = i;
+                }
+                if (first == null) Toast.makeText(a, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
+                finish(d, done, first);
+            } else {
+                finish(d, done, put(a, url, quality, -1, -1, items, as[0], Haul.AS_SLIDESHOW.equals(as[0]) ? seconds[0] : 0));
+            }
         });
         d.findViewById(R.id.pickButtons).setVisibility(View.VISIBLE);
         mark.run();
