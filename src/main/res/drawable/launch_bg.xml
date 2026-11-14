@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch screen before Android 12: the ground, with the still mark in the middle (no blank screen). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ground" />
+    <item android:width="160dp" android:height="160dp" android:gravity="center" android:drawable="@drawable/launch_mark" />
+</layer-list>

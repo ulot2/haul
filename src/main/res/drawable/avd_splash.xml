@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch: the feed rushes up and slows (0.45 s); one card is picked out of line, tilts, turns clay and shows its
+     play sign (0.3 s, with a little spring). 0.9 s in all, within Android's 1 s for a launch icon. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/splash_mark">
+    <target android:name="feed" android:animation="@animator/splash_feed" />
+    <target android:name="pick" android:animation="@animator/splash_pick" />
+    <target android:name="card" android:animation="@animator/splash_card" />
+    <target android:name="play" android:animation="@animator/splash_play" />
+    <target android:name="shadow" android:animation="@animator/splash_shadow" />
+</animated-vector>

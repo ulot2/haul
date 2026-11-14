@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The still mark, for the launch screen on Android 10 and 11. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp" android:height="160dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M54,0 A54,54 0 1 1 54,108 A54,54 0 1 1 54,0 Z" android:fillColor="@color/icon_ground" />
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.76" android:scaleY="0.76">
+        <path android:pathData="M29,18 H71 A5,5 0 0 1 76,23 V33 A5,5 0 0 1 71,38 H29 A5,5 0 0 1 24,33 V23 A5,5 0 0 1 29,18 Z" android:fillColor="@color/icon_dim" />
+        <path android:pathData="M29,70 H71 A5,5 0 0 1 76,75 V85 A5,5 0 0 1 71,90 H29 A5,5 0 0 1 24,85 V75 A5,5 0 0 1 29,70 Z" android:fillColor="@color/icon_dim" />
+        <group android:pivotX="58" android:pivotY="54" android:rotation="-6">
+            <path android:pathData="M35,48 H77 A5,5 0 0 1 82,53 V63 A5,5 0 0 1 77,68 H35 A5,5 0 0 1 30,63 V53 A5,5 0 0 1 35,48 Z" android:fillColor="#000000" android:fillAlpha="0.45" />
+            <path android:pathData="M37,44 H79 A5,5 0 0 1 84,49 V59 A5,5 0 0 1 79,64 H37 A5,5 0 0 1 32,59 V49 A5,5 0 0 1 37,44 Z" android:fillColor="@color/icon_clay" />
+            <path android:pathData="M51,49 L60,54 L51,59 Z" android:fillColor="@color/icon_ink" />
+        </group>
+    </group>
+</vector>

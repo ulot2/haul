@@ -34,4 +34,14 @@ from is the "Haul redesign" canvas (App, System, Style boards).
 - Choices: `Haul.Chip` (filters) and `Haul.Segment` (quality): ink fill when chosen (`setActivated`).
 - `Haul.Card` for settings groups and notices; bottom sheets on `bg_sheet` with `Haul.Handle`.
 - The dock: a floating card at the bottom of the hold with the copied link, or "Add a link".
-- Launcher icon: a clay arrow lowered into a light tray on the dark ground; "Haul audio" swaps the arrow for a note.
+
+## The logo: Pull
+One out of the feed. Two dim cards of a feed, and the one Haul picked out of it: stepped aside, tilted 6° as if lifted
+by a hand, with a soft shadow, in clay, carrying a ▶. The tilt is the signature; cards (not bars) keep it from reading as
+a ☰ menu. Drawn in `res/drawable` from one geometry (108-unit canvas, scaled 0.76 into the adaptive icon):
+- `ic_launcher` (+ `_mono` for Android 13 themed icons); `ic_launcher_audio` for "Haul audio" carries a ♪ instead.
+- `ic_notify`: the white silhouette for the status bar, notifications and the Quick Settings tile.
+- `ic_mark`: beside the wordmark in the app, in the theme's colors.
+- Launch: on Android 12+ `avd_splash` plays it in 0.9 s (the feed rushes up and slows; the card is picked, tilts, turns
+  clay, shows its ▶), then MainActivity fades into the app; on Android 10-11 `launch_bg` shows the still mark.
+- Loading: `avd_loader`, the caught card stepping out of the feed and back, wherever Haul is reading a link.

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Haul's loading sign: the caught card steps out of the feed and back, turning clay as it goes. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/loader_mark">
+    <target android:name="pick" android:animation="@animator/loader_pick" />
+    <target android:name="card" android:animation="@animator/loader_card" />
+    <target android:name="play" android:animation="@animator/loader_play" />
+</animated-vector>

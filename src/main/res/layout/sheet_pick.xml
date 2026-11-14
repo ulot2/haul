@@ -29,10 +29,13 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <ProgressBar
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:indeterminateTint="@color/clay" />
+        <!-- Haul's loading sign: the caught card steps out of the feed and back. -->
+        <ImageView
+            android:id="@+id/pickLoader"
+            android:layout_width="26dp"
+            android:layout_height="30dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/avd_loader" />
 
         <TextView
             android:id="@+id/pickStatus"

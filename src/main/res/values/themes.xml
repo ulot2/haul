@@ -15,6 +15,12 @@
         <item name="android:windowLightNavigationBar">true</item>
     </style>
 
+    <!-- Opening Haul, before Android 12: the still Pull mark on the ground instead of a blank screen. MainActivity
+         switches to Theme.Haul as it starts. Android 12+ uses values-v31's version, which plays the mark. -->
+    <style name="Theme.Haul.Launch">
+        <item name="android:windowBackground">@drawable/launch_bg</item>
+    </style>
+
     <!-- The bottom sheets: a dialog pinned to the bottom, full width, dimming what is behind. -->
     <style name="Theme.Haul.Sheet" parent="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>

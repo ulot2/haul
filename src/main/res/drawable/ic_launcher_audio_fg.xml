@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- "Haul audio" in the share sheet: a clay note over the light tray. -->
+<!-- "Haul audio" in the share sheet: the caught card carries a note instead of the play sign. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:pathData="M48,58 L48,32 L68,28 L68,54 M48,58 A6,6 0 1,1 36,58 A6,6 0 1,1 48,58 M68,54 A6,6 0 1,1 56,54 A6,6 0 1,1 68,54" android:strokeColor="@color/icon_clay" android:strokeWidth="5" android:strokeLineCap="square" android:strokeLineJoin="miter" />
-    <path android:pathData="M33,68 L33,80 L75,80 L75,68" android:strokeColor="@color/icon_ink" android:strokeWidth="6" android:strokeLineCap="square" />
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.76" android:scaleY="0.76">
+        <path android:pathData="M29,18 H71 A5,5 0 0 1 76,23 V33 A5,5 0 0 1 71,38 H29 A5,5 0 0 1 24,33 V23 A5,5 0 0 1 29,18 Z" android:fillColor="@color/icon_dim" />
+        <path android:pathData="M29,70 H71 A5,5 0 0 1 76,75 V85 A5,5 0 0 1 71,90 H29 A5,5 0 0 1 24,85 V75 A5,5 0 0 1 29,70 Z" android:fillColor="@color/icon_dim" />
+        <group android:pivotX="58" android:pivotY="54" android:rotation="-6">
+            <path android:pathData="M35,48 H77 A5,5 0 0 1 82,53 V63 A5,5 0 0 1 77,68 H35 A5,5 0 0 1 30,63 V53 A5,5 0 0 1 35,48 Z" android:fillColor="#000000" android:fillAlpha="0.45" />
+            <path android:pathData="M37,44 H79 A5,5 0 0 1 84,49 V59 A5,5 0 0 1 79,64 H37 A5,5 0 0 1 32,59 V49 A5,5 0 0 1 37,44 Z" android:fillColor="@color/icon_clay" />
+            <path android:pathData="M50,58 A3,2.4 0 1 0 56,58 A3,2.4 0 1 0 50,58 Z" android:fillColor="@color/icon_ink" />
+            <path android:pathData="M55.2,58 V47.5 L61,49.5 V51.6 L56.8,50.2 V58 Z" android:fillColor="@color/icon_ink" />
+        </group>
+    </group>
 </vector>

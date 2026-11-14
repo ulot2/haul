@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Opening Haul on Android 12+: Android's launch screen plays the Pull mark (avd_splash, 0.9 s) on the ground,
+         in its dark tile. MainActivity keeps it until the mark has played, then fades into the app. -->
+    <style name="Theme.Haul.Launch">
+        <item name="android:windowSplashScreenBackground">@color/ground</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/avd_splash</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/icon_ground</item>
+        <item name="android:windowSplashScreenAnimationDuration">900</item>
+    </style>
+</resources>
