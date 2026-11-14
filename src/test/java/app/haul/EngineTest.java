@@ -81,4 +81,18 @@ public class EngineTest {
         assertEquals("mp4", Engine.ext("Cat [1].MP4"));
         assertEquals("", Engine.ext("no-extension"));
     }
+
+    @Test
+    public void aLinksDetailsGiveTheClipSheetItsTitleLengthAndPicture() throws Exception {
+        Engine.Info one = Engine.info(new org.json.JSONObject("{\"title\":\"Cat\",\"duration\":61.6,\"thumbnail\":\"https://i/best.jpg\"}"));
+        assertEquals("Cat", one.title);
+        assertEquals(62, one.duration);
+        assertEquals("https://i/best.jpg", one.thumbnail);
+        // A post with several items: the first. No "thumbnail": the last (best) of the list. No length: -1.
+        Engine.Info first = Engine.info(new org.json.JSONObject("{\"_type\":\"playlist\",\"title\":\"Post\",\"entries\":["
+                + "{\"title\":\"First\",\"thumbnails\":[{\"url\":\"https://i/s.jpg\"},{\"url\":\"https://i/l.jpg\"}]},{\"title\":\"Second\"}]}"));
+        assertEquals("First", first.title);
+        assertEquals(-1, first.duration);
+        assertEquals("https://i/l.jpg", first.thumbnail);
+    }
 }

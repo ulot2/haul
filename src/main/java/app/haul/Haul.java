@@ -38,6 +38,7 @@ final class Haul {
         String id, url, title = "", site = "", status = QUEUED, error = "", uri = "", mime = "", quality = BEST;
         String kind = "";              // VIDEO, AUDIO or PHOTOS once saved
         String pick = "";              // the chosen items of a post, as yt-dlp's -I takes them ("1,3"); "" for all
+        String took = "";              // where the download's time went, from Stages ("12.4 s: start 2.1 · read 3.4 …")
         boolean sound;                 // saved photos whose last file is the post's sound (a TikTok photo post)
         String as = "";                // AS_PHOTOS or AS_SLIDESHOW for a TikTok photo post; "" otherwise
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
@@ -53,7 +54,7 @@ final class Haul {
                     .put("quality", quality).put("count", count).put("time", time).put("kind", kind)
                     .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
-                    .put("pick", pick).put("as", as).put("sound", sound);
+                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took);
         }
 
         static Item of(JSONObject o) {
@@ -83,6 +84,7 @@ final class Haul {
             i.pick = o.optString("pick");
             i.as = o.optString("as");
             i.sound = o.optBoolean("sound");
+            i.took = o.optString("took");
             return i;
         }
 

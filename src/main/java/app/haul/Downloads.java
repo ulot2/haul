@@ -266,16 +266,19 @@ final class Downloads {
                     throw new IllegalStateException(NO_WIFI);
                 }
                 Engine.init(c);
+                Stages stages = new Stages(System.currentTimeMillis());
                 Engine.Result got;
                 try {
-                    got = fetch(item, dir);
+                    got = fetch(item, dir, stages);
                 } catch (Exception first) {
                     if (stopped != 0 || Engine.canceled(first) || isCanceled(id)) throw first;
                     // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                     if (!Engine.updateAfterFailure(c)) throw first;
-                    got = fetch(item, dir);
+                    stages.on(Engine.Progress.STARTING, System.currentTimeMillis());
+                    got = fetch(item, dir, stages);
                 }
                 if (stopped != 0 || isCanceled(id)) throw new InterruptedException();
+                stages.saving(System.currentTimeMillis());
 
                 List<String> uris = new ArrayList<>();
                 String firstMime = "";
@@ -297,6 +300,7 @@ final class Downloads {
                 final long bytes = size;
                 final int count = got.files.size(), height = got.height;
                 final int duration = item.clipped() ? item.clipEnd - item.clipStart : got.duration;
+                final String took = stages.done(System.currentTimeMillis());
                 Haul.update(c, id, i -> {
                     i.status = Haul.DONE;
                     i.error = "";
@@ -305,6 +309,7 @@ final class Downloads {
                     i.mime = m;
                     i.kind = kind;
                     i.sound = sound;
+                    i.took = took;
                     i.title = t;
                     i.count = count;
                     i.size = bytes;
@@ -335,8 +340,9 @@ final class Downloads {
             }
         }
 
-        private Engine.Result fetch(Haul.Item item, File dir) throws Exception {
+        private Engine.Result fetch(Haul.Item item, File dir, Stages stages) throws Exception {
             return Engine.download(c, item, dir, p -> {
+                stages.on(p, System.currentTimeMillis());
                 Haul.setProgress(item.id, p);
                 showProgress(item, p);
             });
