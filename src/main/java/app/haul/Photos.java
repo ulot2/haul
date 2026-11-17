@@ -21,6 +21,9 @@ import java.util.regex.Pattern;
  */
 final class Photos {
     private static final Pattern TIKTOK_PHOTO = Pattern.compile("tiktok\\.com/(?:@([\\w.-]*)/)?photo/(\\d+)");
+    /** Any TikTok post's id: /video/123 or /photo/123 (TikTok numbers both alike), m.tiktok.com/v/123, /embed/v2/123. */
+    private static final Pattern TIKTOK_POST = Pattern.compile(
+            "tiktok\\.com/(?:(?:@[\\w.-]*/)?(?:video|photo)/|v/|embed/(?:v2/)?)(\\d{6,})");
     private static final Pattern REHYDRATION = Pattern.compile(
             "<script[^>]+id=\"__UNIVERSAL_DATA_FOR_REHYDRATION__\"[^>]*>(.*?)</script>", Pattern.DOTALL);
 
@@ -65,6 +68,26 @@ final class Photos {
     static String tiktokPhotoId(String url) {
         Matcher m = url == null ? null : TIKTOK_PHOTO.matcher(url);
         return m != null && m.find() ? m.group(2) : null;
+    }
+
+    /** The id of any TikTok post in a full link, photos or video; null for a short link or another site. */
+    static String tiktokId(String url) {
+        Matcher m = url == null ? null : TIKTOK_POST.matcher(url);
+        return m != null && m.find() ? m.group(1) : null;
+    }
+
+    /**
+     * The link of a TikTok post found to be photos: the same link with /photo/ for /video/ (and no tracking), so the
+     * rest of Haul knows it for a photo post; a plain one by id when the link has no account in it.
+     */
+    static String tiktokPhotoLink(String url, String id) {
+        Matcher m = Pattern.compile("tiktok\\.com/(@[\\w.-]*)/(?:video|photo)/" + id).matcher(String.valueOf(url));
+        return "https://www.tiktok.com/" + (m.find() ? m.group(1) : "@_") + "/photo/" + id;
+    }
+
+    /** True when a TikTok page carries the post's details (photos or a video), not a check or an error page. */
+    static boolean tiktokReadable(String html) {
+        return tiktokItem(html) != null;
     }
 
     /** The pages yt-dlp printed with --dump-pages: each follows a "Dumping request to …" line, base64-encoded. */

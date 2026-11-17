@@ -88,6 +88,35 @@ public class PhotosTest {
     }
 
     @Test
+    public void anyTikTokPostsId() {
+        assertEquals("7301234567", Photos.tiktokId("https://www.tiktok.com/@some.one/video/7301234567?is_from_webapp=1"));
+        assertEquals("7301234567", Photos.tiktokId("https://www.tiktok.com/@some.one/photo/7301234567"));
+        assertEquals("7301234567", Photos.tiktokId("https://m.tiktok.com/v/7301234567.html"));
+        assertEquals("7301234567", Photos.tiktokId("https://www.tiktok.com/embed/v2/7301234567"));
+        assertNull(Photos.tiktokId("https://vm.tiktok.com/ZMabc123/"));      // short: looked up first
+        assertNull(Photos.tiktokId("https://www.tiktok.com/t/ZT8abc/"));
+        assertNull(Photos.tiktokId("https://www.tiktok.com/@some.one"));
+        assertNull(Photos.tiktokId(null));
+    }
+
+    @Test
+    public void aPhotoPostBehindAVideoLinkGetsAPhotoLink() {
+        assertEquals("https://www.tiktok.com/@some.one/photo/7301234567",
+                Photos.tiktokPhotoLink("https://www.tiktok.com/@some.one/video/7301234567?_r=1&_t=x", "7301234567"));
+        assertEquals("https://www.tiktok.com/@_/photo/7301234567", Photos.tiktokPhotoLink("https://m.tiktok.com/v/7301234567.html", "7301234567"));
+        assertEquals("7301234567", Photos.tiktokPhotoId(Photos.tiktokPhotoLink("https://m.tiktok.com/v/7301234567.html", "7301234567")));
+    }
+
+    @Test
+    public void aVideosPageIsReadableButHasNoPhotos() {
+        String video = "<script id=\"__UNIVERSAL_DATA_FOR_REHYDRATION__\" type=\"application/json\">"
+                + "{\"__DEFAULT_SCOPE__\":{\"webapp.video-detail\":{\"itemInfo\":{\"itemStruct\":{\"desc\":\"A dance\",\"video\":{}}}}}}</script>";
+        assertTrue(Photos.tiktokReadable(video));
+        assertTrue(Photos.tiktokImages(video).isEmpty());
+        assertFalse(Photos.tiktokReadable("<html>Please wait…</html>"));   // a check page: can't tell
+    }
+
+    @Test
     public void aPageWithoutPhotosGivesNone() {
         assertTrue(Photos.tiktokImages("<html>no data</html>").isEmpty());
         assertTrue(Photos.tiktokImages("<script id=\"__UNIVERSAL_DATA_FOR_REHYDRATION__\">{\"__DEFAULT_SCOPE__\":{}}</script>").isEmpty());
