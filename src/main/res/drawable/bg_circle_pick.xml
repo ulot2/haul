@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one to tap, in the welcome screen's picture of the share sheet: a clay ring around Haul. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <stroke android:width="2dp" android:color="@color/clay" />
+</shape>

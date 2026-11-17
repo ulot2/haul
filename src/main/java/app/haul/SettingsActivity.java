@@ -36,6 +36,7 @@ public class SettingsActivity extends Activity {
             return insets;
         });
         findViewById(R.id.back).setOnClickListener(v -> finish());
+        findViewById(R.id.aboutWelcome).setOnClickListener(v -> startActivity(new Intent(this, WelcomeActivity.class)));
 
         Button[] q = {findViewById(R.id.sBest), findViewById(R.id.sSmall), findViewById(R.id.sAudio)};
         String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO};

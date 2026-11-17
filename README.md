@@ -27,6 +27,8 @@ Tap a finished download to see what it **Took**, and where the time went: starti
 
 No account, no ads, and no server of its own: everything runs on the phone.
 
+The first time Haul opens, three short steps show how to use it (share to Haul, or copy the link; pick what you keep). **Settings › About › How to use Haul** shows them again.
+
 ## How it works
 
 Haul runs [yt-dlp](https://github.com/yt-dlp/yt-dlp), the open-source downloader, on the phone itself, through [youtubedl-android](https://github.com/yausername/youtubedl-android). That library bundles a small Python to run yt-dlp, and FFmpeg to join video and audio (YouTube, X and Instagram serve them separately).

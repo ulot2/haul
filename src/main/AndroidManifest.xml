@@ -36,6 +36,11 @@
             android:exported="false"
             android:theme="@style/Theme.Haul.Player" />
 
+        <!-- The first time Haul opens: how to use it. Settings › About opens it again. -->
+        <activity
+            android:name=".WelcomeActivity"
+            android:exported="false" />
+
         <activity
             android:name=".SettingsActivity"
             android:exported="false"

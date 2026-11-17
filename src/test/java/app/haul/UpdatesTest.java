@@ -16,6 +16,13 @@ public class UpdatesTest {
     }
 
     @Test
+    public void theVersionJustInstalledIsNoLongerOffered() {
+        // The last check found 1.4.0 while 1.3.0 ran; the phone has since installed 1.4.0.
+        assertFalse(Updates.newer("1.4.0", "1.4.0"));
+        assertFalse(Updates.newer("1.4.0", "1.4.1"));
+    }
+
+    @Test
     public void devBuildsAreNotOfferedTheirOwnRelease() {
         assertTrue(Updates.newer("1.2.0", "1.1.0-dev.14"));
         assertFalse(Updates.newer("1.1.0", "1.1.0-dev.14"));
