@@ -169,6 +169,13 @@
         <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp">
             <TextView android:id="@+id/aboutVersion" style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
             <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textSize="13sp" android:text="No account, no ads, no server. yt-dlp runs on this phone. Download only what you have the right to keep." />
+
+            <Button
+                android:id="@+id/aboutWelcome"
+                style="@style/Haul.Button.Outline"
+                android:layout_width="match_parent"
+                android:layout_marginTop="14dp"
+                android:text="How to use Haul" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

@@ -425,7 +425,11 @@ final class Engine {
         dir.mkdirs();
         boolean video = Haul.AS_SLIDESHOW.equals(item.as);
         String photoId = Photos.tiktokPhotoId(item.url);
-        if (photoId == null) photoId = Photos.tiktokPhotoId(resolve(item.url));
+        if (photoId == null) photoId = Photos.tiktokId(item.url);   // a photo post behind a /video/ link
+        if (photoId == null) {
+            String to = resolve(item.url);
+            photoId = Photos.tiktokPhotoId(to) != null ? Photos.tiktokPhotoId(to) : Photos.tiktokId(to);
+        }
         if (photoId == null) throw new Exception("NO_FILES");
         JSONObject headers = new JSONObject();
         try {
@@ -446,6 +450,7 @@ final class Engine {
         if (read == null && !afresh) {
             progress.on(Progress.READING);
             read = tiktokPageDirect(photoId);
+            if (read != null && Photos.tiktokImages(read).isEmpty()) read = null;   // no pictures in it: yt-dlp's turn
             if (read == null) slow.add("page by yt-dlp");
         }
         if (read != null) {
@@ -547,15 +552,45 @@ final class Engine {
 
     /** A TikTok photo post's pictures (and whether it has a sound), read for the picker without downloading anything. */
     static Post readTikTok(Context c, String url) throws Exception {
-        init(c);
         String photoId = Photos.tiktokPhotoId(url);
         if (photoId == null) throw new Exception("NO_FILES");
         // Plainly first: a second, where starting yt-dlp for it takes many. yt-dlp when TikTok doesn't hand it over.
         String plain = tiktokPageDirect(photoId);
-        if (plain != null) {
+        if (plain != null && !Photos.tiktokImages(plain).isEmpty()) {
             TikTokPage.keep(c, photoId, plain);
             return Post.tiktok(plain);
         }
+        return readTikTokByEngine(c, photoId);
+    }
+
+    /**
+     * Whether a TikTok link that doesn't say so (a /video/ link: what TikTok's own share button hands over) is a photo
+     * post: its pictures when it is, null when it's a video. Its page, plainly fetched, tells in a second. When TikTok
+     * doesn't hand that over, yt-dlp reads the link as a download would (and the download then starts from that):
+     * a video has formats; a post without any is read again for its pictures.
+     */
+    static Post tiktokPhotosOf(Context c, String link, String id) {
+        String plain = tiktokPageDirect(id);
+        if (plain != null && Photos.tiktokReadable(plain)) {
+            if (Photos.tiktokImages(plain).isEmpty()) return null;   // a video
+            TikTokPage.keep(c, id, plain);
+            return Post.tiktok(plain);
+        }
+        try {
+            JSONArray formats = read(c, link).optJSONArray("formats");
+            if (formats != null && formats.length() > 0) return null;   // a video, now read for its download
+        } catch (Exception ignored) {
+            // yt-dlp couldn't read it as a video: maybe it isn't one
+        }
+        try {
+            return readTikTokByEngine(c, id);
+        } catch (Exception e) {
+            return null;   // can't tell: download it as it is (the download still finds pictures if there are some)
+        }
+    }
+
+    private static Post readTikTokByEngine(Context c, String photoId) throws Exception {
+        init(c);
         YoutubeDLRequest r = tiktokPage(photoId);
         r.addOption("--skip-download");
         String printed = run(r, "ahead-tiktok-" + photoId, null).getOut();
@@ -573,8 +608,8 @@ final class Engine {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
     /**
-     * A TikTok photo post's page, fetched the way a browser would, without yt-dlp. Null when TikTok doesn't hand over
-     * a page that lists the pictures (it asks some visitors to prove themselves first); yt-dlp then gets it.
+     * A TikTok post's page, fetched the way a browser would, without yt-dlp. Null when TikTok doesn't hand over a page
+     * with the post's details in it (it asks some visitors to prove themselves first); yt-dlp then gets it.
      */
     private static String tiktokPageDirect(String photoId) {
         HttpURLConnection con = null;
@@ -591,7 +626,7 @@ final class Engine {
             try (InputStream in = con.getInputStream()) {
                 page = Haul.readAll(in);
             }
-            return Photos.tiktokImages(page).isEmpty() ? null : page;
+            return Photos.tiktokReadable(page) ? page : null;
         } catch (Exception e) {
             return null;
         } finally {

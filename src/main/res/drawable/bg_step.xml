@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One step of the welcome screen, in the row under it; the current one is tinted clay and drawn wider. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="2dp" />
+    <solid android:color="@color/line" />
+</shape>

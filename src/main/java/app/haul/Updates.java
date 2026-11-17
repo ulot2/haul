@@ -58,6 +58,17 @@ final class Updates {
         }
     }
 
+    /**
+     * The newer version to offer, or "" when there is none. What the last check found is kept until the next check (6
+     * hours on), and the phone may have installed it since: then it is no longer newer, and is forgotten here.
+     */
+    static String offered(Context c) {
+        String found = Haul.prefs(c).getString("update_version", "");
+        if (found.isEmpty() || newer(found, installed(c))) return found;
+        Haul.prefs(c).edit().putString("update_version", "").putString("update_url", "").apply();
+        return "";
+    }
+
     static String installed(Context c) {
         try {
             return c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName;

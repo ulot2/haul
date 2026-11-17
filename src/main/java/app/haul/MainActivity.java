@@ -129,7 +129,10 @@ public class MainActivity extends Activity {
             if (!url.isEmpty()) Sheets.open(this, new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         });
 
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        if (state == null && WelcomeActivity.due(this)) {
+            // First time on this phone: how to use Haul, which also asks for notifications once it has said why.
+            startActivity(new Intent(this, WelcomeActivity.class));
+        } else if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                 && !Haul.prefs(this).getBoolean("asked_notifications", false)) {
             Haul.prefs(this).edit().putBoolean("asked_notifications", true).apply();
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
@@ -341,7 +344,7 @@ public class MainActivity extends Activity {
                 : "Nothing here.");
 
         notifyCard.setVisibility(getSystemService(NotificationManager.class).areNotificationsEnabled() ? View.GONE : View.VISIBLE);
-        String newVersion = Haul.prefs(this).getString("update_version", "");
+        String newVersion = Updates.offered(this);   // not the one just installed
         updateCard.setVisibility(newVersion.isEmpty() ? View.GONE : View.VISIBLE);
         updateTitle.setText("Haul " + newVersion + " is out");
 

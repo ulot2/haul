@@ -25,7 +25,8 @@ import java.util.Locale;
  *   (and how long), the pictures themselves with the sound next to them, or just the sound;
  * - an Instagram post with several photos or videos shows them, to pick the ones to download;
  * - anything else goes straight into the queue.
- * TikTok short links (vm.tiktok.com) are looked up first, to tell a photo post from a video.
+ * TikTok short links (vm.tiktok.com) are looked up first, and a /video/ link is checked, to tell a photo post from a
+ * video: TikTok's own Share button hands over /video/ links for photo posts too.
  */
 final class Choose {
     /** The haul added, or null when the user backed out (or it was already downloading). */
@@ -74,6 +75,25 @@ final class Choose {
 
     /** link: as the user gave it; url: where it leads (the same, unless link was a short one). */
     private static void tiktok(Activity a, String link, String url, String quality, int clipStart, int clipEnd, Done done) {
+        String id = Photos.tiktokPhotoId(url) == null ? Photos.tiktokId(url) : null;
+        if (id != null && !Haul.AUDIO.equals(quality) && clipStart < 0) {
+            // A link that doesn't say whether it's photos or a video: TikTok's own Share button hands over /video/
+            // links for photo posts too. The post itself tells.
+            Dialog d = reading(a, "READING THE LINK", "Checking the TikTok post…", done);
+            new Thread(() -> {
+                Post post = Engine.tiktokPhotosOf(a, link, id);
+                a.runOnUiThread(() -> {
+                    if (!d.isShowing()) return;   // backed out
+                    if (post == null || post.entries.isEmpty()) {
+                        // A video: keep the link as given, so the details just read (or read ahead) are found again.
+                        finish(d, done, put(a, link, quality, clipStart, clipEnd, "", ""));
+                    } else {
+                        grid(a, d, Photos.tiktokPhotoLink(url, id), quality, post, true, done);
+                    }
+                });
+            }, "haul-read").start();
+            return;
+        }
         if (Photos.tiktokPhotoId(url) == null) {
             // A video: keep the link as given, so details read ahead for it (in the dock) are found again.
             done.on(put(a, link, quality, clipStart, clipEnd, "", ""));
@@ -131,6 +151,7 @@ final class Choose {
      * the sheet only asks how, and the download takes every picture.
      */
     private static void grid(Activity a, Dialog d, String url, String quality, Post post, boolean tiktok, Done done) {
+        ((TextView) d.findViewById(R.id.pickTitle)).setText("PICK FROM THE POST");
         d.findViewById(R.id.pickReading).setVisibility(View.GONE);
         TextView hint = d.findViewById(R.id.pickHint);
         hint.setVisibility(View.VISIBLE);
