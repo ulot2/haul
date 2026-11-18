@@ -19,8 +19,8 @@ import android.widget.Toast;
 /** Settings: downloads, shortcuts, notifications, the engine, about. */
 public class SettingsActivity extends Activity {
     private static final String AUDIO_TARGET = "app.haul.ShareAudio";
-    private Button engineUpdate;
-    private TextView engineVersion, engineHelp, notifState;
+    private Button engineUpdate, aboutCheck;
+    private TextView engineVersion, engineHelp, notifState, aboutCheckResult;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -84,6 +84,43 @@ public class SettingsActivity extends Activity {
         engineUpdate.setOnClickListener(v -> updateEngine());
 
         ((TextView) findViewById(R.id.aboutVersion)).setText("Haul " + Updates.installed(this));
+        aboutCheck = findViewById(R.id.aboutCheck);
+        aboutCheckResult = findViewById(R.id.aboutCheckResult);
+        aboutCheck.setOnClickListener(v -> checkForUpdate());
+        showUpdate();   // a newer Haul found earlier (the card on the hold) is offered here too
+    }
+
+    /** With a newer Haul known, the button downloads it; otherwise it checks. */
+    private void showUpdate() {
+        String newer = Updates.offered(this);
+        aboutCheck.setEnabled(true);
+        if (newer.isEmpty()) {
+            aboutCheck.setText("Check for updates");
+            aboutCheck.setOnClickListener(v -> checkForUpdate());
+        } else {
+            aboutCheck.setText("Download Haul " + newer);
+            aboutCheck.setOnClickListener(v -> {
+                String url = Haul.prefs(this).getString("update_url", "");
+                if (!url.isEmpty()) Sheets.open(this, new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+            });
+        }
+    }
+
+    private void checkForUpdate() {
+        aboutCheck.setEnabled(false);
+        aboutCheck.setText("Checking…");
+        new Thread(() -> {
+            Updates.Found found = Updates.checkNow(this);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                aboutCheckResult.setVisibility(View.VISIBLE);
+                aboutCheckResult.setText(found == Updates.Found.NEWER
+                        ? "Haul " + Updates.offered(this) + " is out. Download it, open it, and tap Update. Your hold stays."
+                        : found == Updates.Found.LATEST ? "You have the latest Haul."
+                        : "Couldn't reach GitHub. Check your connection and try again.");
+                showUpdate();
+            });
+        }, "haul-update-check").start();
     }
 
     @Override

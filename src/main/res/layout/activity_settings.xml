@@ -170,11 +170,28 @@
             <TextView android:id="@+id/aboutVersion" style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
             <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textSize="13sp" android:text="No account, no ads, no server. yt-dlp runs on this phone. Download only what you have the right to keep." />
 
+            <!-- Haul itself (the engine has its own Update above). Says what it found; with a newer Haul, downloads it. -->
+            <Button
+                android:id="@+id/aboutCheck"
+                style="@style/Haul.Button.Outline"
+                android:layout_width="match_parent"
+                android:layout_marginTop="14dp"
+                android:text="Check for updates" />
+
+            <TextView
+                android:id="@+id/aboutCheckResult"
+                style="@style/Haul.Body"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
             <Button
                 android:id="@+id/aboutWelcome"
                 style="@style/Haul.Button.Outline"
                 android:layout_width="match_parent"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="10dp"
                 android:text="How to use Haul" />
         </LinearLayout>
     </LinearLayout>

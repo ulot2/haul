@@ -59,7 +59,7 @@ Haul saves through Android's MediaStore, so it needs no storage permission.
 2. If Android asks, allow installs from your browser.
 3. Open Haul once. The first start unpacks the engine, which takes a few seconds.
 
-Haul shows a notice when a newer version is out.
+Haul shows a notice when a newer version is out. **Settings › About › Check for updates** looks right away.
 
 Haul needs Android 10 or newer. `Haul.apk` is for 64-bit phones, which is nearly all of them. **`Haul-32bit.apk`**, from the same release, is for phones where `Haul.apk` stops with just "App not installed" (some budget phones, a Samsung Galaxy A17 4G among them). On a phone that can also run 64-bit apps, Android may say once that it "isn't compatible with the latest version of Android": that's a warning about 32-bit apps in general, and Haul works. Either way, Haul updates itself to the same kind later.
 
