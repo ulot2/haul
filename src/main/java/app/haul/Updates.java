@@ -10,8 +10,14 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-/** Checks GitHub for a newer Haul release, at most every 6 hours. The result goes into prefs for MainActivity. */
+/**
+ * Checks GitHub for a newer Haul release: on its own at most every 6 hours, or at once from Settings › About. The result
+ * goes into prefs, for the card on the hold.
+ */
 final class Updates {
+    /** What a check found. */
+    enum Found { NEWER, LATEST, OFFLINE }
+
     private static final String LATEST = "https://api.github.com/repos/ulot2/haul/releases/latest";
 
     /** Checks when the last successful check was over 6 hours ago; after a failed one (offline), 15 minutes later. */
@@ -22,13 +28,18 @@ final class Updates {
         Haul.prefs(c).edit().putLong("update_tried", now).apply();
         Context app = c.getApplicationContext();
         new Thread(() -> {
-            if (!check(app)) return;
-            Haul.prefs(app).edit().putLong("update_checked", System.currentTimeMillis()).apply();
+            if (check(app) == Found.OFFLINE) return;
             done.run();
         }).start();
     }
 
-    private static boolean check(Context c) {
+    /** Checks now, whenever the last check was (Settings' "Check for updates"). Blocks: call it off the main thread. */
+    static Found checkNow(Context c) {
+        Haul.prefs(c).edit().putLong("update_tried", System.currentTimeMillis()).apply();
+        return check(c.getApplicationContext());
+    }
+
+    private static Found check(Context c) {
         try {
             HttpURLConnection con = (HttpURLConnection) new URL(LATEST).openConnection();
             con.setConnectTimeout(10_000);
@@ -52,10 +63,11 @@ final class Updates {
             Haul.prefs(c).edit()
                     .putString("update_version", newer ? version : "")
                     .putString("update_url", newer ? apk : "")
+                    .putLong("update_checked", System.currentTimeMillis())
                     .apply();
-            return true;
+            return newer ? Found.NEWER : Found.LATEST;
         } catch (Exception ignored) {
-            return false;   // offline or GitHub unreachable: try again at the next check
+            return Found.OFFLINE;   // offline or GitHub unreachable: try again at the next check
         }
     }
 
