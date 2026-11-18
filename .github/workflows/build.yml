@@ -65,11 +65,16 @@ jobs:
           fi
           export HAUL_KEY_ALIAS=$(keytool -list -keystore haul.p12 -storetype pkcs12 -storepass "$HAUL_KEY_PASSWORD" | grep PrivateKeyEntry | cut -d, -f1)
           ./gradlew testDebugUnitTest assembleRelease
-          cp build/outputs/apk/release/*.apk Haul.apk
+          # One APK per CPU type: Haul.apk for 64-bit phones (nearly all), Haul-32bit.apk for phones running a
+          # 32-bit Android.
+          cp build/outputs/apk/release/*arm64-v8a*.apk Haul.apk
+          cp build/outputs/apk/release/*armeabi-v7a*.apk Haul-32bit.apk
       - uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: Haul.apk
+          path: |
+            Haul.apk
+            Haul-32bit.apk
     outputs:
       version: ${{ steps.v.outputs.version }}
 
@@ -91,7 +96,7 @@ jobs:
         # The tag can come from "git push" (no release yet) or from publishing a release on GitHub (release exists).
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" Haul.apk --clobber
+            gh release upload "$GITHUB_REF_NAME" Haul.apk Haul-32bit.apk --clobber
           else
-            gh release create "$GITHUB_REF_NAME" Haul.apk --title "Haul $VERSION" --generate-notes --latest
+            gh release create "$GITHUB_REF_NAME" Haul.apk Haul-32bit.apk --title "Haul $VERSION" --generate-notes --latest
           fi
