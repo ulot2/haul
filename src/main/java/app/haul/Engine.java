@@ -239,11 +239,9 @@ final class Engine {
             r.addOption("-x");
             r.addOption("--audio-format", "m4a");
         } else {
-            // H.264 + AAC in MP4 plays everywhere (Gallery, WhatsApp status, old laptops); VP9/AV1 often does not.
-            // For a GIF, a small video without sound is all that's needed.
-            boolean gif = Haul.GIF.equals(quality);
-            r.addOption("-f", gif ? "bv*/b" : "bv*+ba/b");
-            r.addOption("-S", gif ? "res:720" : Haul.SMALL.equals(quality) ? "vcodec:h264,res:720,acodec:aac" : "vcodec:h264,res,acodec:aac");
+            String[] pick = formats(quality);
+            r.addOption("-f", pick[0]);
+            r.addOption("-S", pick[1]);
             r.addOption("--merge-output-format", "mp4");
             if (toAac) {
                 // yt-dlp joins and remuxes with "-c copy"; a later "-c:a aac" makes FFmpeg convert only the sound.
@@ -276,6 +274,24 @@ final class Engine {
         }
         if (out.files.isEmpty()) throw failed != null ? failed : new Exception("NO_FILES");
         return out;
+    }
+
+    /**
+     * What to ask yt-dlp for, as {-f, -S}, for a video in this quality.
+     * - Best: H.264 + AAC first, since in MP4 it plays everywhere (Gallery, WhatsApp status, old laptops) and VP9/AV1
+     *   often does not; then the highest resolution.
+     * - 720p: a hard limit of 720 lines (the "?" keeps formats that don't say their height), then the largest under
+     *   it, then H.264. Sorting alone isn't a limit: "vcodec:h264,res:720" put any H.264 ahead of the size, so a
+     *   1080p H.264 beat a 720p in another codec, and 720p downloads came out 1080p. A post with nothing that small:
+     *   the smallest it has.
+     * - GIF: a small video without sound is all that's needed.
+     */
+    static String[] formats(String quality) {
+        if (Haul.GIF.equals(quality)) return new String[]{"bv*/b", "res:720"};
+        if (Haul.SMALL.equals(quality)) {
+            return new String[]{"bv*[height<=?720]+ba/b[height<=?720]/wv*+ba/w", "res,vcodec:h264,acodec:aac"};
+        }
+        return new String[]{"bv*+ba/b", "vcodec:h264,res,acodec:aac"};
     }
 
     /**

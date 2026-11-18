@@ -95,4 +95,17 @@ public class EngineTest {
         assertEquals(-1, first.duration);
         assertEquals("https://i/l.jpg", first.thumbnail);
     }
+
+    @Test
+    public void sevenTwentyIsALimitNotAPreference() {
+        // Checked with yt-dlp on TikTok- and YouTube-like format lists: 720p now gives 720p (H.264 when there's a
+        // choice at that size), where "vcodec:h264,res:720" gave 1080p.
+        String[] small = Engine.formats(Haul.SMALL);
+        assertEquals("bv*[height<=?720]+ba/b[height<=?720]/wv*+ba/w", small[0]);
+        assertEquals("res,vcodec:h264,acodec:aac", small[1]);
+        String[] best = Engine.formats(Haul.BEST);
+        assertEquals("bv*+ba/b", best[0]);
+        assertEquals("vcodec:h264,res,acodec:aac", best[1]);
+        assertEquals("bv*/b", Engine.formats(Haul.GIF)[0]);
+    }
 }
