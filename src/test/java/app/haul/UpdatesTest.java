@@ -23,6 +23,12 @@ public class UpdatesTest {
     }
 
     @Test
+    public void eachKindOfHaulIsOfferedItsOwnKind() {
+        org.junit.Assert.assertEquals("Haul.apk", Updates.apkName(true));
+        org.junit.Assert.assertEquals("Haul-32bit.apk", Updates.apkName(false));
+    }
+
+    @Test
     public void devBuildsAreNotOfferedTheirOwnRelease() {
         assertTrue(Updates.newer("1.2.0", "1.1.0-dev.14"));
         assertFalse(Updates.newer("1.1.0", "1.1.0-dev.14"));

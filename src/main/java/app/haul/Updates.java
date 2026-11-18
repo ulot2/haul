@@ -42,10 +42,11 @@ final class Updates {
             }
             String version = release.getString("tag_name").replaceFirst("^v", "");
             String apk = "";
+            String wanted = apkName(android.os.Process.is64Bit());
             JSONArray assets = release.optJSONArray("assets");
             for (int i = 0; assets != null && i < assets.length(); i++) {
                 JSONObject a = assets.getJSONObject(i);
-                if ("Haul.apk".equals(a.optString("name"))) apk = a.optString("browser_download_url");
+                if (wanted.equals(a.optString("name"))) apk = a.optString("browser_download_url");
             }
             boolean newer = !apk.isEmpty() && newer(version, installed(c));
             Haul.prefs(c).edit()
@@ -67,6 +68,14 @@ final class Updates {
         if (found.isEmpty() || newer(found, installed(c))) return found;
         Haul.prefs(c).edit().putString("update_version", "").putString("update_url", "").apply();
         return "";
+    }
+
+    /**
+     * The release file for this kind of Haul: Haul.apk when it runs 64-bit, Haul-32bit.apk when it runs 32-bit (a phone
+     * with a 32-bit Android, which can't install the 64-bit one). An update stays the kind that is installed.
+     */
+    static String apkName(boolean is64Bit) {
+        return is64Bit ? "Haul.apk" : "Haul-32bit.apk";
     }
 
     static String installed(Context c) {

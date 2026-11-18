@@ -61,13 +61,13 @@ Haul saves through Android's MediaStore, so it needs no storage permission.
 
 Haul shows a notice when a newer version is out.
 
-Haul is built for 64-bit phones (arm64) on Android 10 or newer, which is nearly every phone from the last eight years.
+Haul needs Android 10 or newer. `Haul.apk` is for 64-bit phones, which is nearly all of them. Some budget phones (a few Samsung Galaxy A models among them) run a 32-bit Android even on a 64-bit chip; there `Haul.apk` stops with just "App not installed", and **`Haul-32bit.apk`**, from the same release, is the one to install. Either way, Haul updates itself to the same kind later.
 
 If it won't install:
 
 - **Samsung**: newer Galaxy phones have **Auto Blocker** on, which stops apps from outside the Galaxy Store and Play Store. Turn it off in **Settings › Security and privacy › Auto Blocker**, install Haul, then turn it back on if you like (Haul keeps working).
 - **"Blocked by Play Protect"** or "unsafe app": tap **More details**, then **Install anyway**. Haul isn't on the Play Store, so Google doesn't know it.
-- **"App not installed"** with nothing else: if an older Haul is on the phone from somewhere else (a copy built on another computer), uninstall it first. Android only updates an app signed with the same key.
+- **"App not installed"** with nothing else: try **`Haul-32bit.apk`** (above). If an older Haul is on the phone from somewhere else (a copy built on another computer), uninstall it first: Android only updates an app signed with the same key.
 
 ## Limits
 

@@ -14,10 +14,19 @@ android {
         targetSdk 36
         versionCode build
         versionName System.getenv('HAUL_VERSION') ?: "0.0.0-local"   // set by the GitHub build from the release tag
+    }
 
-        // yt-dlp runs on a bundled Python, and FFmpeg merges video and audio. Both are native, so each CPU type
-        // adds about 40 MB. Nearly every phone from the last eight years is arm64, so only that one ships.
-        ndk { abiFilters 'arm64-v8a' }
+    // yt-dlp runs on a bundled Python, and FFmpeg merges video and audio. Both are native, so each CPU type adds about
+    // 40 MB. So each type gets its own APK rather than one holding both: arm64 for nearly every phone (Haul.apk), and
+    // 32-bit ARM for the budget phones that run a 32-bit Android even on a 64-bit chip (Haul-32bit.apk), where the
+    // arm64 one fails with just "App not installed".
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a'
+            universalApk false
+        }
     }
 
     // The key comes from GitHub secrets (see .github/workflows/build.yml).
