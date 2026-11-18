@@ -44,7 +44,7 @@ Sites change often, and each change can break yt-dlp for a while. So Haul update
 Videos come as MP4 with H.264 video and AAC audio, because those play everywhere: the Gallery, WhatsApp, an old laptop. When a site only offers another sound format, Haul converts the sound to AAC. Choose:
 
 - **Best**: the highest resolution in H.264.
-- **720p**: smaller files.
+- **720p**: smaller files: at most 720p (the largest the site has up to that).
 - **Audio**: just the sound, as M4A, in **Music/Haul**.
 
 The default is in **Settings**, which can also ask each time you share. Photos (Instagram photo posts and carousels, TikTok slideshows) land in **Pictures/Haul**. **Wi‑Fi only** keeps links waiting until the phone is on Wi‑Fi (on Android 13 and older they stop with a note instead).
@@ -61,7 +61,7 @@ Haul saves through Android's MediaStore, so it needs no storage permission.
 
 Haul shows a notice when a newer version is out.
 
-Haul needs Android 10 or newer. `Haul.apk` is for 64-bit phones, which is nearly all of them. Some budget phones (a few Samsung Galaxy A models among them) run a 32-bit Android even on a 64-bit chip; there `Haul.apk` stops with just "App not installed", and **`Haul-32bit.apk`**, from the same release, is the one to install. Either way, Haul updates itself to the same kind later.
+Haul needs Android 10 or newer. `Haul.apk` is for 64-bit phones, which is nearly all of them. **`Haul-32bit.apk`**, from the same release, is for phones where `Haul.apk` stops with just "App not installed" (some budget phones, a Samsung Galaxy A17 4G among them). On a phone that can also run 64-bit apps, Android may say once that it "isn't compatible with the latest version of Android": that's a warning about 32-bit apps in general, and Haul works. Either way, Haul updates itself to the same kind later.
 
 If it won't install:
 
