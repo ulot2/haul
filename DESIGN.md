@@ -33,7 +33,8 @@ from is the "Haul redesign" canvas (App, System, Style boards).
 - Buttons: `Haul.Button.Primary` (clay, 54dp), `Haul.Button.Outline` (line, 48dp), `Haul.IconButton` (44dp square).
 - Choices: `Haul.Chip` (filters) and `Haul.Segment` (quality): ink fill when chosen (`setActivated`).
 - `Haul.Card` for settings groups and notices; bottom sheets on `bg_sheet` with `Haul.Handle`.
-- The dock: a floating card at the bottom of the hold with the copied link, or "Add a link".
+- The dock: a floating card at the bottom of the hold with the copied link (or "3 copied links · TikTok, X"), or "Add a link".
+- Search: a field (bg_field) between the count and the filters; the count reads "Found 3 of 120" while searching.
 
 ## The logo: Pull
 One out of the feed. Two dim cards of a feed, and the one Haul picked out of it: stepped aside, tilted 6° as if lifted

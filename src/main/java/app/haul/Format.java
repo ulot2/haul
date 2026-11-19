@@ -34,5 +34,17 @@ final class Format {
         return total;
     }
 
+    /**
+     * What happened to a list of links: "Downloading 3 links · 1 already saved · 1 already in line"; when none was
+     * new, only what they already were.
+     */
+    static String many(int added, int saved, int waiting) {
+        StringBuilder s = new StringBuilder();
+        if (added > 0) s.append("Downloading ").append(added).append(added == 1 ? " link" : " links");
+        if (saved > 0) s.append(s.length() > 0 ? " · " : "").append(saved).append(" already saved");
+        if (waiting > 0) s.append(s.length() > 0 ? " · " : "").append(waiting).append(" already in line");
+        return s.length() == 0 ? "No links" : s.toString();
+    }
+
     private Format() {}
 }

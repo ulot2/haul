@@ -79,6 +79,22 @@ final class Downloads {
         return i;
     }
 
+    /**
+     * Several links at once (pasted from notes or a chat), each in this quality, with no questions: a carousel comes
+     * whole, a TikTok photo post as its pictures and sound. A post already saved the same way (still in the Gallery)
+     * is left out, and so is one already waiting. Returns what happened, as Format.many says it.
+     */
+    static String addAll(Context c, List<String> urls, String quality) {
+        int added = 0, saved = 0, waiting = 0;
+        for (String url : urls) {
+            Haul.Item had = Haul.saved(c, url, quality);
+            if (had != null && stillThere(c, had)) saved++;
+            else if (add(c, url, quality, -1, -1) != null) added++;
+            else waiting++;
+        }
+        return Format.many(added, saved, waiting);
+    }
+
     /** Tries an existing (failed, canceled or finished) haul again, with the quality and section it had. */
     static void retry(Context c, String id) {
         Haul.update(c, id, i -> {

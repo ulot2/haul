@@ -7,6 +7,7 @@ In TikTok (or any app), tap **Share**, then **Haul**. The video downloads in the
 - **Haul audio** in the share sheet saves just the sound.
 - Open Haul after copying a link: it waits at the bottom of the screen, one tap from downloading. **Options** picks the quality, or **Clip a section** of a long video.
 - The **Quick Settings tile**: copy a link anywhere, pull down the shade, tap Haul.
+- **Several links at once**: copy or paste a list (from notes, or a chat) and Haul downloads them all, in one go, in the quality you chose. Each post comes once; an Instagram post with several photos comes whole, and a TikTok photo post as its pictures and sound. Posts you already have, or that are already waiting, are left out, and Haul says how many.
 
 When a download is done, its notification has **Share** (straight to WhatsApp, say) and **Delete**. In Haul, every download is a numbered row with its picture; tap one to play, share, copy its link, download it again or delete it.
 
@@ -18,6 +19,8 @@ Some posts ask first:
 Tap a download, then **Play**, to watch or hear it in Haul's own player (photos and GIFs too; swipe through a post's files). The button at the top opens it in the Gallery instead.
 
 **GIFs** stay GIFs: an X post that is a GIF is saved as a `.gif` in Pictures/Haul (X serves GIFs as silent videos; Haul turns them back). The **GIF** quality turns any video into a GIF, up to 30 seconds, 480 pixels wide.
+
+**Search** at the top of Haul finds a download by its caption, title, who posted it, the site, its link or its number; type a few words in any order (`pasta recipe`, `@someone`, `148`). It works with the filters. Haul keeps your last 200 downloads.
 
 To delete or share several downloads at once, long-press one in Haul, tap the others, then **Delete** or **Share**.
 

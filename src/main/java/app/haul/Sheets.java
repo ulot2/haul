@@ -92,7 +92,28 @@ final class Sheets {
         }
         mark.run();
         // Read the link while the user picks a quality: the download then starts from what was read.
-        if (Haul.firstLink(draft.url) != null) Engine.readAhead(a, Haul.firstLink(draft.url));
+        if (Haul.links(draft.url).size() == 1) Engine.readAhead(a, Haul.firstLink(draft.url));
+        // Several links pasted (a list from notes or a chat): the button says how many it will download.
+        Button goButton = d.findViewById(R.id.addGo);
+        Runnable count = () -> {
+            int n = Haul.links(link.getText()).size();
+            goButton.setText(n > 1 ? "Download " + n + " links" : "Download");
+        };
+        count.run();
+        link.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int c, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int c) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                count.run();
+            }
+        });
         TextView clipValue = d.findViewById(R.id.addClipValue);
         clipValue.setText(draft.clipped() ? Format.clock(draft.clipStart) + "–" + Format.clock(draft.clipEnd) : "Whole video");
 
@@ -100,6 +121,10 @@ final class Sheets {
             String url = Haul.firstLink(link.getText());
             if (url == null) {
                 link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
+                return;
+            }
+            if (Haul.links(link.getText()).size() > 1) {
+                link.setError("Clip one link at a time");
                 return;
             }
             if (!url.equals(draft.url)) {
@@ -113,6 +138,15 @@ final class Sheets {
             String url = Haul.firstLink(link.getText());
             if (url == null) {
                 link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
+                return;
+            }
+            List<String> urls = Haul.links(link.getText());
+            if (urls.size() > 1) {
+                // A list: all of it in this quality, with no questions (a carousel comes whole, a TikTok photo post
+                // as its pictures and sound).
+                d.dismiss();
+                Toast.makeText(a, Downloads.addAll(a, urls, draft.quality), Toast.LENGTH_LONG).show();
+                added.on(String.join("\n", urls));
                 return;
             }
             boolean sameLink = url.equals(draft.url);

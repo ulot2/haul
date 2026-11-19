@@ -11,9 +11,13 @@ import android.widget.Toast;
 /**
  * Share a post to Haul from TikTok, Instagram, X or a browser: the download starts and the user stays where they
  * were. Two share targets open this screen: "Haul" (the default quality, or a quick choice when "Ask quality when
- * sharing" is on) and "Haul audio" (the ShareAudio alias: just the sound).
+ * sharing" is on) and "Haul audio" (the ShareAudio alias: just the sound). Text holding several links (a list shared
+ * from notes) downloads them all, with no questions.
  */
 public class ShareActivity extends Activity {
+    /** Every link in what was shared; more than one makes it a list. */
+    private java.util.List<String> links = new java.util.ArrayList<>();
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -26,6 +30,7 @@ public class ShareActivity extends Activity {
             text = in.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT);
         }
         String url = Haul.firstLink(text);
+        links = Haul.links(text);
         if (url == null) {
             Toast.makeText(this, "Haul: there's no link in what you shared", Toast.LENGTH_LONG).show();
             finish();
@@ -44,9 +49,14 @@ public class ShareActivity extends Activity {
     /** HAUL THIS AS: three buttons over the app the link came from; the default quality is the filled one. */
     private void ask(String url) {
         setContentView(R.layout.sheet_quality);
-        Engine.readAhead(this, url);   // read the link while the user picks: the download then starts from what was read
-        ((TextView) findViewById(R.id.qSite)).setText(Haul.site(url));
-        ((TextView) findViewById(R.id.qLink)).setText(Look.shortLink(url));
+        if (links.size() > 1) {
+            ((TextView) findViewById(R.id.qSite)).setText(links.size() + " links");
+            ((TextView) findViewById(R.id.qLink)).setText(Look.shortLink(url) + " and " + (links.size() - 1) + " more");
+        } else {
+            Engine.readAhead(this, url);   // read the link while the user picks: the download then starts from what was read
+            ((TextView) findViewById(R.id.qSite)).setText(Haul.site(url));
+            ((TextView) findViewById(R.id.qLink)).setText(Look.shortLink(url));
+        }
         findViewById(R.id.qScrim).setOnClickListener(v -> finish());
         // Android 15+ draws every screen under the navigation bar: lift the buttons above it.
         android.view.View sheet = findViewById(R.id.qSheet);
@@ -68,6 +78,11 @@ public class ShareActivity extends Activity {
     private void start(String url, String quality) {
         android.view.View sheet = findViewById(R.id.qScrim);
         if (sheet != null) sheet.setVisibility(android.view.View.GONE);   // the quality sheet makes way for what follows
+        if (links.size() > 1) {
+            Toast.makeText(this, "Haul: " + Downloads.addAll(this, links, quality), Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
         // A TikTok photo post asks how to save it, and an Instagram carousel shows its items to pick, over the app the
         // link came from; anything else is added at once.
         Choose.add(this, url, quality, -1, -1, i -> {

@@ -22,14 +22,25 @@ public class ClipActivity extends Activity {
         if (!hasFocus || done) return;
         done = true;
         String url = null;
+        java.util.List<String> links = new java.util.ArrayList<>();
         try {
             ClipData clip = getSystemService(ClipboardManager.class).getPrimaryClip();
-            if (clip != null && clip.getItemCount() > 0) url = Haul.firstLink(clip.getItemAt(0).coerceToText(this));
+            if (clip != null && clip.getItemCount() > 0) {
+                links = Haul.links(clip.getItemAt(0).coerceToText(this));
+                url = links.isEmpty() ? null : links.get(0);
+            }
         } catch (RuntimeException ignored) {
             // no clipboard access: same as no link
         }
         if (url == null) {
             Toast.makeText(this, "Haul: copy a link first", Toast.LENGTH_SHORT).show();
+            close();
+            return;
+        }
+        if (links.size() > 1) {
+            // A copied list: all of it, with no questions.
+            Toast.makeText(this, "Haul: " + Downloads.addAll(this, links, Haul.quality(this)), Toast.LENGTH_LONG).show();
+            Haul.prefs(this).edit().putString("last_filled", String.join("\n", links)).apply();   // the hold won't offer it again
             close();
             return;
         }

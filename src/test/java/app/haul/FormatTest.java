@@ -37,4 +37,12 @@ public class FormatTest {
         assertEquals(-1, Format.seconds("soon"));
         assertEquals(-1, Format.seconds(null));
     }
+
+    @Test
+    public void whatHappenedToAList() {
+        assertEquals("Downloading 3 links", Format.many(3, 0, 0));
+        assertEquals("Downloading 1 link · 2 already saved · 1 already in line", Format.many(1, 2, 1));
+        assertEquals("2 already saved", Format.many(0, 2, 0));
+        assertEquals("No links", Format.many(0, 0, 0));
+    }
 }

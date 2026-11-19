@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** The hold: every haul as a ticket with its picture, filters, and the dock with the copied link. */
+/** The hold: every haul as a ticket with its picture, search and filters, and the dock with the copied link(s). */
 public class MainActivity extends Activity {
     static final String EXTRA_RETRY = "retry", EXTRA_NOTIFICATION = "notification";
     private static final String ALL = "all", VIDEOS = "videos", PHOTOS = "photos", AUDIO = "audio", FAILED = "failed";
@@ -47,6 +47,9 @@ public class MainActivity extends Activity {
     private Button dockDownload;
     private final Map<String, Button> filters = new HashMap<>();
     private String filter = ALL;
+    /** What is typed in the search box; "" shows everything (that the filter lets through). */
+    private String query = "";
+    private android.widget.EditText search;
     private int contentTop, dockBottom, navBottom;
     private final Runnable render = this::render;
     /** The hold's rows by haul id, and what each one shows, so a redraw only touches rows that changed. */
@@ -113,9 +116,46 @@ public class MainActivity extends Activity {
             });
         }
 
+        search = findViewById(R.id.search);
+        View clear = findViewById(R.id.searchClear);
+        search.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                query = s.toString().trim();
+                clear.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
+                render();
+            }
+        });
+        search.setOnEditorActionListener((v, action, e) -> {
+            if (action != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) return false;
+            hideKeyboard();
+            return true;
+        });
+        clear.setOnClickListener(v -> {
+            search.setText("");
+            hideKeyboard();
+        });
+
         findViewById(R.id.settings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
-        findViewById(R.id.dockOptions).setOnClickListener(v -> Sheets.add(this, new Sheets.Draft(dockUrl(), Haul.quality(this)), this::added));
+        // Several copied links go into the sheet's field side by side, so they can be looked over (or one taken out).
+        findViewById(R.id.dockOptions).setOnClickListener(v -> Sheets.add(this,
+                new Sheets.Draft(String.join(" ", dockLinks()), Haul.quality(this)), this::added));
         dockDownload.setOnClickListener(v -> {
+            List<String> links = dockLinks();
+            if (links.size() > 1) {
+                // A list of links: all of them, in the default quality, with no questions.
+                Toast.makeText(this, Downloads.addAll(this, links, Haul.quality(this)), Toast.LENGTH_LONG).show();
+                added(dockUrl());
+                return;
+            }
             String url = dockUrl();
             Choose.add(this, url, Haul.quality(this), -1, -1, i -> {
                 if (i != null) added(url);
@@ -264,22 +304,35 @@ public class MainActivity extends Activity {
         if (d == null || !d.hasMimeType("text/*")) return;
         if (d.getTimestamp() == Haul.prefs(this).getLong("clip_seen", -1)) return;
         Haul.prefs(this).edit().putLong("clip_seen", d.getTimestamp()).apply();
-        String url = null;
+        List<String> links = new ArrayList<>();
         try {
             android.content.ClipData clip = getSystemService(ClipboardManager.class).getPrimaryClip();
-            if (clip != null && clip.getItemCount() > 0) url = Haul.firstLink(clip.getItemAt(0).coerceToText(this));
+            if (clip != null && clip.getItemCount() > 0) links = Haul.links(clip.getItemAt(0).coerceToText(this));
         } catch (RuntimeException ignored) {
             // no access: nothing to offer
         }
-        // Offer each copied link once: not again after it was downloaded, or copied from Haul itself.
-        if (url != null && !url.equals(Haul.prefs(this).getString("last_filled", ""))) {
-            Haul.prefs(this).edit().putString("dock_link", url).apply();
+        // Offer each copied link (or list of links) once: not again after it was downloaded, or copied from Haul itself.
+        String offer = String.join("\n", links);
+        if (!links.isEmpty() && !offer.equals(Haul.prefs(this).getString("last_filled", ""))) {
+            Haul.prefs(this).edit().putString("dock_link", offer).apply();
             render();
         }
     }
 
+    /** The copied link waiting in the dock; several, one to a line, when a list was copied. "" for none. */
     private String dockUrl() {
         return Haul.prefs(this).getString("dock_link", "");
+    }
+
+    private List<String> dockLinks() {
+        List<String> out = new ArrayList<>();
+        for (String s : dockUrl().split("\n")) if (!s.trim().isEmpty()) out.add(s.trim());
+        return out;
+    }
+
+    private void hideKeyboard() {
+        search.clearFocus();
+        getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(search.getWindowToken(), 0);
     }
 
     /** A link went into the queue: the dock lets go of it. */
@@ -303,14 +356,13 @@ public class MainActivity extends Activity {
         for (Haul.Item i : all) if (Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status)) failedCount++;
         filters.get(FAILED).setText(failedCount > 0 ? "Failed · " + failedCount : "Failed");
         for (Map.Entry<String, Button> f : filters.entrySet()) f.getValue().setActivated(f.getKey().equals(filter));
-        count.setText("The hold · " + all.size() + (all.size() == 1 ? " item" : " items"));
         wifiBadge.setVisibility(Haul.wifiOnly(this) ? View.VISIBLE : View.GONE);
 
         LayoutInflater inf = getLayoutInflater();
         List<View> order = new ArrayList<>();
         Set<String> ids = new HashSet<>();
         for (Haul.Item i : all) {
-            if (!shows(i)) continue;
+            if (!shows(i) || !Haul.matches(i, query)) continue;
             View row = rows.get(i.id);
             if (row == null) {
                 row = inf.inflate(R.layout.item_haul, hold, false);
@@ -337,8 +389,12 @@ public class MainActivity extends Activity {
             hold.removeAllViews();
             for (View row : order) hold.addView(row);
         }
+        count.setText(query.isEmpty() ? "The hold · " + all.size() + (all.size() == 1 ? " item" : " items")
+                : "Found " + order.size() + " of " + all.size());
         empty.setVisibility(order.isEmpty() ? View.VISIBLE : View.GONE);
-        empty.setText(all.isEmpty()
+        empty.setText(!all.isEmpty() && !query.isEmpty() ? "Nothing in the hold matches \u201c" + query + "\u201d"
+                + (filter.equals(ALL) ? "." : " here. Try All.")
+                : all.isEmpty()
                 ? "Nothing yet. In TikTok, Instagram or X tap Share, then Haul. Or copy a link and come back here.\n\n"
                 + "Videos land in your Gallery in Movies/Haul, photos in Pictures/Haul, audio in Music/Haul."
                 : "Nothing here.");
@@ -349,12 +405,23 @@ public class MainActivity extends Activity {
         updateTitle.setText("Haul " + newVersion + " is out");
 
         String link = dockUrl();
+        List<String> links = dockLinks();
         boolean hasLink = !link.isEmpty(), selecting = !selected.isEmpty();
         dockSelect.setVisibility(selecting ? View.VISIBLE : View.GONE);
         selectCount.setText(selected.size() + " SELECTED");
         dockClip.setVisibility(hasLink && !selecting ? View.VISIBLE : View.GONE);
         dockAdd.setVisibility(hasLink || selecting ? View.GONE : View.VISIBLE);
-        if (hasLink) {
+        if (hasLink && links.size() > 1) {
+            Set<String> sites = new LinkedHashSet<>();
+            List<String> shortLinks = new ArrayList<>();
+            for (String l : links) {
+                sites.add(Haul.site(l));
+                shortLinks.add(Look.shortLink(l));
+            }
+            dockLabel.setText(links.size() + " copied links · " + String.join(", ", sites));
+            dockLink.setText(String.join("  ·  ", shortLinks));
+            dockDownload.setText("Download " + links.size() + " · " + Look.qualityName(Haul.quality(this)));
+        } else if (hasLink) {
             // Read the link while the user looks at it: the download then starts from what was read.
             Engine.readAhead(this, link);
             dockLabel.setText("Copied link · " + Haul.site(link));

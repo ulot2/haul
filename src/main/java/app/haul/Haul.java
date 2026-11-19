@@ -30,7 +30,8 @@ final class Haul {
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
     /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of each with the sound. */
     static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";
-    private static final int KEEP = 50;
+    /** How many hauls the hold keeps; the oldest finished ones go first. Search makes a long hold easy to look through. */
+    private static final int KEEP = 200;
     private static final Pattern LINK = Pattern.compile("https?://[^\\s<>\"'{}|\\\\^`]+", Pattern.CASE_INSENSITIVE);
 
     /** One link the user asked for, and what came of it. */
@@ -153,7 +154,7 @@ final class Haul {
         changed();
     }
 
-    // ---- The hold: the last 50 hauls, newest first ----
+    // ---- The hold: the last 200 hauls, newest first ----
 
     static synchronized List<Item> items(Context c) {
         return new ArrayList<>(load(c));
@@ -275,6 +276,11 @@ final class Haul {
         return audioA == audioB && gifA == gifB;
     }
 
+    /** True when the search finds this haul: in its title, caption, creator, site, link or ticket number ("148"). */
+    static boolean matches(Item i, String query) {
+        return Find.matches(query, i.title, i.caption, i.by, i.site, i.url, i.page, "No. " + Format.ticket(i.no));
+    }
+
     static void setProgress(String id, float percent) {
         progress.put(id, percent);
         changed();
@@ -327,10 +333,33 @@ final class Haul {
     static String firstLink(CharSequence text) {
         if (text == null) return null;
         Matcher m = LINK.matcher(text);
-        if (!m.find()) return null;
-        String url = m.group();
+        while (m.find()) {
+            String url = trim(m.group());
+            if (!url.isEmpty()) return url;
+        }
+        return null;
+    }
+
+    /**
+     * Every link in some text, in order, each post once (the same post under two links counts once): a list pasted
+     * from notes or a chat. Empty when there is none.
+     */
+    static List<String> links(CharSequence text) {
+        List<String> out = new ArrayList<>();
+        if (text == null) return out;
+        java.util.Set<String> posts = new java.util.HashSet<>();
+        Matcher m = LINK.matcher(text);
+        while (m.find()) {
+            String url = trim(m.group());
+            if (!url.isEmpty() && posts.add(Seen.key(url))) out.add(url);
+        }
+        return out;
+    }
+
+    /** A link without the punctuation that ends the sentence around it: "(see https://x.com/a/status/1)." */
+    private static String trim(String url) {
         while (!url.isEmpty() && ".,;:!?)]".indexOf(url.charAt(url.length() - 1)) >= 0) url = url.substring(0, url.length() - 1);
-        return url.isEmpty() ? null : url;
+        return url;
     }
 
     /** "TikTok", "Instagram", "X"... from the link, for the list. Unknown sites show their address. */
