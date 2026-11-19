@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-STATUSES: WhatsApp's own page in Haul. The statuses the user has opened in WhatsApp (WhatsApp keeps them about a
+STATUSES: WhatsApp's own tab in Haul. The statuses the user has opened in WhatsApp (WhatsApp keeps them about a
 day), as a grid of pictures, newest first. Tap one to save it to the Gallery; tap a saved one (✓) to watch it.
 The first time, a card asks for access to WhatsApp's statuses folder through Android's folder picker.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/stScroll"
+    android:id="@+id/pageStatuses"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/ground"
@@ -20,28 +20,14 @@ The first time, a card asks for access to WhatsApp's statuses folder through And
         android:paddingStart="20dp"
         android:paddingTop="18dp"
         android:paddingEnd="20dp"
-        android:paddingBottom="40dp">
+        android:paddingBottom="24dp">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            style="@style/Haul.Heading"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <ImageButton
-                android:id="@+id/stBack"
-                style="@style/Haul.IconButton"
-                android:contentDescription="Back"
-                android:src="@drawable/ic_back" />
-
-            <TextView
-                style="@style/Haul.Heading"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:text="STATUSES"
-                android:textSize="34sp" />
-        </LinearLayout>
+            android:text="STATUSES"
+            android:textSize="40sp" />
 
         <TextView
             style="@style/Haul.Body"

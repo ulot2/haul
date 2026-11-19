@@ -34,6 +34,36 @@
         <item name="android:textColor">@color/ink_muted</item>
     </style>
 
+    <!-- A tab at the bottom of Haul's screen: its icon over its name. -->
+    <style name="Haul.Tab">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+    </style>
+
+    <style name="Haul.TabLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">@font/archivo_regular</item>
+        <item name="android:textColor">@color/ink_muted</item>
+    </style>
+
+    <!-- The site's tag on a card of the Download page's feed. -->
+    <style name="Haul.FeedTag">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">@font/jetbrains_mono_semibold</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
     <style name="Haul.Mono">
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">@font/jetbrains_mono_regular</item>

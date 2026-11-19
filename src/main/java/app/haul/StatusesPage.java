@@ -6,7 +6,6 @@ import android.content.UriPermission;
 import android.content.res.ColorStateList;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.text.format.DateUtils;
 import android.view.Gravity;
@@ -25,13 +24,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * WhatsApp's page in Haul: the statuses the user has opened in WhatsApp (or WhatsApp Business), from the folder
- * where WhatsApp keeps them for about a day. Reading it takes the user's say-so once, in Android's folder picker,
- * which Haul opens inside that folder; Android remembers it. A tap saves a status into the Gallery (and the hold,
- * like a download, with Play, Share and Delete); a saved one opens in Haul's player.
+ * The Statuses tab: the statuses the user has opened in WhatsApp (or WhatsApp Business), from the folder where
+ * WhatsApp keeps them for about a day. Reading it takes the user's say-so once, in Android's folder picker, which Haul
+ * opens inside that folder; Android remembers it. A tap saves a status into the Gallery (and the hold, like a
+ * download, with Play, Share and Delete); a saved one opens in Haul's player. MainActivity shows it as a tab and passes
+ * on its resume and the folder picker's answer.
  */
-public class StatusesActivity extends Activity {
-    private static final int REQ_FOLDER = 7;
+final class StatusesPage {
+    static final int REQ_FOLDER = 7;
     private static final int[] TONES = {R.color.tone0, R.color.tone1, R.color.tone2, R.color.tone3, R.color.tone4, R.color.tone5};
 
     /** One file in the statuses folder. */
@@ -51,21 +51,12 @@ public class StatusesActivity extends Activity {
     private boolean saving;
     /** Bumped on every load, so a slow read of the other tab doesn't draw over this one. */
     private int generation;
+    private final Activity a;
+    private final View root;
 
-    @Override
-    protected void onCreate(Bundle state) {
-        super.onCreate(state);
-        setContentView(R.layout.activity_statuses);
-        MainActivity.edgeToEdge(this);
-        View content = findViewById(R.id.stContent);
-        int top = content.getPaddingTop(), bottom = content.getPaddingBottom();
-        findViewById(R.id.stScroll).setOnApplyWindowInsetsListener((v, insets) -> {
-            int[] b = MainActivity.bars(insets);
-            content.setPadding(content.getPaddingLeft(), top + b[1], content.getPaddingRight(), bottom + b[3]);
-            v.setPadding(b[0], 0, b[2], 0);
-            return insets;
-        });
-        findViewById(R.id.stBack).setOnClickListener(v -> finish());
+    StatusesPage(Activity a, View root) {
+        this.a = a;
+        this.root = root;
         chipWhatsApp = findViewById(R.id.stWhatsApp);
         chipBusiness = findViewById(R.id.stBusiness);
         connect = findViewById(R.id.stConnect);
@@ -78,22 +69,25 @@ public class StatusesActivity extends Activity {
         grid = findViewById(R.id.stGrid);
 
         // The last tab used, so someone who only has WhatsApp Business lands on it.
-        app = Haul.prefs(this).getString("statuses_app", Statuses.WHATSAPP);
+        app = Haul.prefs(a).getString("statuses_app", Statuses.WHATSAPP);
         chipWhatsApp.setOnClickListener(v -> show(Statuses.WHATSAPP));
         chipBusiness.setOnClickListener(v -> show(Statuses.BUSINESS));
         findViewById(R.id.stConnectGo).setOnClickListener(v -> pickFolder());
         saveAll.setOnClickListener(v -> saveAll());
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        load();   // back from WhatsApp with new statuses, or from the player
+    private <T extends View> T findViewById(int id) {
+        return root.findViewById(id);
+    }
+
+    /** The tab is shown, or Haul is back on screen with it: back from WhatsApp with new statuses, or from the player. */
+    void resume() {
+        load();
     }
 
     private void show(String which) {
         app = which;
-        Haul.prefs(this).edit().putString("statuses_app", which).apply();
+        Haul.prefs(a).edit().putString("statuses_app", which).apply();
         load();
     }
 
@@ -101,9 +95,9 @@ public class StatusesActivity extends Activity {
 
     /** The folder Android lets Haul read for this WhatsApp, or null when the user hasn't allowed one (or took it back). */
     private Uri folder() {
-        String kept = Haul.prefs(this).getString("statuses_tree_" + app, "");
+        String kept = Haul.prefs(a).getString("statuses_tree_" + app, "");
         if (kept.isEmpty()) return null;
-        for (UriPermission p : getContentResolver().getPersistedUriPermissions()) {
+        for (UriPermission p : a.getContentResolver().getPersistedUriPermissions()) {
             if (p.isReadPermission() && p.getUri().toString().equals(kept)) return p.getUri();
         }
         return null;
@@ -114,16 +108,15 @@ public class StatusesActivity extends Activity {
                 .putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(Statuses.pickerStart(app)))
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try {
-            startActivityForResult(pick, REQ_FOLDER);
+            a.startActivityForResult(pick, REQ_FOLDER);
         } catch (Exception e) {
-            Toast.makeText(this, "This phone has no folder picker Haul can open", Toast.LENGTH_LONG).show();
+            Toast.makeText(a, "This phone has no folder picker Haul can open", Toast.LENGTH_LONG).show();
         }
     }
 
-    @Override
-    protected void onActivityResult(int request, int result, Intent data) {
-        super.onActivityResult(request, result, data);
-        if (request != REQ_FOLDER || result != RESULT_OK || data == null || data.getData() == null) return;
+    /** The folder picker's answer, passed on by MainActivity. */
+    void onActivityResult(int request, int result, Intent data) {
+        if (request != REQ_FOLDER || result != Activity.RESULT_OK || data == null || data.getData() == null) return;
         Uri tree = data.getData();
         String id;
         try {
@@ -132,7 +125,7 @@ public class StatusesActivity extends Activity {
             id = null;
         }
         if (!Statuses.isStatusFolder(id)) {
-            new android.app.AlertDialog.Builder(this)
+            new android.app.AlertDialog.Builder(a)
                     .setTitle("That isn't the statuses folder")
                     .setMessage("Tap Allow access again, then Use this folder without moving: the picker opens in the "
                             + "right place. If it doesn't, open " + Statuses.name(app) + ", look at a status, and try again.")
@@ -141,13 +134,13 @@ public class StatusesActivity extends Activity {
             return;
         }
         try {
-            getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            a.getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } catch (SecurityException e) {
-            Toast.makeText(this, "Android didn't keep the access. Try again.", Toast.LENGTH_LONG).show();
+            Toast.makeText(a, "Android didn't keep the access. Try again.", Toast.LENGTH_LONG).show();
             return;
         }
         String which = Statuses.appOf(id);
-        Haul.prefs(this).edit().putString("statuses_tree_" + which, tree.toString()).apply();
+        Haul.prefs(a).edit().putString("statuses_tree_" + which, tree.toString()).apply();
         show(which);
     }
 
@@ -164,7 +157,7 @@ public class StatusesActivity extends Activity {
             bar.setVisibility(View.GONE);
             empty.setVisibility(View.GONE);
             connect.setVisibility(View.VISIBLE);
-            boolean had = !Haul.prefs(this).getString("statuses_tree_" + app, "").isEmpty();
+            boolean had = !Haul.prefs(a).getString("statuses_tree_" + app, "").isEmpty();
             connectTitle.setText(had ? "Haul can't see " + Statuses.name(app) + "'s statuses any more"
                     : "Let Haul see your " + Statuses.name(app) + " statuses");
             connectBody.setText("Android asks you once. Tap Allow access: a folder picker opens in "
@@ -176,11 +169,11 @@ public class StatusesActivity extends Activity {
         new Thread(() -> {
             List<Status> found = list(tree);
             Map<String, Haul.Item> have = new HashMap<>();
-            for (Haul.Item i : Haul.items(this)) {
-                if (Statuses.isStatus(i.url) && Haul.DONE.equals(i.status) && Downloads.stillThere(this, i)) have.put(i.url, i);
+            for (Haul.Item i : Haul.items(a)) {
+                if (Statuses.isStatus(i.url) && Haul.DONE.equals(i.status) && Downloads.stillThere(a, i)) have.put(i.url, i);
             }
-            runOnUiThread(() -> {
-                if (gen != generation || isFinishing() || !which.equals(app)) return;
+            a.runOnUiThread(() -> {
+                if (gen != generation || a.isFinishing() || !which.equals(app)) return;
                 statuses.clear();
                 if (found != null) statuses.addAll(found);
                 saved.clear();
@@ -196,7 +189,7 @@ public class StatusesActivity extends Activity {
         Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
         String[] cols = {DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                 DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_LAST_MODIFIED};
-        try (Cursor cur = getContentResolver().query(children, cols, null, null, null)) {
+        try (Cursor cur = a.getContentResolver().query(children, cols, null, null, null)) {
             if (cur == null) return null;
             while (cur.moveToNext()) {
                 Status s = new Status();
@@ -244,13 +237,13 @@ public class StatusesActivity extends Activity {
         saveAll.setAlpha(fresh > 0 && !saving ? 1f : 0.4f);
         saveAll.setText(fresh > 0 ? "Save all · " + fresh : "All saved");
 
-        int gap = Sheets.dp(this, 8);
-        int width = (getResources().getDisplayMetrics().widthPixels - Sheets.dp(this, 40) - 2 * gap) / 3;
+        int gap = Sheets.dp(a, 8);
+        int width = (a.getResources().getDisplayMetrics().widthPixels - Sheets.dp(a, 40) - 2 * gap) / 3;
         int height = width * 16 / 9;   // statuses are made for a phone held upright
         LinearLayout row = null;
         for (int k = 0; k < statuses.size(); k++) {
             if (k % 3 == 0) {
-                row = new LinearLayout(this);
+                row = new LinearLayout(a);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -264,42 +257,42 @@ public class StatusesActivity extends Activity {
     }
 
     private View tile(Status s, int width, int height) {
-        FrameLayout box = new FrameLayout(this);
+        FrameLayout box = new FrameLayout(a);
         box.setBackgroundResource(R.drawable.bg_thumb);
-        box.setBackgroundTintList(ColorStateList.valueOf(getColor(TONES[Math.abs(s.name.hashCode()) % TONES.length])));
+        box.setBackgroundTintList(ColorStateList.valueOf(a.getColor(TONES[Math.abs(s.name.hashCode()) % TONES.length])));
         box.setClipToOutline(true);
         String link = Statuses.link(app, s.name);
         Haul.Item had = saved.get(link);
 
-        ImageView picture = new ImageView(this);
+        ImageView picture = new ImageView(a);
         picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
         picture.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         box.addView(picture, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        if (!Haul.AUDIO.equals(s.kind)) Thumbs.showStatus(this, picture, s.uri, Haul.VIDEO.equals(s.kind), width, height);
+        if (!Haul.AUDIO.equals(s.kind)) Thumbs.showStatus(a, picture, s.uri, Haul.VIDEO.equals(s.kind), width, height);
 
         // What it is, at the bottom: a video, or a voice status (which has no picture, so its sign sits in the middle).
         if (!Haul.PHOTOS.equals(s.kind)) {
-            ImageView sign = new ImageView(this);
+            ImageView sign = new ImageView(a);
             sign.setImageResource(Haul.AUDIO.equals(s.kind) ? R.drawable.ic_music : R.drawable.ic_play);
             sign.setImageTintList(ColorStateList.valueOf(0xFFFFFFFF));
             sign.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            int size = Sheets.dp(this, Haul.AUDIO.equals(s.kind) ? 32 : 20);
+            int size = Sheets.dp(a, Haul.AUDIO.equals(s.kind) ? 32 : 20);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size,
                     Haul.AUDIO.equals(s.kind) ? Gravity.CENTER : Gravity.BOTTOM | Gravity.START);
-            lp.setMargins(Sheets.dp(this, 8), 0, 0, Sheets.dp(this, 8));
+            lp.setMargins(Sheets.dp(a, 8), 0, 0, Sheets.dp(a, 8));
             if (Haul.AUDIO.equals(s.kind)) lp.setMargins(0, 0, 0, 0);
             box.addView(sign, lp);
         }
         if (had != null) {
-            ImageView check = new ImageView(this);
+            ImageView check = new ImageView(a);
             check.setBackgroundResource(R.drawable.bg_check_on);
             check.setImageResource(R.drawable.ic_check);
             check.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            check.setPadding(Sheets.dp(this, 4), Sheets.dp(this, 4), Sheets.dp(this, 4), Sheets.dp(this, 4));
+            check.setPadding(Sheets.dp(a, 4), Sheets.dp(a, 4), Sheets.dp(a, 4), Sheets.dp(a, 4));
             check.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            int size = Sheets.dp(this, 24);
+            int size = Sheets.dp(a, 24);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size, Gravity.TOP | Gravity.END);
-            lp.setMargins(0, Sheets.dp(this, 8), Sheets.dp(this, 8), 0);
+            lp.setMargins(0, Sheets.dp(a, 8), Sheets.dp(a, 8), 0);
             box.addView(check, lp);
         }
         String what = Haul.VIDEO.equals(s.kind) ? "Video" : Haul.AUDIO.equals(s.kind) ? "Voice status" : "Photo";
@@ -307,7 +300,7 @@ public class StatusesActivity extends Activity {
                 + (had != null ? ", saved. Tap to open." : ". Tap to save."));
         box.setOnClickListener(v -> {
             if (had != null) {
-                startActivity(PlayerActivity.open(this, had.id, 0));
+                a.startActivity(PlayerActivity.open(a, had.id, 0));
             } else if (!saving) {
                 save(java.util.Collections.singletonList(s));
             }
@@ -342,13 +335,13 @@ public class StatusesActivity extends Activity {
             }
             int done = ok;
             String why = failed;
-            runOnUiThread(() -> {
+            a.runOnUiThread(() -> {
                 saving = false;
                 if (why != null && done == 0) {
-                    Toast.makeText(this, why.contains("no space") ? "The phone is out of storage."
+                    Toast.makeText(a, why.contains("no space") ? "The phone is out of storage."
                             : "Couldn't save: it may be gone already (WhatsApp clears statuses after a day).", Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(this, (done == 1 ? "Saved" : "Saved " + done + " statuses") + " to your Gallery"
+                    Toast.makeText(a, (done == 1 ? "Saved" : "Saved " + done + " statuses") + " to your Gallery"
                             + (why != null ? ". Some couldn't be saved." : ""), Toast.LENGTH_SHORT).show();
                 }
                 load();
@@ -360,16 +353,16 @@ public class StatusesActivity extends Activity {
         Uri from = Uri.parse(s.uri);
         long size;
         Uri to;
-        try (InputStream in = getContentResolver().openInputStream(from)) {
+        try (InputStream in = a.getContentResolver().openInputStream(from)) {
             if (in == null) throw new Exception("gone");
             // "Status 2026-11-19 14.02.10.mp4": when WhatsApp got it, and never the same name twice.
             String when = new java.text.SimpleDateFormat("yyyy-MM-dd HH.mm.ss", java.util.Locale.ROOT)
                     .format(new java.util.Date(s.modified > 0 ? s.modified : System.currentTimeMillis()));
             String ext = s.name.contains(".") ? s.name.substring(s.name.lastIndexOf('.')) : "";
-            to = Downloads.toGallery(this, in, "Status " + when + " " + s.name.replaceFirst("\\.[^.]+$", "") + ext, s.mime);
+            to = Downloads.toGallery(a, in, "Status " + when + " " + s.name.replaceFirst("\\.[^.]+$", "") + ext, s.mime);
         }
         size = 0;
-        try (Cursor cur = getContentResolver().query(to, new String[]{android.provider.MediaStore.MediaColumns.SIZE}, null, null, null)) {
+        try (Cursor cur = a.getContentResolver().query(to, new String[]{android.provider.MediaStore.MediaColumns.SIZE}, null, null, null)) {
             if (cur != null && cur.moveToFirst()) size = cur.getLong(0);
         } catch (Exception ignored) {
         }
@@ -377,7 +370,7 @@ public class StatusesActivity extends Activity {
         if (!Haul.PHOTOS.equals(s.kind)) {
             android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
             try {
-                r.setDataSource(this, to);
+                r.setDataSource(a, to);
                 String d = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
                 if (d != null) seconds = (int) Math.round(Long.parseLong(d) / 1000.0);
                 String h = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
@@ -392,12 +385,12 @@ public class StatusesActivity extends Activity {
                 }
             }
         }
-        String title = Statuses.name(which) + " status · " + DateUtils.formatDateTime(this, s.modified > 0 ? s.modified : System.currentTimeMillis(),
+        String title = Statuses.name(which) + " status · " + DateUtils.formatDateTime(a, s.modified > 0 ? s.modified : System.currentTimeMillis(),
                 DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH | DateUtils.FORMAT_SHOW_TIME);
         String uri = to.toString();
         long bytes = size;
         int length = seconds, tall = height;
-        Haul.add(this, Statuses.link(which, s.name), Haul.AUDIO.equals(s.kind) ? Haul.AUDIO : Haul.BEST, -1, -1, "", "", 0, i -> {
+        Haul.add(a, Statuses.link(which, s.name), Haul.AUDIO.equals(s.kind) ? Haul.AUDIO : Haul.BEST, -1, -1, "", "", 0, i -> {
             i.status = Haul.DONE;
             i.site = "WhatsApp";
             i.title = title;

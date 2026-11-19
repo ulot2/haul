@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- NEW HAUL: a link (or several), its quality, and optionally a section. Opened from the dock (Options, or Add a link). -->
+<!-- HAUL THIS AS: opens when a link is pasted on the Download page (or found copied). What Haul read of the link, its
+     quality, optionally a section, and Download. For several links: how many, and no clip. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -12,36 +13,84 @@
 
     <View style="@style/Haul.Handle" />
 
-    <TextView
-        style="@style/Haul.Heading"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="NEW HAUL" />
+        android:baselineAligned="true"
+        android:orientation="horizontal">
 
-    <TextView
-        style="@style/Haul.Label"
-        android:layout_marginTop="18dp"
-        android:labelFor="@+id/addLink"
-        android:text="Link" />
+        <TextView
+            style="@style/Haul.Heading"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="HAUL THIS AS" />
 
-    <EditText
-        android:id="@+id/addLink"
+        <TextView
+            android:id="@+id/addSite"
+            style="@style/Haul.Label" />
+    </LinearLayout>
+
+    <!-- The post, as read while the sheet opened: picture, title, who and how long. -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/bg_field"
-        android:fontFamily="@font/archivo_regular"
-        android:hint="Paste a link, or several"
-        android:imeOptions="actionGo"
-        android:importantForAutofill="no"
-        android:inputType="textUri"
-        android:maxLines="1"
-        android:paddingStart="14dp"
-        android:paddingEnd="14dp"
-        android:textColor="@color/ink"
-        android:textColorHint="@color/ink_muted"
-        android:textSize="16sp" />
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:id="@+id/addThumbBox"
+            android:layout_width="40dp"
+            android:layout_height="64dp"
+            android:background="@drawable/bg_thumb">
+
+            <ImageView
+                android:id="@+id/addThumb"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="centerCrop" />
+
+            <TextView
+                android:id="@+id/addTag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="5dp"
+                android:fontFamily="@font/jetbrains_mono_semibold"
+                android:shadowColor="#99000000"
+                android:shadowRadius="3"
+                android:textColor="@android:color/white"
+                android:textSize="9sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/addTitle"
+                style="@style/Haul.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/addMeta"
+                style="@style/Haul.Meta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="1" />
+        </LinearLayout>
+    </LinearLayout>
 
     <TextView
         style="@style/Haul.Label"
@@ -51,20 +100,20 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:orientation="horizontal">
 
-        <Button android:id="@+id/addBest" style="@style/Haul.Segment" android:layout_height="64dp" android:text="Best" />
-        <Button android:id="@+id/addSmall" style="@style/Haul.Segment" android:layout_height="64dp" android:text="720p" />
-        <Button android:id="@+id/addAudio" style="@style/Haul.Segment" android:layout_height="64dp" android:text="Audio" />
-        <Button android:id="@+id/addGif" style="@style/Haul.Segment" android:layout_height="64dp" android:layout_marginEnd="0dp" android:text="GIF" />
+        <Button android:id="@+id/addBest" style="@style/Haul.Segment" android:layout_height="60dp" android:text="Best" />
+        <Button android:id="@+id/addSmall" style="@style/Haul.Segment" android:layout_height="60dp" android:text="720p" />
+        <Button android:id="@+id/addAudio" style="@style/Haul.Segment" android:layout_height="60dp" android:text="Audio" />
+        <Button android:id="@+id/addGif" style="@style/Haul.Segment" android:layout_height="60dp" android:layout_marginEnd="0dp" android:text="GIF" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/addClip"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:layout_marginTop="18dp"
+        android:layout_marginTop="16dp"
         android:background="@drawable/bg_outline"
         android:clickable="true"
         android:focusable="true"
@@ -105,6 +154,7 @@
         android:id="@+id/addGo"
         style="@style/Haul.Button.Primary"
         android:layout_width="match_parent"
-        android:layout_marginTop="18dp"
+        android:layout_marginTop="16dp"
+        android:drawableStart="@drawable/ic_download"
         android:text="Download" />
 </LinearLayout>

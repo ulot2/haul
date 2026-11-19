@@ -2,11 +2,13 @@ package app.haul;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.Dialog;
 import android.app.NotificationManager;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.Uri;
@@ -17,7 +19,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -32,25 +38,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** The hold: every haul as a ticket with its picture, search and filters, and the dock with the copied link(s). */
+/**
+ * Haul's screen, in three tabs:
+ * - DOWNLOAD, where it opens: the wordmark and a link field. Paste (or a link found copied) opens HAUL THIS AS
+ *   (Sheets.add): quality, clip, Download. Links copied one after another gather in the field.
+ * - DOWNLOADS: the hold, every haul as a ticket with its picture, with search and filters; long-press to select.
+ * - STATUSES: WhatsApp's statuses (StatusesPage).
+ */
 public class MainActivity extends Activity {
-    static final String EXTRA_RETRY = "retry", EXTRA_NOTIFICATION = "notification";
+    static final String EXTRA_RETRY = "retry", EXTRA_NOTIFICATION = "notification", EXTRA_TAB = "tab";
+    static final String TAB_DOWNLOAD = "download", TAB_HOLD = "hold", TAB_STATUSES = "statuses";
     private static final String ALL = "all", VIDEOS = "videos", PHOTOS = "photos", AUDIO = "audio", FAILED = "failed";
 
-    private View content, dock, dockClip, dockAdd, dockSelect, updateCard, notifyCard, wifiBadge;
+    private View content, dock, updateCard, notifyCard, wifiBadge, tabs, pages, linkBox, downloadContent, statusesContent;
+    private View pageDownload, pageHold, pageStatuses;
     private LinearLayout hold;
-    private TextView count, empty, dockLabel, dockLink, updateTitle, selectCount;
+    private TextView count, empty, updateTitle, selectCount, holdCount;
+    private EditText linkField, search;
+    private ImageButton linkGo;
+    private StatusesPage statuses;
+    private String tab = TAB_DOWNLOAD;
+    /** The open HAUL THIS AS, so a link copied meanwhile doesn't open a second. */
+    private Dialog haulSheet;
     /** Rows chosen with a long-press, to share or delete together; empty when not selecting. */
     private final Set<String> selected = new LinkedHashSet<>();
     private final List<String> shown = new ArrayList<>();
-    private Object backWhileSelecting;   // an OnBackInvokedCallback on Android 13+
-    private Button dockDownload;
+    private Object backCallback;   // an OnBackInvokedCallback on Android 13+
     private final Map<String, Button> filters = new HashMap<>();
     private String filter = ALL;
     /** What is typed in the search box; "" shows everything (that the filter lets through). */
     private String query = "";
-    private android.widget.EditText search;
-    private int contentTop, dockBottom, navBottom;
+    private int contentTop, downloadTop, statusesTop, tabsBottom, holdBottom;
     private final Runnable render = this::render;
     /** The hold's rows by haul id, and what each one shows, so a redraw only touches rows that changed. */
     private final Map<String, View> rows = new HashMap<>();
@@ -76,6 +94,13 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         edgeToEdge(this);
 
+        pages = findViewById(R.id.pages);
+        tabs = findViewById(R.id.tabs);
+        pageDownload = findViewById(R.id.pageDownload);
+        pageHold = findViewById(R.id.pageHold);
+        pageStatuses = findViewById(R.id.pageStatuses);
+        downloadContent = findViewById(R.id.downloadContent);
+        statusesContent = findViewById(R.id.stContent);
         content = findViewById(R.id.content);
         hold = findViewById(R.id.hold);
         count = findViewById(R.id.count);
@@ -85,13 +110,13 @@ public class MainActivity extends Activity {
         updateTitle = findViewById(R.id.updateTitle);
         notifyCard = findViewById(R.id.notifyCard);
         dock = findViewById(R.id.dock);
-        dockClip = findViewById(R.id.dockClip);
-        dockAdd = findViewById(R.id.dockAdd);
-        dockLabel = findViewById(R.id.dockLabel);
-        dockLink = findViewById(R.id.dockLink);
-        dockDownload = findViewById(R.id.dockDownload);
-        dockSelect = findViewById(R.id.dockSelect);
         selectCount = findViewById(R.id.selectCount);
+        holdCount = findViewById(R.id.tabHoldCount);
+        linkBox = findViewById(R.id.linkBox);
+        linkField = findViewById(R.id.linkField);
+        linkGo = findViewById(R.id.linkGo);
+        statuses = new StatusesPage(this, pageStatuses);
+
         findViewById(R.id.selectClose).setOnClickListener(v -> stopSelecting());
         findViewById(R.id.selectAll).setOnClickListener(v -> {
             selected.addAll(shown);
@@ -100,10 +125,17 @@ public class MainActivity extends Activity {
         findViewById(R.id.selectShare).setOnClickListener(v -> shareSelected());
         findViewById(R.id.selectDelete).setOnClickListener(v -> deleteSelected());
         contentTop = content.getPaddingTop();
-        dockBottom = ((ViewGroup.MarginLayoutParams) dock.getLayoutParams()).bottomMargin;
+        holdBottom = content.getPaddingBottom();
+        downloadTop = downloadContent.getPaddingTop();
+        statusesTop = statusesContent.getPaddingTop();
+        tabsBottom = tabs.getPaddingBottom();
         findViewById(R.id.root).setOnApplyWindowInsetsListener(this::applyInsets);
-        // Keep the last row clear of the dock, whatever height it has.
+        // Keep the last row clear of the selection bar, whatever height it has.
         dock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitBottom());
+
+        findViewById(R.id.tabDownload).setOnClickListener(v -> show(TAB_DOWNLOAD));
+        findViewById(R.id.tabHold).setOnClickListener(v -> show(TAB_HOLD));
+        findViewById(R.id.tabStatuses).setOnClickListener(v -> show(TAB_STATUSES));
 
         String[][] chips = {{ALL, "" + R.id.fAll}, {VIDEOS, "" + R.id.fVideo}, {PHOTOS, "" + R.id.fPhotos},
                 {AUDIO, "" + R.id.fAudio}, {FAILED, "" + R.id.fFailed}};
@@ -118,62 +150,46 @@ public class MainActivity extends Activity {
 
         search = findViewById(R.id.search);
         View clear = findViewById(R.id.searchClear);
-        search.addTextChangedListener(new android.text.TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(android.text.Editable s) {
-                query = s.toString().trim();
-                clear.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
-                render();
-            }
-        });
+        search.addTextChangedListener(new Typed(s -> {
+            query = s.trim();
+            clear.setVisibility(s.isEmpty() ? View.GONE : View.VISIBLE);
+            render();
+        }));
         search.setOnEditorActionListener((v, action, e) -> {
-            if (action != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) return false;
-            hideKeyboard();
+            if (action != EditorInfo.IME_ACTION_SEARCH) return false;
+            hideKeyboard(search);
             return true;
         });
         clear.setOnClickListener(v -> {
             search.setText("");
-            hideKeyboard();
+            hideKeyboard(search);
         });
 
-        findViewById(R.id.statuses).setOnClickListener(v -> startActivity(new Intent(this, StatusesActivity.class)));
+        // The Download page's field: the links waiting (copied, or typed), shown side by side.
+        linkField.setText(String.join(" ", split(Haul.prefs(this).getString("dock_link", ""))));
+        linkField.addTextChangedListener(new Typed(s -> markField()));
+        linkField.setOnFocusChangeListener((v, focused) -> markField());
+        markField();
+        linkField.setOnEditorActionListener((v, action, e) -> {
+            if (action != EditorInfo.IME_ACTION_GO && action != EditorInfo.IME_ACTION_DONE) return false;
+            openSheet();
+            return true;
+        });
+        linkGo.setOnClickListener(v -> {
+            if (Haul.links(linkField.getText()).isEmpty()) paste();
+            else openSheet();
+        });
+
         findViewById(R.id.settings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
-        // Several copied links go into the sheet's field side by side, so they can be looked over (or one taken out).
-        findViewById(R.id.dockOptions).setOnClickListener(v -> Sheets.add(this,
-                new Sheets.Draft(String.join(" ", dockLinks()), Haul.quality(this)), this::added));
-        dockDownload.setOnClickListener(v -> {
-            List<String> links = dockLinks();
-            if (links.size() > 1) {
-                // A list of links: all of them, in the default quality, with no questions.
-                Toast.makeText(this, Downloads.addAll(this, links, Haul.quality(this)), Toast.LENGTH_LONG).show();
-                added(dockUrl());
-                return;
-            }
-            String url = dockUrl();
-            Choose.add(this, url, Haul.quality(this), -1, -1, i -> {
-                if (i != null) added(url);
-            });
-        });
-        findViewById(R.id.dockClear).setOnClickListener(v -> {
-            // Let go of what's waiting; it isn't offered again (the clipboard still holds the last one).
-            Haul.prefs(this).edit().putString("last_filled", dockUrl()).putString("dock_link", "").apply();
-            render();
-        });
-        dockAdd.setOnClickListener(v -> Sheets.add(this, new Sheets.Draft("", Haul.quality(this)), this::added));
         findViewById(R.id.notifyOn).setOnClickListener(v -> Sheets.open(this, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
         findViewById(R.id.update).setOnClickListener(v -> {
             String url = Haul.prefs(this).getString("update_url", "");
             if (!url.isEmpty()) Sheets.open(this, new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         });
+
+        // Haul opens on the Download page; turned (or brought back by Android), it stays where it was.
+        show(state == null ? TAB_DOWNLOAD : state.getString(EXTRA_TAB, TAB_DOWNLOAD));
 
         if (state == null && WelcomeActivity.due(this)) {
             // First time on this phone: how to use Haul, which also asks for notifications once it has said why.
@@ -187,9 +203,37 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        out.putString(EXTRA_TAB, tab);
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handle(intent);
+    }
+
+    /** A TextWatcher that only cares about the text once it changed. */
+    private static final class Typed implements android.text.TextWatcher {
+        private final java.util.function.Consumer<String> then;
+
+        Typed(java.util.function.Consumer<String> then) {
+            this.then = then;
+        }
+
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+        }
+
+        @Override
+        public void afterTextChanged(android.text.Editable s) {
+            then.accept(s.toString());
+        }
     }
 
     /**
@@ -209,12 +253,22 @@ public class MainActivity extends Activity {
         });
     }
 
-    /** "Try again" on a failed-download notification lands here: Android lets an app on screen start a download. */
+    /**
+     * From a notification: "Try again" on a failed download (Android lets an app on screen start one), or a tap on
+     * one in progress; both show the Downloads tab.
+     */
     private void handle(Intent intent) {
-        String retry = intent == null ? null : intent.getStringExtra(EXTRA_RETRY);
+        if (intent == null) return;
+        String to = intent.getStringExtra(EXTRA_TAB);
+        if (to != null) {
+            intent.removeExtra(EXTRA_TAB);
+            show(to);
+        }
+        String retry = intent.getStringExtra(EXTRA_RETRY);
         if (retry == null) return;
         getSystemService(NotificationManager.class).cancel(intent.getIntExtra(EXTRA_NOTIFICATION, 0));
         intent.removeExtra(EXTRA_RETRY);
+        show(TAB_HOLD);
         if (Haul.get(this, retry) != null) Downloads.retry(this, retry);
     }
 
@@ -242,20 +296,33 @@ public class MainActivity extends Activity {
                 insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()};
     }
 
+    /**
+     * Each page's top clears the status bar; the tab bar's bottom clears the navigation bar. With the keyboard up the
+     * tab bar steps aside and the pages end above the keyboard, so the field being typed in stays in view.
+     */
     private WindowInsets applyInsets(View v, WindowInsets insets) {
         int[] b = bars(insets);
-        navBottom = b[3];
+        int keyboard = 0, nav = b[3];
+        if (Build.VERSION.SDK_INT >= 30) {
+            keyboard = insets.getInsets(WindowInsets.Type.ime()).bottom;
+            nav = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
+        }
         content.setPadding(content.getPaddingLeft(), contentTop + b[1], content.getPaddingRight(), content.getPaddingBottom());
-        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) dock.getLayoutParams();
-        lp.bottomMargin = dockBottom + navBottom;
-        dock.setLayoutParams(lp);
+        downloadContent.setPadding(downloadContent.getPaddingLeft(), downloadTop + b[1], downloadContent.getPaddingRight(), 0);
+        statusesContent.setPadding(statusesContent.getPaddingLeft(), statusesTop + b[1], statusesContent.getPaddingRight(),
+                statusesContent.getPaddingBottom());
+        boolean typing = keyboard > nav;
+        tabs.setVisibility(typing ? View.GONE : View.VISIBLE);
+        tabs.setPadding(tabs.getPaddingLeft(), tabs.getPaddingTop(), tabs.getPaddingRight(), tabsBottom + nav);
+        pages.setPadding(0, 0, 0, typing ? keyboard : 0);
         v.setPadding(b[0], 0, b[2], 0);
         fitBottom();
         return insets;
     }
 
+    /** The hold's last row clear of the selection bar while selecting. */
     private void fitBottom() {
-        int bottom = dock.getHeight() + dockBottom + navBottom + Sheets.dp(this, 24);
+        int bottom = holdBottom + (dock.getVisibility() == View.VISIBLE ? dock.getHeight() + Sheets.dp(this, 12) : 0);
         if (content.getPaddingBottom() != bottom) {
             content.setPadding(content.getPaddingLeft(), content.getPaddingTop(), content.getPaddingRight(), bottom);
         }
@@ -271,6 +338,7 @@ public class MainActivity extends Activity {
             // without it, the waiting labels just update less often
         }
         render();
+        if (TAB_STATUSES.equals(tab)) statuses.resume();
         Updates.checkSoon(this, () -> runOnUiThread(this::render));
     }
 
@@ -288,14 +356,94 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request == Sheets.REQ_DELETE) render();
+        if (request == StatusesPage.REQ_FOLDER) statuses.onActivityResult(request, result, data);
     }
 
-    // ---- The dock ----
+    // ---- The tabs ----
+
+    private void show(String which) {
+        if (!TAB_HOLD.equals(which) && !TAB_STATUSES.equals(which)) which = TAB_DOWNLOAD;
+        boolean changed = !which.equals(tab);
+        tab = which;
+        pageDownload.setVisibility(TAB_DOWNLOAD.equals(tab) ? View.VISIBLE : View.GONE);
+        pageHold.setVisibility(TAB_HOLD.equals(tab) ? View.VISIBLE : View.GONE);
+        pageStatuses.setVisibility(TAB_STATUSES.equals(tab) ? View.VISIBLE : View.GONE);
+        mark(R.id.tabDownload, R.id.tabDownloadIcon, R.id.tabDownloadLabel, TAB_DOWNLOAD);
+        mark(R.id.tabHold, R.id.tabHoldIcon, R.id.tabHoldLabel, TAB_HOLD);
+        mark(R.id.tabStatuses, R.id.tabStatusesIcon, R.id.tabStatusesLabel, TAB_STATUSES);
+        if (changed) {
+            hideKeyboard(linkField);
+            if (!TAB_HOLD.equals(tab) && !selected.isEmpty()) stopSelecting();
+            if (TAB_STATUSES.equals(tab)) statuses.resume();
+        }
+        watchBack();
+    }
+
+    /** The current tab: its icon in clay, its name in bold ink; the others muted. */
+    private void mark(int tabId, int iconId, int labelId, String which) {
+        boolean on = which.equals(tab);
+        ((ImageView) findViewById(iconId)).setImageTintList(ColorStateList.valueOf(getColor(on ? R.color.clay : R.color.ink_muted)));
+        TextView label = findViewById(labelId);
+        label.setTextColor(getColor(on ? R.color.ink : R.color.ink_muted));
+        label.setTypeface(getResources().getFont(on ? R.font.archivo_extrabold : R.font.archivo_regular));
+        View t = findViewById(tabId);
+        t.setSelected(on);
+        t.setContentDescription(label.getText() + (on ? ", selected" : ""));
+    }
+
+    // ---- The Download page ----
+
+    /** The field holds a link: outlined in clay, and its button downloads instead of pasting. */
+    private void markField() {
+        boolean has = !Haul.links(linkField.getText()).isEmpty();
+        linkBox.setActivated(has || linkField.hasFocus());
+        linkGo.setImageResource(has ? R.drawable.ic_download : R.drawable.ic_paste);
+        linkGo.setContentDescription(has ? "Download" : "Paste");
+    }
+
+    /** The round button with nothing in the field: what was copied goes in, and HAUL THIS AS opens. */
+    private void paste() {
+        List<String> links = new ArrayList<>();
+        try {
+            android.content.ClipData clip = getSystemService(ClipboardManager.class).getPrimaryClip();
+            if (clip != null && clip.getItemCount() > 0) links = Haul.links(clip.getItemAt(0).coerceToText(this));
+        } catch (RuntimeException ignored) {
+            // no access: same as nothing copied
+        }
+        if (links.isEmpty()) {
+            Toast.makeText(this, "Copy a link first: in TikTok, Instagram or X, tap Share, then Copy link", Toast.LENGTH_LONG).show();
+            return;
+        }
+        setField(links);
+        openSheet();
+    }
+
+    private void setField(List<String> links) {
+        linkField.setText(String.join(" ", links));
+        linkField.setSelection(linkField.length());
+        Haul.prefs(this).edit().putString("dock_link", String.join("\n", links))
+                .putLong("dock_time", System.currentTimeMillis()).apply();
+    }
+
+    /** HAUL THIS AS for the link(s) in the field; a note in the field when there's none. */
+    private void openSheet() {
+        if (haulSheet != null && haulSheet.isShowing()) return;
+        List<String> links = Haul.links(linkField.getText());
+        if (links.isEmpty()) {
+            linkField.setError(linkField.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
+            return;
+        }
+        hideKeyboard(linkField);
+        haulSheet = Sheets.add(this, new Sheets.Draft(String.join(" ", links), Haul.quality(this)), this::added);
+    }
 
     /**
-     * Android only lets an app read the clipboard once its window has focus, so the copied link is picked up here.
+     * Android only lets an app read the clipboard once its window has focus, so a copied link is picked up here.
      * Reading it makes Android 12+ show "Haul pasted from your clipboard", so it is read only when something new was
-     * copied: the clip's description (which shows no message) carries the time it was copied.
+     * copied: the clip's description (which shows no message) carries the time it was copied. The link goes into the
+     * Download page's field and HAUL THIS AS opens. Links copied one after another (in TikTok, Copy link, back to
+     * Haul, again) gather in the field, since the clipboard holds only the last; a list left a while starts afresh.
+     * Each link is offered once: not after it was downloaded from here, or copied from Haul itself.
      */
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
@@ -318,17 +466,16 @@ public class MainActivity extends Activity {
             // no access: nothing to offer
         }
         if (links.isEmpty()) return;
-        // Links copied one after another (in TikTok, Share › Copy link, back to Haul, again) gather in the dock, since
-        // the clipboard holds only the last one. A list left waiting a while starts afresh instead. Each link is
-        // offered once: not after it was downloaded from here, or copied from Haul itself.
         List<String> handled = split(Haul.prefs(this).getString("last_filled", ""));
         boolean fresh = System.currentTimeMillis() - Haul.prefs(this).getLong("dock_time", 0) > Haul.COLLECT_FOR;
-        List<String> waiting = fresh ? new ArrayList<>() : dockLinks();
+        List<String> waiting = fresh ? new ArrayList<>() : Haul.links(linkField.getText());
         List<String> now = Haul.collect(waiting, links, handled);
         if (now.isEmpty() || now.equals(waiting)) return;   // nothing new
-        Haul.prefs(this).edit().putString("dock_link", String.join("\n", now))
-                .putLong("dock_time", System.currentTimeMillis()).apply();
-        render();
+        setField(now);
+        if (!selected.isEmpty()) return;   // busy choosing rows: the link waits in the field
+        show(TAB_DOWNLOAD);
+        if (haulSheet != null && haulSheet.isShowing()) haulSheet.dismiss();   // reopened with the links gathered so far
+        openSheet();
     }
 
     private static List<String> split(String lines) {
@@ -337,25 +484,18 @@ public class MainActivity extends Activity {
         return out;
     }
 
-    /** The copied link waiting in the dock; several, one to a line, when a list was copied. "" for none. */
-    private String dockUrl() {
-        return Haul.prefs(this).getString("dock_link", "");
-    }
-
-    private List<String> dockLinks() {
-        return split(dockUrl());
-    }
-
-    private void hideKeyboard() {
-        search.clearFocus();
-        getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(search.getWindowToken(), 0);
-    }
-
-    /** A link went into the queue: the dock lets go of it. */
+    /** A link (or several, one to a line) went into the queue: the field lets go of it, and the Downloads tab shows it. */
     private void added(String url) {
         Haul.prefs(this).edit().putString("last_filled", url).putString("dock_link", "").apply();
+        linkField.setText("");
         filter = ALL;
+        show(TAB_HOLD);
         render();
+    }
+
+    private void hideKeyboard(View v) {
+        v.clearFocus();
+        getSystemService(InputMethodManager.class).hideSoftInputFromWindow(v.getWindowToken(), 0);
     }
 
     // ---- Drawing ----
@@ -368,8 +508,15 @@ public class MainActivity extends Activity {
         metered = Build.VERSION.SDK_INT >= 34 && Haul.wifiOnly(this) && cm.isActiveNetworkMetered();
 
         List<Haul.Item> all = Haul.items(this);
-        int failedCount = 0;
-        for (Haul.Item i : all) if (Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status)) failedCount++;
+        int failedCount = 0, going = 0;
+        for (Haul.Item i : all) {
+            if (Haul.FAILED.equals(i.status) || Haul.CANCELED.equals(i.status)) failedCount++;
+            if (i.active()) going++;
+        }
+        holdCount.setVisibility(going > 0 ? View.VISIBLE : View.GONE);
+        holdCount.setText(String.valueOf(going));
+        findViewById(R.id.tabHold).setContentDescription("Downloads" + (going > 0 ? ", " + going + " going" : "")
+                + (TAB_HOLD.equals(tab) ? ", selected" : ""));
         filters.get(FAILED).setText(failedCount > 0 ? "Failed · " + failedCount : "Failed");
         for (Map.Entry<String, Button> f : filters.entrySet()) f.getValue().setActivated(f.getKey().equals(filter));
         wifiBadge.setVisibility(Haul.wifiOnly(this) ? View.VISIBLE : View.GONE);
@@ -398,20 +545,20 @@ public class MainActivity extends Activity {
         shown.addAll(ids);
         Set<String> exist = new HashSet<>();
         for (Haul.Item i : all) exist.add(i.id);
-        if (selected.retainAll(exist) && selected.isEmpty()) watchBack(false);
+        if (selected.retainAll(exist) && selected.isEmpty()) watchBack();
         boolean same = hold.getChildCount() == order.size();
         for (int k = 0; same && k < order.size(); k++) same = hold.getChildAt(k) == order.get(k);
         if (!same) {
             hold.removeAllViews();
             for (View row : order) hold.addView(row);
         }
-        count.setText(query.isEmpty() ? "The hold · " + all.size() + (all.size() == 1 ? " item" : " items")
+        count.setText(query.isEmpty() ? all.size() + (all.size() == 1 ? " item" : " items")
                 : "Found " + order.size() + " of " + all.size());
         empty.setVisibility(order.isEmpty() ? View.VISIBLE : View.GONE);
-        empty.setText(!all.isEmpty() && !query.isEmpty() ? "Nothing in the hold matches \u201c" + query + "\u201d"
-                + (filter.equals(ALL) ? "." : " here. Try All.")
+        empty.setText(!all.isEmpty() && !query.isEmpty() ? "Nothing here matches \u201c" + query + "\u201d"
+                + (filter.equals(ALL) ? "." : ". Try All.")
                 : all.isEmpty()
-                ? "Nothing yet. In TikTok, Instagram or X tap Share, then Haul. Or copy a link and come back here.\n\n"
+                ? "Nothing yet. Paste a link on the Download tab, or in TikTok, Instagram or X tap Share, then Haul.\n\n"
                 + "Videos land in your Gallery in Movies/Haul, photos in Pictures/Haul, audio in Music/Haul."
                 : "Nothing here.");
 
@@ -420,30 +567,10 @@ public class MainActivity extends Activity {
         updateCard.setVisibility(newVersion.isEmpty() ? View.GONE : View.VISIBLE);
         updateTitle.setText("Haul " + newVersion + " is out");
 
-        String link = dockUrl();
-        List<String> links = dockLinks();
-        boolean hasLink = !link.isEmpty(), selecting = !selected.isEmpty();
-        dockSelect.setVisibility(selecting ? View.VISIBLE : View.GONE);
+        boolean selecting = !selected.isEmpty();
+        dock.setVisibility(selecting ? View.VISIBLE : View.GONE);
         selectCount.setText(selected.size() + " SELECTED");
-        dockClip.setVisibility(hasLink && !selecting ? View.VISIBLE : View.GONE);
-        dockAdd.setVisibility(hasLink || selecting ? View.GONE : View.VISIBLE);
-        if (hasLink && links.size() > 1) {
-            Set<String> sites = new LinkedHashSet<>();
-            List<String> shortLinks = new ArrayList<>();
-            for (String l : links) {
-                sites.add(Haul.site(l));
-                shortLinks.add(Look.shortLink(l));
-            }
-            dockLabel.setText(links.size() + " copied links · " + String.join(", ", sites));
-            dockLink.setText(String.join("  ·  ", shortLinks));
-            dockDownload.setText("Download " + links.size() + " · " + Look.qualityName(Haul.quality(this)));
-        } else if (hasLink) {
-            // Read the link while the user looks at it: the download then starts from what was read.
-            Engine.readAhead(this, link);
-            dockLabel.setText("Copied link · " + Haul.site(link));
-            dockLink.setText(Look.shortLink(link));
-            dockDownload.setText("Download · " + Look.qualityName(Haul.quality(this)));
-        }
+        fitBottom();
     }
 
     private boolean shows(Haul.Item i) {
@@ -544,34 +671,43 @@ public class MainActivity extends Activity {
 
     private void toggle(String id) {
         if (!selected.remove(id)) selected.add(id);
-        watchBack(!selected.isEmpty());
+        watchBack();
         render();
     }
 
     private void stopSelecting() {
         selected.clear();
-        watchBack(false);
+        watchBack();
         render();
     }
 
-    /** While selecting, Back stops selecting instead of leaving Haul (Android 13+ asks for this up front). */
-    private void watchBack(boolean on) {
+    /**
+     * Back stops selecting, then leaves another tab for the Download page, then leaves Haul. Android 13+ asks for
+     * that up front: a callback is registered only while Back has something to do in Haul.
+     */
+    private void watchBack() {
         if (Build.VERSION.SDK_INT < 33) return;
+        boolean on = !selected.isEmpty() || !TAB_DOWNLOAD.equals(tab);
         android.window.OnBackInvokedDispatcher back = getOnBackInvokedDispatcher();
-        if (on && backWhileSelecting == null) {
-            android.window.OnBackInvokedCallback cb = this::stopSelecting;
-            backWhileSelecting = cb;
+        if (on && backCallback == null) {
+            android.window.OnBackInvokedCallback cb = this::back;
+            backCallback = cb;
             back.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb);
-        } else if (!on && backWhileSelecting != null) {
-            back.unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) backWhileSelecting);
-            backWhileSelecting = null;
+        } else if (!on && backCallback != null) {
+            back.unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) backCallback);
+            backCallback = null;
         }
+    }
+
+    private void back() {
+        if (!selected.isEmpty()) stopSelecting();
+        else show(TAB_DOWNLOAD);
     }
 
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (!selected.isEmpty()) stopSelecting();
+        if (!selected.isEmpty() || !TAB_DOWNLOAD.equals(tab)) back();
         else super.onBackPressed();
     }
 
