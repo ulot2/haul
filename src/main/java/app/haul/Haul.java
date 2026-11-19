@@ -374,6 +374,31 @@ final class Haul {
         return out;
     }
 
+    /** How long links collected in the dock wait for more: copied later than this after the last one, a link starts afresh. */
+    static final long COLLECT_FOR = 30 * 60 * 1000L;
+    /** At most this many links wait in the dock; the oldest go first. */
+    static final int COLLECT_MAX = 30;
+
+    /**
+     * The dock's links once more were copied: those waiting, then the new ones, each post once. Copied in TikTok one by
+     * one, links can only be read when Haul is back on screen (Android allows no other way), so the dock gathers them.
+     * A link already sent from the dock (handled) isn't taken again; a post already waiting keeps its place.
+     */
+    static List<String> collect(List<String> waiting, List<String> copied, List<String> handled) {
+        List<String> out = new ArrayList<>(waiting);
+        java.util.Set<String> posts = new java.util.HashSet<>();
+        for (String w : waiting) posts.add(Seen.key(w));
+        java.util.Set<String> done = new java.util.HashSet<>();
+        for (String h : handled) done.add(Seen.key(h));
+        for (String c : copied) {
+            String key = Seen.key(c);
+            if (key.isEmpty() || done.contains(key) || !posts.add(key)) continue;
+            out.add(c);
+        }
+        while (out.size() > COLLECT_MAX) out.remove(0);
+        return out;
+    }
+
     /** A link without the punctuation that ends the sentence around it: "(see https://x.com/a/status/1)." */
     private static String trim(String url) {
         while (!url.isEmpty() && ".,;:!?)]".indexOf(url.charAt(url.length() - 1)) >= 0) url = url.substring(0, url.length() - 1);

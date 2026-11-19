@@ -162,6 +162,11 @@ public class MainActivity extends Activity {
                 if (i != null) added(url);
             });
         });
+        findViewById(R.id.dockClear).setOnClickListener(v -> {
+            // Let go of what's waiting; it isn't offered again (the clipboard still holds the last one).
+            Haul.prefs(this).edit().putString("last_filled", dockUrl()).putString("dock_link", "").apply();
+            render();
+        });
         dockAdd.setOnClickListener(v -> Sheets.add(this, new Sheets.Draft("", Haul.quality(this)), this::added));
         findViewById(R.id.notifyOn).setOnClickListener(v -> Sheets.open(this, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
@@ -312,12 +317,24 @@ public class MainActivity extends Activity {
         } catch (RuntimeException ignored) {
             // no access: nothing to offer
         }
-        // Offer each copied link (or list of links) once: not again after it was downloaded, or copied from Haul itself.
-        String offer = String.join("\n", links);
-        if (!links.isEmpty() && !offer.equals(Haul.prefs(this).getString("last_filled", ""))) {
-            Haul.prefs(this).edit().putString("dock_link", offer).apply();
-            render();
-        }
+        if (links.isEmpty()) return;
+        // Links copied one after another (in TikTok, Share › Copy link, back to Haul, again) gather in the dock, since
+        // the clipboard holds only the last one. A list left waiting a while starts afresh instead. Each link is
+        // offered once: not after it was downloaded from here, or copied from Haul itself.
+        List<String> handled = split(Haul.prefs(this).getString("last_filled", ""));
+        boolean fresh = System.currentTimeMillis() - Haul.prefs(this).getLong("dock_time", 0) > Haul.COLLECT_FOR;
+        List<String> waiting = fresh ? new ArrayList<>() : dockLinks();
+        List<String> now = Haul.collect(waiting, links, handled);
+        if (now.isEmpty() || now.equals(waiting)) return;   // nothing new
+        Haul.prefs(this).edit().putString("dock_link", String.join("\n", now))
+                .putLong("dock_time", System.currentTimeMillis()).apply();
+        render();
+    }
+
+    private static List<String> split(String lines) {
+        List<String> out = new ArrayList<>();
+        for (String s : lines.split("\n")) if (!s.trim().isEmpty()) out.add(s.trim());
+        return out;
     }
 
     /** The copied link waiting in the dock; several, one to a line, when a list was copied. "" for none. */
@@ -326,9 +343,7 @@ public class MainActivity extends Activity {
     }
 
     private List<String> dockLinks() {
-        List<String> out = new ArrayList<>();
-        for (String s : dockUrl().split("\n")) if (!s.trim().isEmpty()) out.add(s.trim());
-        return out;
+        return split(dockUrl());
     }
 
     private void hideKeyboard() {

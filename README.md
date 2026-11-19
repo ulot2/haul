@@ -7,6 +7,7 @@ In TikTok (or any app), tap **Share**, then **Haul**. The video downloads in the
 - **Haul audio** in the share sheet saves just the sound.
 - Open Haul after copying a link: it waits at the bottom of the screen, one tap from downloading. **Options** picks the quality, or **Clip a section** of a long video.
 - The **Quick Settings tile**: copy a link anywhere, pull down the shade, tap Haul.
+- **Collect links as you go**: Android's clipboard holds only the last thing copied, so Haul gathers them. In TikTok, copy a link, switch to Haul, go back, copy the next, switch to Haul again: the bar at the bottom collects them ("3 copied links") until you tap **Download 3**, or **×** to clear them. A list left for half an hour starts afresh with the next link. (Share › Haul on each video is quicker still: each starts downloading at once.)
 - **Several links at once**: copy or paste a list (from notes, or a chat) and Haul downloads them all, in one go, in the quality you chose. Each post comes once; an Instagram post with several photos comes whole, and a TikTok photo post as its pictures and sound. Posts you already have, or that are already waiting, are left out, and Haul says how many.
 
 When a download is done, its notification has **Share** (straight to WhatsApp, say) and **Delete**. In Haul, every download is a numbered row with its picture; tap one to play, share, copy its link, download it again or delete it.
