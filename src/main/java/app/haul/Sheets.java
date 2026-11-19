@@ -15,9 +15,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -68,107 +66,124 @@ final class Sheets {
         return d;
     }
 
-    // ---- New haul ----
+    // ---- HAUL THIS AS ----
 
-    static void add(Activity a, Draft draft, Added added) {
+    /**
+     * HAUL THIS AS, over the Download page once a link is pasted (or found copied): what Haul reads of the link (its
+     * picture, title, who posted it, how long), the quality, a section to clip, and Download. draft.url holds the link,
+     * or several separated by spaces: those download together, in the quality picked, with no clip. Download hands a
+     * single link to Choose (a TikTok photo post, an Instagram carousel or a post already saved ask their question
+     * there); added hears of it with the link (or the links, one to a line). Returns the sheet, or null for no link.
+     */
+    static Dialog add(Activity a, Draft draft, Added added) {
+        List<String> urls = Haul.links(draft.url);
+        if (urls.isEmpty()) return null;
+        boolean many = urls.size() > 1;
+        String url = urls.get(0);
         Dialog d = sheet(a, R.layout.sheet_add);
-        EditText link = d.findViewById(R.id.addLink);
-        link.setText(draft.url);
+
+        TextView title = d.findViewById(R.id.addTitle), meta = d.findViewById(R.id.addMeta);
+        View box = d.findViewById(R.id.addThumbBox);
+        ImageView thumb = d.findViewById(R.id.addThumb);
+        box.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Look.tone(a, url)));
+        box.setClipToOutline(true);
+        if (many) {
+            java.util.Set<String> sites = new java.util.LinkedHashSet<>();
+            for (String u : urls) sites.add(Haul.site(u));
+            ((TextView) d.findViewById(R.id.addSite)).setText(urls.size() + " links");
+            ((TextView) d.findViewById(R.id.addTag)).setText("×" + urls.size());
+            title.setText(urls.size() + " links, each saved as picked");
+            meta.setText(String.join(", ", sites));
+        } else {
+            ((TextView) d.findViewById(R.id.addSite)).setText(Haul.site(url));
+            ((TextView) d.findViewById(R.id.addTag)).setText(Look.tag(Haul.site(url)));
+            title.setText(Look.shortLink(url));
+            // Read the link while the user picks: the download then starts from what was read, and the sheet shows it.
+            Engine.readAhead(a, url);
+            java.util.function.Consumer<Engine.Info> show = info -> {
+                if (info == null) {
+                    meta.setText(Haul.site(url));
+                    return;
+                }
+                if (!info.title.isEmpty()) title.setText(info.title);
+                meta.setText(info.duration > 0 ? Haul.site(url) + " · " + Format.clock(info.duration) : Haul.site(url));
+                if (!info.thumbnail.isEmpty()) Thumbs.showUrl(thumb, info.thumbnail);
+            };
+            if (draft.info != null && draft.infoUrl.equals(url)) {
+                show.accept(draft.info);
+            } else if (Photos.tiktokPhotoId(url) != null) {
+                meta.setText("TikTok photos");   // read when Download is tapped, to pick the pictures
+            } else {
+                meta.setText("Reading the link…");
+                new Thread(() -> {
+                    Engine.Info info;
+                    try {
+                        info = Engine.info(a, url);
+                    } catch (Exception e) {
+                        info = null;
+                    }
+                    Engine.Info got = info;
+                    a.runOnUiThread(() -> {
+                        if (got != null) {
+                            draft.info = got;
+                            draft.infoUrl = url;
+                        }
+                        if (d.isShowing()) show.accept(got);
+                    });
+                }, "haul-info").start();
+            }
+        }
+
         Button[] q = {d.findViewById(R.id.addBest), d.findViewById(R.id.addSmall), d.findViewById(R.id.addAudio), d.findViewById(R.id.addGif)};
         String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO, Haul.GIF};
         String[] subs = {"H.264", "Smaller", "M4A", "No sound"};
+        TextView clipValue = d.findViewById(R.id.addClipValue);
         Runnable mark = () -> {
             for (int k = 0; k < q.length; k++) {
                 q[k].setActivated(ids[k].equals(draft.quality));
                 q[k].setText(twoLines(Look.qualityName(ids[k]), subs[k]));
             }
+            clipValue.setText(clipText(draft));   // Audio clips a sound, not a video
         };
         for (int k = 0; k < q.length; k++) {
             String id = ids[k];
             q[k].setOnClickListener(v -> {
                 draft.quality = id;
                 mark.run();
-                ((TextView) d.findViewById(R.id.addClipValue)).setText(clipText(draft));   // Audio clips a sound, not a video
             });
         }
         mark.run();
-        // Read the link while the user picks a quality: the download then starts from what was read.
-        if (Haul.links(draft.url).size() == 1) Engine.readAhead(a, Haul.firstLink(draft.url));
-        // Several links pasted (a list from notes or a chat): the button says how many it will download.
-        Button goButton = d.findViewById(R.id.addGo);
-        Runnable count = () -> {
-            int n = Haul.links(link.getText()).size();
-            goButton.setText(n > 1 ? "Download " + n + " links" : "Download");
-        };
-        count.run();
-        link.addTextChangedListener(new android.text.TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int c, int after) {
-            }
 
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int c) {
-            }
-
-            @Override
-            public void afterTextChanged(android.text.Editable s) {
-                count.run();
-            }
-        });
-        TextView clipValue = d.findViewById(R.id.addClipValue);
-        clipValue.setText(clipText(draft));
-
-        d.findViewById(R.id.addClip).setOnClickListener(v -> {
-            String url = Haul.firstLink(link.getText());
-            if (url == null) {
-                link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
-                return;
-            }
-            if (Haul.links(link.getText()).size() > 1) {
-                link.setError("Clip one link at a time");
-                return;
-            }
-            if (!url.equals(draft.url)) {
-                draft.clipStart = draft.clipEnd = -1;   // a new link: the old section doesn't fit it
-            }
+        View clipRow = d.findViewById(R.id.addClip);
+        if (many) {
+            clipRow.setVisibility(View.GONE);   // a section is of one video
+        } else {
             draft.url = url;
+            clipRow.setOnClickListener(v -> {
+                d.dismiss();
+                clip(a, draft, added);   // comes back to this sheet
+            });
+        }
+
+        Button go = d.findViewById(R.id.addGo);
+        go.setText(many ? "Download " + urls.size() + " links" : "Download");
+        go.setOnClickListener(v -> {
             d.dismiss();
-            clip(a, draft, added);
-        });
-        Runnable go = () -> {
-            String url = Haul.firstLink(link.getText());
-            if (url == null) {
-                link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
-                return;
-            }
-            List<String> urls = Haul.links(link.getText());
-            if (urls.size() > 1) {
+            if (many) {
                 // A list: all of it in this quality, with no questions (a carousel comes whole, a TikTok photo post
                 // as its pictures and sound).
-                d.dismiss();
                 Toast.makeText(a, Downloads.addAll(a, urls, draft.quality), Toast.LENGTH_LONG).show();
                 added.on(String.join("\n", urls));
                 return;
             }
-            boolean sameLink = url.equals(draft.url);
-            d.dismiss();
-            // A TikTok photo post asks how to save it; an Instagram carousel lets the user pick.
-            Choose.add(a, url, draft.quality, sameLink ? draft.clipStart : -1, sameLink ? draft.clipEnd : -1, i -> {
+            // A TikTok photo post asks how to save it; an Instagram carousel lets the user pick; a post already saved
+            // says so.
+            Choose.add(a, url, draft.quality, draft.clipStart, draft.clipEnd, i -> {
                 if (i != null) added.on(url);
             });
-        };
-        d.findViewById(R.id.addGo).setOnClickListener(v -> go.run());
-        link.setOnEditorActionListener((v, action, e) -> {
-            if (action != EditorInfo.IME_ACTION_GO) return false;
-            go.run();
-            return true;
         });
-        if (draft.url.isEmpty() && d.getWindow() != null) {
-            link.requestFocus();
-            d.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-        }
         d.show();
+        return d;
     }
 
     // ---- Clip a section ----

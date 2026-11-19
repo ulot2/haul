@@ -11,6 +11,11 @@ import android.widget.TextView;
 final class Look {
     private static final int[] TONES = {R.color.tone0, R.color.tone1, R.color.tone2, R.color.tone3, R.color.tone4, R.color.tone5};
 
+    /** A steady tone for something (a link, a haul): the same one each time, while there's no picture. */
+    static int tone(Context c, String key) {
+        return c.getColor(TONES[Math.abs(String.valueOf(key).hashCode()) % TONES.length]);
+    }
+
     /** The picture box: a steady tone per haul, the site's tag, and the saved file's own frame once there is one. */
     static void picture(Context c, View box, ImageView image, ImageView icon, TextView tag, Haul.Item i, int w, int h) {
         box.setBackgroundTintList(ColorStateList.valueOf(c.getColor(TONES[Math.abs(i.id.hashCode()) % TONES.length])));

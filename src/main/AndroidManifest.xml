@@ -41,12 +41,6 @@
             android:name=".WelcomeActivity"
             android:exported="false" />
 
-        <!-- WhatsApp's page: the statuses the user has opened, from WhatsApp's folder (read once allowed). -->
-        <activity
-            android:name=".StatusesActivity"
-            android:exported="false"
-            android:parentActivityName=".MainActivity" />
-
         <activity
             android:name=".SettingsActivity"
             android:exported="false"

@@ -33,7 +33,10 @@ from is the "Haul redesign" canvas (App, System, Style boards).
 - Buttons: `Haul.Button.Primary` (clay, 54dp), `Haul.Button.Outline` (line, 48dp), `Haul.IconButton` (44dp square).
 - Choices: `Haul.Chip` (filters) and `Haul.Segment` (quality): ink fill when chosen (`setActivated`).
 - `Haul.Card` for settings groups and notices; bottom sheets on `bg_sheet` with `Haul.Handle`.
-- The dock: a floating card at the bottom of the hold with the copied link (or "3 copied links · TikTok, X"), or "Add a link".
+- Tabs: Download · Downloads · Statuses, at the bottom, in the ground's own color with no line, so they blend in. The current one: clay icon, bold ink name; the others muted. A clay count on Downloads while any are going.
+- The Download page: the wordmark (60sp) over the feed (`page_download`: tilted cards in the thumbnail tones with site tags, and the clay one pulled out, as in the logo, fading into the ground), and one pill field (`bg_pill`, clay outline once it holds a link) with a round clay button (`bg_go`): paste, then download.
+- HAUL THIS AS (`sheet_add`): the post's preview, quality segments, Clip a section, Download.
+- The selection bar: a floating card at the bottom of the Downloads tab while rows are selected.
 - Search: a field (bg_field) between the count and the filters; the count reads "Found 3 of 120" while searching.
 
 ## The logo: Pull

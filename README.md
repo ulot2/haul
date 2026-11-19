@@ -5,12 +5,12 @@ Haul downloads videos and photos from TikTok, Instagram, X, YouTube, Facebook, R
 In TikTok (or any app), tap **Share**, then **Haul**. The video downloads in the background and lands in the **Movies/Haul** album. Other ways in:
 
 - **Haul audio** in the share sheet saves just the sound.
-- Open Haul after copying a link: it waits at the bottom of the screen, one tap from downloading. **Options** picks the quality, or **Clip a section** of a long video.
+- **Open Haul**: it opens on the **Download** tab, a single link field. Tap its round button to paste what you copied (or open Haul with a link already copied: it's filled in for you), and **HAUL THIS AS** pops up: what the post is, the quality (Best, 720p, Audio, GIF), **Clip a section** of a long video, and **Download**. The **Downloads** tab shows everything you've saved, and **Statuses** has WhatsApp's.
 - The **Quick Settings tile**: copy a link anywhere, pull down the shade, tap Haul.
-- **Collect links as you go**: Android's clipboard holds only the last thing copied, so Haul gathers them. In TikTok, copy a link, switch to Haul, go back, copy the next, switch to Haul again: the bar at the bottom collects them ("3 copied links") until you tap **Download 3**, or **×** to clear them. A list left for half an hour starts afresh with the next link. (Share › Haul on each video is quicker still: each starts downloading at once.)
+- **Collect links as you go**: Android's clipboard holds only the last thing copied, so Haul gathers them. In TikTok, copy a link, switch to Haul, go back, copy the next, switch to Haul again: the link field gathers them, and HAUL THIS AS offers **Download 3 links**. Clear the field to start over. A list left for half an hour starts afresh with the next link. (Share › Haul on each video is quicker still: each starts downloading at once.)
 - **Several links at once**: copy or paste a list (from notes, or a chat) and Haul downloads them all, in one go, in the quality you chose. Each post comes once; an Instagram post with several photos comes whole, and a TikTok photo post as its pictures and sound. Posts you already have, or that are already waiting, are left out, and Haul says how many.
 
-When a download is done, its notification has **Share** (straight to WhatsApp, say) and **Delete**. In Haul, every download is a numbered row with its picture; tap one to play, share, copy its link, download it again or delete it.
+When a download is done, its notification has **Share** (straight to WhatsApp, say) and **Delete**. In the **Downloads** tab, every download is a numbered row with its picture; tap one to play, share, copy its link, download it again or delete it.
 
 Some posts ask first:
 
@@ -21,15 +21,15 @@ Tap a download, then **Play**, to watch or hear it in Haul's own player (photos 
 
 **GIFs** stay GIFs: an X post that is a GIF is saved as a `.gif` in Pictures/Haul (X serves GIFs as silent videos; Haul turns them back). The **GIF** quality turns any video into a GIF, up to 30 seconds, 480 pixels wide.
 
-**Search** at the top of Haul finds a download by its caption, title, who posted it, the site, its link or its number; type a few words in any order (`pasta recipe`, `@someone`, `148`). It works with the filters. Haul keeps your last 200 downloads.
+**Search** at the top of the Downloads tab finds a download by its caption, title, who posted it, the site, its link or its number; type a few words in any order (`pasta recipe`, `@someone`, `148`). It works with the filters. Haul keeps your last 200 downloads.
 
 To delete or share several downloads at once, long-press one in Haul, tap the others, then **Delete** or **Share**.
 
-Downloads start faster when Haul has seen the link first: a copied link in the bottom bar, a link you are picking a quality or a section for, or a post in the picker, is read right away, and the download starts from what was read. A post's photos come down four at a time.
+Downloads start faster when Haul has seen the link first: a link in HAUL THIS AS while you pick its quality or a section, or a post in the picker, is read right away, and the download starts from what was read. A post's photos come down four at a time.
 
 ## WhatsApp statuses
 
-WhatsApp has its own page in Haul: tap the ring at the top of the main screen. It shows the statuses you've opened in WhatsApp (photos, videos and voice statuses), newest first. Tap one to save it to your Gallery (Pictures/Haul, Movies/Haul or Music/Haul); a ✓ marks the saved ones, and tapping a saved one plays it. **Save all** saves the rest. Saved statuses are in Haul's list too, with Share and Delete.
+WhatsApp has its own tab in Haul: **Statuses**. It shows the statuses you've opened in WhatsApp (photos, videos and voice statuses), newest first. Tap one to save it to your Gallery (Pictures/Haul, Movies/Haul or Music/Haul); a ✓ marks the saved ones, and tapping a saved one plays it. **Save all** saves the rest. Saved statuses are in Haul's list too, with Share and Delete.
 
 The first time, Haul asks to see WhatsApp's statuses folder: tap **Allow access**, and Android's folder picker opens right in that folder. Tap **Use this folder**, then **Allow**. Haul only reads that one folder, and needs no storage permission. **WhatsApp Business** has its own tab, and asks the same way.
 

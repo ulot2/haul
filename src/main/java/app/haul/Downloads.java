@@ -502,6 +502,7 @@ final class Downloads {
 
     static PendingIntent openApp(Context c, int code) {
         return PendingIntent.getActivity(c, code, new Intent(c, MainActivity.class)
+                .putExtra(MainActivity.EXTRA_TAB, MainActivity.TAB_HOLD)   // the Downloads tab, where it's going
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
     }
 
