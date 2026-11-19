@@ -40,4 +40,30 @@ public class HaulTest {
         assertTrue(Haul.links("no links here").isEmpty());
         assertTrue(Haul.links(null).isEmpty());
     }
+
+    @Test
+    public void theDockGathersLinksCopiedOneByOne() {
+        java.util.List<String> none = java.util.Collections.emptyList();
+        String a = "https://www.tiktok.com/@a/video/7301234567890", b = "https://vm.tiktok.com/ZMb/",
+                c = "https://www.tiktok.com/@c/video/7309999999999?is_from_webapp=1";
+        java.util.List<String> one = Haul.collect(none, java.util.Arrays.asList(a), none);
+        assertEquals(java.util.Arrays.asList(a), one);
+        java.util.List<String> two = Haul.collect(one, java.util.Arrays.asList(b), none);
+        assertEquals(java.util.Arrays.asList(a, b), two);
+        // The same post copied again (another address for it) keeps its place; a new one goes last.
+        java.util.List<String> three = Haul.collect(two, java.util.Arrays.asList("https://www.tiktok.com/@_/video/7301234567890", c), none);
+        assertEquals(java.util.Arrays.asList(a, b, c), three);
+        // Already sent from the dock: not taken again.
+        assertTrue(Haul.collect(none, java.util.Arrays.asList(a), java.util.Arrays.asList(a, b)).isEmpty());
+    }
+
+    @Test
+    public void theDockKeepsTheNewestThirty() {
+        java.util.List<String> many = new java.util.ArrayList<>();
+        for (int k = 0; k < 35; k++) many.add("https://x.com/a/status/" + (1000 + k));
+        java.util.List<String> kept = Haul.collect(java.util.Collections.emptyList(), many, java.util.Collections.emptyList());
+        assertEquals(Haul.COLLECT_MAX, kept.size());
+        assertEquals("https://x.com/a/status/1005", kept.get(0));
+        assertEquals("https://x.com/a/status/1034", kept.get(kept.size() - 1));
+    }
 }
