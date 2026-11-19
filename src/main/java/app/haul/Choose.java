@@ -27,6 +27,8 @@ import java.util.Locale;
  * - anything else goes straight into the queue.
  * TikTok short links (vm.tiktok.com) are looked up first, and a /video/ link is checked, to tell a photo post from a
  * video: TikTok's own Share button hands over /video/ links for photo posts too.
+ * Before any of that, a post Haul has already saved the same way (and still has in the Gallery) says so, with Open
+ * and Download again; a short link is checked again once it is looked up, since another short link may lead there.
  */
 final class Choose {
     /** The haul added, or null when the user backed out (or it was already downloading). */
@@ -37,6 +39,11 @@ final class Choose {
     private static final int[] TONES = {R.color.tone0, R.color.tone1, R.color.tone2, R.color.tone3, R.color.tone4, R.color.tone5};
 
     static void add(Activity a, String url, String quality, int clipStart, int clipEnd, Done done) {
+        unlessSaved(a, url, url, quality, clipStart, done, () -> start(a, url, quality, clipStart, clipEnd, done, false));
+    }
+
+    /** asked: the user already chose to download it again, so the post isn't checked a second time. */
+    private static void start(Activity a, String url, String quality, int clipStart, int clipEnd, Done done, boolean asked) {
         String site = Haul.site(url);
         boolean shortTikTok = "TikTok".equals(site) && Photos.tiktokPhotoId(url) == null && !url.contains("/video/");
         if (shortTikTok) {
@@ -47,7 +54,10 @@ final class Choose {
                     if (!d.isShowing()) return;   // backed out
                     d.setOnDismissListener(null);
                     d.dismiss();
-                    tiktok(a, url, full.startsWith("http") ? full : url, quality, clipStart, clipEnd, done);
+                    String to = full.startsWith("http") ? full : url;
+                    Runnable go = () -> tiktok(a, url, to, quality, clipStart, clipEnd, done);
+                    if (asked || to.equals(url)) go.run();
+                    else unlessSaved(a, to, url, quality, clipStart, done, go);
                 });
             }, "haul-resolve").start();
             return;
@@ -69,6 +79,44 @@ final class Choose {
         Haul.Item i = Downloads.add(a, url, quality, clipStart, clipEnd, pick, as, seconds);
         if (i == null) Toast.makeText(a, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
         return i;
+    }
+
+    // ---- Already saved ----
+
+    /**
+     * Runs go, unless this post is saved already the same way (and its file is still in the Gallery): then a sheet
+     * says so, with Open and Download again. A section to clip is always a new download. link: as the user gave it,
+     * which the dock is told about when the user opens the one already saved.
+     */
+    private static void unlessSaved(Activity a, String url, String link, String quality, int clipStart, Done done, Runnable go) {
+        Haul.Item had = clipStart >= 0 ? null : Haul.saved(a, url, quality);
+        if (had == null || !Downloads.stillThere(a, had)) {
+            go.run();
+            return;
+        }
+        Dialog d = sheet(a, R.layout.sheet_seen, done);
+        Look.picture(a, d.findViewById(R.id.seenThumbBox), d.findViewById(R.id.seenThumb), d.findViewById(R.id.seenThumbIcon),
+                d.findViewById(R.id.seenTag), had, 180, 320);
+        ((TextView) d.findViewById(R.id.seenSite)).setText(had.site);
+        ((TextView) d.findViewById(R.id.seenNo)).setText("No. " + Format.ticket(had.no) + " · " + Look.what(had));
+        ((TextView) d.findViewById(R.id.seenTitle)).setText(Look.title(had));
+        ((TextView) d.findViewById(R.id.seenWhen)).setText(Look.when(a, had.doneAt) + " · " + Downloads.album(had));
+        Button open = d.findViewById(R.id.seenOpen);
+        open.setText(Haul.PHOTOS.equals(had.kind) ? "Open" : "Play");
+        open.setOnClickListener(v -> {
+            Haul.prefs(a).edit().putString("last_filled", link).apply();   // the dock won't offer it again
+            android.content.Intent player = PlayerActivity.open(a, had.id, 0);
+            // From the share sheet or the tile, Haul's own screens aren't behind it: the player opens on its own.
+            if (!(a instanceof MainActivity)) player.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            a.startActivity(player);
+            finish(d, done, null);
+        });
+        d.findViewById(R.id.seenAgain).setOnClickListener(v -> {
+            d.setOnDismissListener(null);
+            d.dismiss();
+            go.run();
+        });
+        d.show();
     }
 
     // ---- TikTok photo posts ----

@@ -1,7 +1,9 @@
 package app.haul;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -17,5 +19,13 @@ public class HaulTest {
     public void noLink() {
         assertNull(Haul.firstLink(null));
         assertNull(Haul.firstLink("just words, www.example.com without a scheme"));
+    }
+
+    @Test
+    public void savedTheSameWay() {
+        assertTrue(Haul.sameWay(Haul.BEST, Haul.SMALL));
+        assertTrue(Haul.sameWay(Haul.AUDIO, Haul.AUDIO));
+        assertFalse(Haul.sameWay(Haul.BEST, Haul.AUDIO));
+        assertFalse(Haul.sameWay(Haul.GIF, Haul.BEST));
     }
 }

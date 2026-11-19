@@ -23,6 +23,10 @@ To delete or share several downloads at once, long-press one in Haul, tap the ot
 
 Downloads start faster when Haul has seen the link first: a copied link in the bottom bar, a link you are picking a quality or a section for, or a post in the picker, is read right away, and the download starts from what was read. A post's photos come down four at a time.
 
+Haul keeps each post's **caption**, who posted it and when. Tap a download to read them; **Copy caption** copies the whole text (a recipe, a song's name, a place), so it isn't lost when the post is.
+
+Share a post Haul has **already saved** the same way (as a video, as its sound, or as a GIF), and it says so first: **Play** (or **Open**, for photos) opens the one you have, **Download again** saves it anew. It knows a post by its id, so a `/reel/` link and a `/p/` link, x.com and twitter.com, or a link with `?igsh=…` added all count as the same post. A file you've deleted from the Gallery doesn't count, and a clip is always a new download.
+
 Tap a finished download to see what it **Took**, and where the time went: starting the engine, reading the link, getting the file, making it (a clip, a slideshow, a GIF) and saving it.
 
 No account, no ads, and no server of its own: everything runs on the phone.

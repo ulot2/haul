@@ -109,6 +109,20 @@ final class Downloads {
         return refused;
     }
 
+    /**
+     * True while the first file of a saved haul is still in the Gallery. Only a file that is plainly gone counts as
+     * gone: when Android won't say, it is taken to be there.
+     */
+    static boolean stillThere(Context c, Haul.Item i) {
+        if (i.uri.isEmpty() || "null".equals(i.uri)) return false;
+        try (android.database.Cursor cur = c.getContentResolver().query(Uri.parse(i.uri),
+                new String[]{MediaStore.MediaColumns._ID}, null, null, null)) {
+            return cur == null || cur.getCount() > 0;
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
+
     /** Wi-Fi only was switched: a job still waiting is scheduled again with the new rule. */
     static void settingsChanged(Context c) {
         if (Build.VERSION.SDK_INT < 34 || draining) return;
@@ -302,6 +316,8 @@ final class Downloads {
                 final String m = firstMime, kind = anyVideo ? Haul.VIDEO : anyImage || !anyAudio ? Haul.PHOTOS : Haul.AUDIO;
                 final boolean sound = Haul.PHOTOS.equals(kind) && anyAudio;
                 final String t = !got.title.isEmpty() ? got.title : titleOf(got.files.get(0).getName());
+                final Caption caption = got.caption;
+                final String page = got.page;
                 final long bytes = size;
                 final int count = got.files.size(), height = got.height;
                 final int duration = item.clipped() ? item.clipEnd - item.clipStart : got.duration;
@@ -317,6 +333,10 @@ final class Downloads {
                     i.sound = sound;
                     i.took = took;
                     i.title = t;
+                    i.caption = caption.text;
+                    i.by = caption.by;
+                    i.posted = caption.posted;
+                    i.page = page;
                     i.count = count;
                     i.size = bytes;
                     i.duration = duration;

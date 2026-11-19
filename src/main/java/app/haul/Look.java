@@ -87,6 +87,16 @@ final class Look {
         return DateUtils.formatDateTime(c, time, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH);
     }
 
+    /** A day, for when a post went up: "Nov 3", with the year when it isn't this year's. */
+    static String day(Context c, long time) {
+        if (time <= 0) return "–";
+        int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
+        java.util.Calendar then = java.util.Calendar.getInstance(), now = java.util.Calendar.getInstance();
+        then.setTimeInMillis(time);
+        if (then.get(java.util.Calendar.YEAR) != now.get(java.util.Calendar.YEAR)) flags |= DateUtils.FORMAT_SHOW_YEAR;
+        return DateUtils.formatDateTime(c, time, flags);
+    }
+
     /** "tiktok.com/@user/video/73…" without the https:// and the tracking query. */
     static String shortLink(String url) {
         String s = url.replaceFirst("^https?://(www\\.)?", "");

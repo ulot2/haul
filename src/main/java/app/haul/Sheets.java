@@ -274,6 +274,8 @@ final class Sheets {
             facts.add(new String[]{"Saved", Look.when(a, i.doneAt)});
             facts.add(new String[]{"Album", Downloads.album(i)});
             facts.add(new String[]{"From", i.site});
+            if (!i.by.isEmpty()) facts.add(new String[]{"By", i.by});
+            if (i.posted > 0) facts.add(new String[]{"Posted", Look.day(a, i.posted)});
             if (!i.took.isEmpty()) facts.add(new String[]{"Took", i.took});
         } else {
             facts.add(new String[]{"Quality", Look.what(i)});
@@ -287,6 +289,20 @@ final class Sheets {
             for (int j = k; j < k + 2; j++) row.addView(fact(a, j < facts.size() ? facts.get(j) : null),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
             grid.addView(row);
+        }
+
+        if (!i.caption.isEmpty()) {
+            d.findViewById(R.id.sheetCaptionBox).setVisibility(View.VISIBLE);
+            TextView caption = d.findViewById(R.id.sheetCaption);
+            caption.setText(i.caption);
+            caption.setOnClickListener(v -> caption.setMaxLines(caption.getMaxLines() == 6 ? Integer.MAX_VALUE : 6));
+            d.findViewById(R.id.sheetCopyCaption).setOnClickListener(v -> {
+                a.getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Caption", i.caption));
+                // Not offered back in the dock: a caption may hold a link, and it isn't one the user copied to download.
+                String inside = Haul.firstLink(i.caption);
+                if (inside != null) Haul.prefs(a).edit().putString("last_filled", inside).apply();
+                if (Build.VERSION.SDK_INT < 33) Toast.makeText(a, "Caption copied", Toast.LENGTH_SHORT).show();
+            });
         }
 
         Button primary = d.findViewById(R.id.sheetPrimary);

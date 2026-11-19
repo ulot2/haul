@@ -154,6 +154,10 @@ final class Engine {
         final List<File> files = new ArrayList<>();
         String title = "";
         int duration = -1, height = -1;
+        /** The post's caption, who posted it and when. */
+        Caption caption = Caption.NONE;
+        /** The post's own address, as the site gives it: a short link shared again is then known as the same post. */
+        String page = "";
         /** Shortcuts that didn't work, so the slower way was taken ("page by yt-dlp"); shown with what the download took. */
         final List<String> slow = new ArrayList<>();
     }
@@ -333,7 +337,12 @@ final class Engine {
         for (File f : files) {
             if (f.isFile() && f.length() > 0 && MEDIA.contains(ext(f.getName()))) out.files.add(f);
         }
-        for (JSONObject info : infos(dir)) {
+        List<JSONObject> infos = infos(dir);
+        out.caption = Caption.of(infos);
+        for (JSONObject info : infos) {
+            if (out.page.isEmpty()) out.page = info.optString("webpage_url").trim();
+        }
+        for (JSONObject info : infos) {
             JSONArray formats = info.optJSONArray("formats");
             if (formats == null || formats.length() == 0) continue;
             out.title = info.optString("title");
@@ -508,6 +517,8 @@ final class Engine {
             if (images.isEmpty()) continue;
             String desc = Photos.tiktokDesc(page);
             out.title = desc.isEmpty() ? "TikTok photos" : desc;
+            out.caption = Photos.tiktokCaption(page);
+            out.page = "https://www.tiktok.com/@_/photo/" + photoId;
             List<Want> wants = new ArrayList<>();
             for (int n : Post.chosen(item.pick, images.size())) {
                 // named by its place in the post, whichever were chosen
@@ -549,6 +560,8 @@ final class Engine {
         // One picture of several, asked for on its own: say which, so the hold tells the videos of a post apart.
         boolean one = item.pick.matches("\\d+") && made.files.size() == 1;
         made.title = one ? out.title + " · " + item.pick : out.title;
+        made.caption = out.caption;
+        made.page = out.page;
         made.duration = seconds;
         made.height = 1920;
         return made;

@@ -42,6 +42,9 @@ final class Haul {
         String took = "";              // where the download's time went, from Stages ("12.4 s: start 2.1 · read 3.4 …")
         boolean sound;                 // saved photos whose last file is the post's sound (a TikTok photo post)
         String as = "";                // AS_PHOTOS or AS_SLIDESHOW for a TikTok photo post; "" otherwise
+        String caption = "", by = "";  // what the post said, and who posted it; "" when unknown (or saved before Haul kept them)
+        long posted;                   // when it was posted, in milliseconds; 0 when unknown
+        String page = "";              // the post's own address, as the site gave it (a short link's full one)
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
         int count = 0;                 // files saved; a post with several videos or photos saves several
@@ -55,7 +58,8 @@ final class Haul {
                     .put("quality", quality).put("count", count).put("time", time).put("kind", kind)
                     .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
-                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds);
+                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
+                    .put("caption", caption).put("by", by).put("posted", posted).put("page", page);
         }
 
         static Item of(JSONObject o) {
@@ -87,6 +91,10 @@ final class Haul {
             i.sound = o.optBoolean("sound");
             i.took = o.optString("took");
             i.seconds = o.optInt("seconds");
+            i.caption = o.optString("caption");
+            i.by = o.optString("by");
+            i.posted = o.optLong("posted");
+            i.page = o.optString("page");
             return i;
         }
 
@@ -247,6 +255,24 @@ final class Haul {
     static synchronized Item activeFor(Context c, String url, String pick, String as) {
         for (Item i : load(c)) if (i.active() && i.url.equals(url) && i.pick.equals(pick) && i.as.equals(as)) return i;
         return null;
+    }
+
+    /**
+     * The newest saved haul of the same post, saved the same way (as sound, as a GIF, or as video and photos), or null.
+     * A clip is a section picked on purpose, so it doesn't count either way.
+     */
+    static synchronized Item saved(Context c, String url, String quality) {
+        for (Item i : load(c)) {
+            if (!DONE.equals(i.status) || i.clipped() || !sameWay(i.quality, quality)) continue;
+            if (Seen.same(url, i.url) || Seen.same(url, i.page)) return i;
+        }
+        return null;
+    }
+
+    /** Best and 720p are both "the video"; the sound alone and a GIF are other things to keep. */
+    static boolean sameWay(String a, String b) {
+        boolean audioA = AUDIO.equals(a), audioB = AUDIO.equals(b), gifA = GIF.equals(a), gifB = GIF.equals(b);
+        return audioA == audioB && gifA == gifB;
     }
 
     static void setProgress(String id, float percent) {
