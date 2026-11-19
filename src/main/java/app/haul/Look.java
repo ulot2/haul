@@ -11,17 +11,6 @@ import android.widget.TextView;
 final class Look {
     private static final int[] TONES = {R.color.tone0, R.color.tone1, R.color.tone2, R.color.tone3, R.color.tone4, R.color.tone5};
 
-    /** A light tick under the finger: a tab, a choice. */
-    static void tick(View v) {
-        v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
-    }
-
-    /** A firmer one for what gets something done: paste, Download, Save. */
-    static void confirm(View v) {
-        v.performHapticFeedback(android.os.Build.VERSION.SDK_INT >= 30
-                ? android.view.HapticFeedbackConstants.CONFIRM : android.view.HapticFeedbackConstants.VIRTUAL_KEY);
-    }
-
     /** A steady tone for something (a link, a haul): the same one each time, while there's no picture. */
     static int tone(Context c, String key) {
         return c.getColor(TONES[Math.abs(String.valueOf(key).hashCode()) % TONES.length]);
