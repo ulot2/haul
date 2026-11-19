@@ -150,6 +150,17 @@
             android:layout_width="match_parent"
             android:layout_marginTop="18dp" />
 
+        <!-- A saved sound, video, or photos with their sound: clip a section of the sound (a ringtone, the one part). -->
+        <Button
+            android:id="@+id/sheetCut"
+            style="@style/Haul.Button.Outline"
+            android:layout_width="match_parent"
+            android:layout_marginTop="10dp"
+            android:drawableStart="@drawable/ic_scissors"
+            android:drawablePadding="8dp"
+            android:text="Clip the sound"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

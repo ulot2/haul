@@ -46,6 +46,8 @@ final class Haul {
         String caption = "", by = "";  // what the post said, and who posted it; "" when unknown (or saved before Haul kept them)
         long posted;                   // when it was posted, in milliseconds; 0 when unknown
         String page = "";              // the post's own address, as the site gave it (a short link's full one)
+        String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
+        long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
         int count = 0;                 // files saved; a post with several videos or photos saves several
@@ -60,7 +62,8 @@ final class Haul {
                     .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
                     .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
-                    .put("caption", caption).put("by", by).put("posted", posted).put("page", page);
+                    .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
+                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo);
         }
 
         static Item of(JSONObject o) {
@@ -96,6 +99,9 @@ final class Haul {
             i.by = o.optString("by");
             i.posted = o.optLong("posted");
             i.page = o.optString("page");
+            i.source = o.optString("source");
+            i.cutFrom = o.optLong("cutFrom", -1);
+            i.cutTo = o.optLong("cutTo", -1);
             return i;
         }
 
@@ -110,6 +116,11 @@ final class Haul {
 
         boolean clipped() {
             return clipStart >= 0 && clipEnd > clipStart;
+        }
+
+        /** A sound clipped from a file already saved, not a download: made on the phone, no site involved. */
+        boolean cut() {
+            return !source.isEmpty() && cutFrom >= 0 && cutTo > cutFrom;
         }
     }
 
@@ -167,6 +178,12 @@ final class Haul {
 
     /** A new haul for this link, with its own quality and, if wanted, a section (seconds; -1 for the whole). */
     static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
+        return add(c, url, quality, clipStart, clipEnd, pick, as, seconds, null);
+    }
+
+    /** The same, with more set up (setup, when given) before the queue can see it. */
+    static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds,
+                                 Consumer<Item> setup) {
         List<Item> list = load(c);
         Item i = new Item();
         i.time = System.currentTimeMillis();
@@ -181,6 +198,7 @@ final class Haul {
         i.seconds = Math.max(0, seconds);
         int no = prefs(c).getInt("next_no", 1);
         i.no = no;
+        if (setup != null) setup.accept(i);
         prefs(c).edit().putInt("next_no", no + 1).apply();
         list.add(0, i);
         // Trim the oldest finished ones; never drop one that is still going.
@@ -264,7 +282,7 @@ final class Haul {
      */
     static synchronized Item saved(Context c, String url, String quality) {
         for (Item i : load(c)) {
-            if (!DONE.equals(i.status) || i.clipped() || !sameWay(i.quality, quality)) continue;
+            if (!DONE.equals(i.status) || i.clipped() || i.cut() || !sameWay(i.quality, quality)) continue;
             if (Seen.same(url, i.url) || Seen.same(url, i.page)) return i;
         }
         return null;

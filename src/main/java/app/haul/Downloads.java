@@ -95,6 +95,25 @@ final class Downloads {
         return Format.many(added, saved, waiting);
     }
 
+    /**
+     * Clips a section of a saved haul's sound (fromMs to toMs of the file at source) into a new haul: an M4A in
+     * Music/Haul, made on the phone. It keeps the post's link, title and caption.
+     */
+    static Haul.Item cut(Context c, Haul.Item from, String source, long fromMs, long toMs) {
+        Haul.Item i = Haul.add(c, from.url, Haul.AUDIO, -1, -1, "", "", 0, x -> {
+            x.source = source;
+            x.cutFrom = fromMs;
+            x.cutTo = toMs;
+            x.title = from.title;
+            x.caption = from.caption;
+            x.by = from.by;
+            x.posted = from.posted;
+            x.page = from.page;
+        });
+        start(c);
+        return i;
+    }
+
     /** Tries an existing (failed, canceled or finished) haul again, with the quality and section it had. */
     static void retry(Context c, String id) {
         Haul.update(c, id, i -> {
@@ -296,7 +315,7 @@ final class Downloads {
             showProgress(item, -1);
             File dir = new File(c.getCacheDir(), "haul/" + id);
             try {
-                if (!host.waitsForNetwork() && Haul.wifiOnly(c)
+                if (!item.cut() && !host.waitsForNetwork() && Haul.wifiOnly(c)
                         && c.getSystemService(ConnectivityManager.class).isActiveNetworkMetered()) {
                     throw new IllegalStateException(NO_WIFI);
                 }
@@ -306,7 +325,7 @@ final class Downloads {
                 try {
                     got = fetch(item, dir, stages);
                 } catch (Exception first) {
-                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id)) throw first;
+                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id) || item.cut()) throw first;   // a clip needs no new yt-dlp
                     // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                     if (!Engine.updateAfterFailure(c)) throw first;
                     stages.on(Engine.Progress.STARTING, System.currentTimeMillis());

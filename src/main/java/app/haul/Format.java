@@ -21,6 +21,18 @@ final class Format {
         return String.format(Locale.ROOT, "%.2f GB", mb / 1024);
     }
 
+    /** A moment to a tenth of a second, for clipping sounds: 12345 (ms) → "0:12.3", 3725000 → "1:02:05.0". */
+    static String exact(long millis) {
+        long tenths = Math.max(0, Math.round(millis / 100.0));
+        int seconds = (int) (tenths / 10);
+        return clock(seconds) + "." + (tenths % 10);
+    }
+
+    /** 30000 (ms) → "30.0 s", 95500 → "1:35.5". */
+    static String span(long millis) {
+        return millis < 60_000 ? String.format(Locale.ROOT, "%.1f s", Math.round(millis / 100.0) / 10.0) : exact(millis);
+    }
+
     /** 148 → "0148". */
     static String ticket(int no) {
         return String.format(Locale.ROOT, "%04d", Math.max(0, no));

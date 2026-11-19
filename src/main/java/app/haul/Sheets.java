@@ -88,6 +88,7 @@ final class Sheets {
             q[k].setOnClickListener(v -> {
                 draft.quality = id;
                 mark.run();
+                ((TextView) d.findViewById(R.id.addClipValue)).setText(clipText(draft));   // Audio clips a sound, not a video
             });
         }
         mark.run();
@@ -115,7 +116,7 @@ final class Sheets {
             }
         });
         TextView clipValue = d.findViewById(R.id.addClipValue);
-        clipValue.setText(draft.clipped() ? Format.clock(draft.clipStart) + "–" + Format.clock(draft.clipEnd) : "Whole video");
+        clipValue.setText(clipText(draft));
 
         d.findViewById(R.id.addClip).setOnClickListener(v -> {
             String url = Haul.firstLink(link.getText());
@@ -172,6 +173,12 @@ final class Sheets {
 
     // ---- Clip a section ----
 
+    /** What the sheet's clip row says: the section, or the whole video (or sound, for Audio). */
+    private static String clipText(Draft draft) {
+        if (draft.clipped()) return Format.clock(draft.clipStart) + "–" + Format.clock(draft.clipEnd);
+        return Haul.AUDIO.equals(draft.quality) ? "Whole sound" : "Whole video";
+    }
+
     private static void clip(Activity a, Draft draft, Added added) {
         Dialog d = sheet(a, R.layout.sheet_clip);
         ImageView preview = d.findViewById(R.id.clipPreview);
@@ -187,6 +194,7 @@ final class Sheets {
         View selection = d.findViewById(R.id.clipSelection);
         Button use = d.findViewById(R.id.clipUse);
         previewLabel.setText(Look.shortLink(draft.url));
+        if (Haul.AUDIO.equals(draft.quality)) ((Button) d.findViewById(R.id.clipWhole)).setText("Whole sound");
 
         Runnable back = () -> {
             d.dismiss();
@@ -358,6 +366,15 @@ final class Sheets {
             primary.setVisibility(View.GONE);
         }
 
+        if (done && soundOf(i) != null) {
+            Button cutButton = d.findViewById(R.id.sheetCut);
+            cutButton.setVisibility(View.VISIBLE);
+            cutButton.setOnClickListener(v -> {
+                d.dismiss();
+                cut(a, i);
+            });
+        }
+
         d.findViewById(R.id.actShare).setOnClickListener(v -> {
             if (!done) {
                 Toast.makeText(a, "Nothing saved to share yet", Toast.LENGTH_SHORT).show();
@@ -388,6 +405,174 @@ final class Sheets {
             else Haul.remove(a, i.id);
         });
         d.show();
+    }
+
+    // ---- Clip the sound of a saved haul ----
+
+    /** One step of the sliders, in milliseconds; − and + move one step. */
+    private static final int STEP = 100;
+
+    /**
+     * The saved file whose sound can be clipped: the sound or video itself, or the sound that came with a TikTok
+     * post's photos (saved last); null when there is none.
+     */
+    static String soundOf(Haul.Item i) {
+        if (!Haul.DONE.equals(i.status) || i.uris.isEmpty()) return null;
+        if (Haul.AUDIO.equals(i.kind) || Haul.VIDEO.equals(i.kind)) return i.uris.get(0);
+        if (Haul.PHOTOS.equals(i.kind) && i.sound) return i.uris.get(i.uris.size() - 1);
+        return null;
+    }
+
+    /**
+     * CLIP THE SOUND: start and end to a tenth of a second (a slider for the rough place, − and + for the exact one),
+     * heard with Play before it's saved. Saving queues the clip, which FFmpeg makes from the saved file.
+     */
+    static void cut(Activity a, Haul.Item i) {
+        String source = soundOf(i);
+        if (source == null) return;
+        Dialog d = sheet(a, R.layout.sheet_cut);
+        ((TextView) d.findViewById(R.id.cutTitle)).setText(Look.title(i));
+        ImageView loading = d.findViewById(R.id.cutLoading);
+        Choose.spin(loading);
+        TextView status = d.findViewById(R.id.cutStatus);
+        View controls = d.findViewById(R.id.cutControls);
+        SeekBar start = d.findViewById(R.id.cutStart), end = d.findViewById(R.id.cutEnd);
+        TextView range = d.findViewById(R.id.cutRange), length = d.findViewById(R.id.cutLength);
+        TextView startLabel = d.findViewById(R.id.cutStartLabel), endLabel = d.findViewById(R.id.cutEndLabel);
+        Button play = d.findViewById(R.id.cutPlay), save = d.findViewById(R.id.cutSave);
+
+        android.media.MediaPlayer[] player = {null};
+        android.os.Handler ticks = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable stop = () -> {
+            ticks.removeCallbacksAndMessages(null);
+            try {
+                if (player[0] != null && player[0].isPlaying()) player[0].pause();
+            } catch (IllegalStateException ignored) {
+            }
+            play.setText("Play the section");
+        };
+        Runnable draw = () -> {
+            long s = (long) start.getProgress() * STEP, e = (long) end.getProgress() * STEP;
+            range.setText(Format.exact(s) + " – " + Format.exact(e));
+            length.setText(Format.span(e - s));
+            startLabel.setText("Start · " + Format.exact(s));
+            endLabel.setText("End · " + Format.exact(e));
+            save.setEnabled(e > s);
+            save.setAlpha(e > s ? 1f : 0.4f);
+        };
+        SeekBar.OnSeekBarChangeListener moved = new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int p, boolean byUser) {
+                // Keep start before end: moving one past the other pushes the other along.
+                if (bar == start && p >= end.getProgress()) end.setProgress(Math.min(end.getMax(), p + 1));
+                if (bar == end && p <= start.getProgress()) start.setProgress(Math.max(0, p - 1));
+                stop.run();   // what was playing is no longer the section
+                draw.run();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar bar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar bar) {
+            }
+        };
+        int[][] nudges = {{R.id.cutStartLess, -1}, {R.id.cutStartMore, 1}, {R.id.cutEndLess, -1}, {R.id.cutEndMore, 1}};
+        for (int[] n : nudges) {
+            SeekBar bar = n[0] == R.id.cutStartLess || n[0] == R.id.cutStartMore ? start : end;
+            d.findViewById(n[0]).setOnClickListener(v -> bar.setProgress(Math.max(0, Math.min(bar.getMax(), bar.getProgress() + n[1]))));
+        }
+
+        play.setOnClickListener(v -> {
+            if (player[0] != null && player[0].isPlaying()) {
+                stop.run();
+                return;
+            }
+            long from = (long) start.getProgress() * STEP, to = (long) end.getProgress() * STEP;
+            try {
+                if (player[0] == null) {
+                    android.media.MediaPlayer mp = new android.media.MediaPlayer();
+                    mp.setDataSource(a, Uri.parse(source));
+                    mp.prepare();
+                    player[0] = mp;
+                }
+                player[0].seekTo(from, android.media.MediaPlayer.SEEK_CLOSEST);
+                player[0].start();
+            } catch (Exception e) {
+                Toast.makeText(a, "Haul couldn't play this file", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            play.setText("Stop");
+            // Stops at the end of the section, as the clip will.
+            Runnable watch = new Runnable() {
+                @Override
+                public void run() {
+                    android.media.MediaPlayer mp = player[0];
+                    if (mp == null) return;
+                    if (!mp.isPlaying() || mp.getCurrentPosition() >= to) stop.run();
+                    else ticks.postDelayed(this, 40);
+                }
+            };
+            ticks.postDelayed(watch, 40);
+        });
+        save.setOnClickListener(v -> {
+            stop.run();
+            Downloads.cut(a, i, source, (long) start.getProgress() * STEP, (long) end.getProgress() * STEP);
+            d.dismiss();
+        });
+        d.setOnDismissListener(x -> {
+            ticks.removeCallbacksAndMessages(null);
+            if (player[0] != null) {
+                player[0].release();
+                player[0] = null;
+            }
+        });
+        d.show();
+
+        // How long it is, and whether it has sound at all, from the file itself.
+        new Thread(() -> {
+            long millis = 0;
+            boolean sound = false;
+            android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+            try {
+                r.setDataSource(a, Uri.parse(source));
+                String dur = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+                millis = dur == null ? 0 : Long.parseLong(dur);
+                sound = "yes".equals(r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
+            } catch (Exception ignored) {
+                // deleted, or unreadable: said below
+            } finally {
+                try {
+                    r.release();
+                } catch (Exception ignored) {
+                }
+            }
+            long total = millis;
+            boolean hasSound = sound;
+            a.runOnUiThread(() -> {
+                if (!d.isShowing()) return;
+                loading.setVisibility(View.GONE);
+                if (total < 2 * STEP) {
+                    status.setText("Haul couldn't open this file. It may have been deleted from the Gallery.");
+                    return;
+                }
+                if (!hasSound) {
+                    status.setText("This video has no sound.");
+                    return;
+                }
+                status.setVisibility(View.GONE);
+                controls.setVisibility(View.VISIBLE);
+                int max = (int) (total / STEP);
+                start.setMax(max);
+                end.setMax(max);
+                start.setProgress(0);
+                end.setProgress(Math.min(max, 30_000 / STEP));   // 30 seconds to start with: about a ringtone's length
+                start.setOnSeekBarChangeListener(moved);
+                end.setOnSeekBarChangeListener(moved);
+                draw.run();
+            });
+        }, "haul-cut").start();
     }
 
     /** A saved haul: delete the file too, or only take it off the list. */

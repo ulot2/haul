@@ -45,4 +45,20 @@ public class FormatTest {
         assertEquals("2 already saved", Format.many(0, 2, 0));
         assertEquals("No links", Format.many(0, 0, 0));
     }
+
+    @Test
+    public void momentsToATenth() {
+        assertEquals("0:12.3", Format.exact(12345));
+        assertEquals("0:00.0", Format.exact(0));
+        assertEquals("0:13.0", Format.exact(12960));   // rounds to the nearest tenth, carrying into the second
+        assertEquals("1:02:05.0", Format.exact(3725000));
+        assertEquals("0:00.0", Format.exact(-5));
+    }
+
+    @Test
+    public void howLongAClipIs() {
+        assertEquals("30.0 s", Format.span(30000));
+        assertEquals("2.5 s", Format.span(2450));
+        assertEquals("1:35.5", Format.span(95500));
+    }
 }

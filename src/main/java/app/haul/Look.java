@@ -76,6 +76,7 @@ final class Look {
             s = Haul.AUDIO.equals(i.quality) ? "Audio" : qualityName(i.quality);
         }
         if (i.clipped()) s += " · clip " + Format.clock(i.clipStart) + "–" + Format.clock(i.clipEnd);
+        if (i.cut()) s += " · clip " + Format.exact(i.cutFrom) + "–" + Format.exact(i.cutTo);
         return s;
     }
 
