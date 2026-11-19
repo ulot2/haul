@@ -73,10 +73,7 @@ final class StatusesPage {
         chipWhatsApp.setOnClickListener(v -> show(Statuses.WHATSAPP));
         chipBusiness.setOnClickListener(v -> show(Statuses.BUSINESS));
         findViewById(R.id.stConnectGo).setOnClickListener(v -> pickFolder());
-        saveAll.setOnClickListener(v -> {
-            Look.confirm(v);
-            saveAll();
-        });
+        saveAll.setOnClickListener(v -> saveAll());
     }
 
     private <T extends View> T findViewById(int id) {
@@ -304,7 +301,6 @@ final class StatusesPage {
         box.setForeground(a.getDrawable(R.drawable.fg_press));
         box.setStateListAnimator(android.animation.AnimatorInflater.loadStateListAnimator(a, R.animator.press));
         box.setOnClickListener(v -> {
-            if (had == null) Look.confirm(v);
             if (had != null) {
                 a.startActivity(PlayerActivity.open(a, had.id, 0));
             } else if (!saving) {

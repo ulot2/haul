@@ -45,7 +45,7 @@ import java.util.Set;
  * - DOWNLOADS: the hold, every haul as a ticket with its picture, with search and filters; long-press to select.
  * - STATUSES: WhatsApp's statuses (StatusesPage).
  * - SETTINGS (SettingsPage).
- * Every tap is felt: buttons give under the finger (animator/press), and tab switches and the main actions tick.
+ * Every tap shows: buttons give under the finger (animator/press) as well as their ripple.
  */
 public class MainActivity extends Activity {
     static final String EXTRA_RETRY = "retry", EXTRA_NOTIFICATION = "notification", EXTRA_TAB = "tab";
@@ -144,7 +144,6 @@ public class MainActivity extends Activity {
                 {TAB_STATUSES, "" + R.id.tabStatuses}, {TAB_SETTINGS, "" + R.id.tabSettings}};
         for (String[] t : tabIds) {
             findViewById(Integer.parseInt(t[1])).setOnClickListener(v -> {
-                if (!t[0].equals(tab)) Look.tick(v);
                 show(t[0]);
             });
         }
@@ -188,7 +187,6 @@ public class MainActivity extends Activity {
             return true;
         });
         linkGo.setOnClickListener(v -> {
-            Look.confirm(v);
             if (Haul.links(linkField.getText()).isEmpty()) paste();
             else openSheet();
         });
