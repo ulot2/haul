@@ -26,6 +26,17 @@ To delete or share several downloads at once, long-press one in Haul, tap the ot
 
 Downloads start faster when Haul has seen the link first: a copied link in the bottom bar, a link you are picking a quality or a section for, or a post in the picker, is read right away, and the download starts from what was read. A post's photos come down four at a time.
 
+## WhatsApp statuses
+
+WhatsApp has its own page in Haul: tap the ring at the top of the main screen. It shows the statuses you've opened in WhatsApp (photos, videos and voice statuses), newest first. Tap one to save it to your Gallery (Pictures/Haul, Movies/Haul or Music/Haul); a ✓ marks the saved ones, and tapping a saved one plays it. **Save all** saves the rest. Saved statuses are in Haul's list too, with Share and Delete.
+
+The first time, Haul asks to see WhatsApp's statuses folder: tap **Allow access**, and Android's folder picker opens right in that folder. Tap **Use this folder**, then **Allow**. Haul only reads that one folder, and needs no storage permission. **WhatsApp Business** has its own tab, and asks the same way.
+
+- Only statuses you've **opened** in WhatsApp are there: WhatsApp keeps a copy once you've seen one.
+- WhatsApp clears them after about **a day**, so save the ones you want while they're there.
+- Nothing goes over the internet: Haul copies the file WhatsApp already has.
+- If WhatsApp is reinstalled, or moves the folder in an update, Haul asks for access again.
+
 **Clip the sound**: tap a saved sound, video, or TikTok photo post with its sound, then **Clip the sound**. Set where it starts and ends with the sliders, nudge either one a tenth of a second with − and +, and **Play the section** to hear it. **Save the sound** makes it an M4A of its own in Music/Haul, made on the phone from the file you already have (nothing is downloaded again), cut exactly where you set it: a ringtone, or the one part of a song. The download it came from stays as it is. (Choosing **Audio** with **Clip a section** before downloading still works too, but you can't hear the section there.)
 
 Haul keeps each post's **caption**, who posted it and when. Tap a download to read them; **Copy caption** copies the whole text (a recipe, a song's name, a place), so it isn't lost when the post is.

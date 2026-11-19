@@ -52,6 +52,13 @@ FIRST VIEWPORT: the wordmark, the search, the filters, the newest hauls, and the
                     android:text="HAUL" />
 
                 <ImageButton
+                    android:id="@+id/statuses"
+                    style="@style/Haul.IconButton"
+                    android:layout_marginEnd="8dp"
+                    android:contentDescription="WhatsApp statuses"
+                    android:src="@drawable/ic_status" />
+
+                <ImageButton
                     android:id="@+id/settings"
                     style="@style/Haul.IconButton"
                     android:contentDescription="Settings"

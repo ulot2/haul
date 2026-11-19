@@ -41,6 +41,7 @@ final class Look {
             case "Threads": return "TH";
             case "Pinterest": return "PN";
             case "Vimeo": return "VM";
+            case "WhatsApp": return "WA";
             default: return site.length() > 2 ? site.substring(0, 2).toUpperCase(java.util.Locale.ROOT) : site.toUpperCase(java.util.Locale.ROOT);
         }
     }

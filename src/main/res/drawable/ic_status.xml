@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Statuses: the broken ring WhatsApp draws around a contact with new statuses. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:pathData="M12,3 A9,9 0 0,1 20.2,8.3 M20.9,11.2 A9,9 0 0,1 17.6,19.1 M15.1,20.4 A9,9 0 0,1 5.6,18.4 M4,15.6 A9,9 0 0,1 9.3,3.4"
+        android:strokeColor="@color/ink"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M12,9 A3,3 0 1,1 11.99,9 Z"
+        android:fillColor="@color/ink" />
+</vector>

@@ -144,6 +144,7 @@ public class MainActivity extends Activity {
             hideKeyboard();
         });
 
+        findViewById(R.id.statuses).setOnClickListener(v -> startActivity(new Intent(this, StatusesActivity.class)));
         findViewById(R.id.settings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         // Several copied links go into the sheet's field side by side, so they can be looked over (or one taken out).
         findViewById(R.id.dockOptions).setOnClickListener(v -> Sheets.add(this,

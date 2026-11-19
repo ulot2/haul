@@ -416,41 +416,10 @@ final class Downloads {
 
         // ---- Into the Gallery ----
 
-        /** Copies the file into shared storage through MediaStore, so no storage permission is needed. */
         private Uri save(File f, String mime) throws Exception {
-            String folder;
-            Uri collection;
-            if (mime.startsWith("audio/")) {
-                folder = Environment.DIRECTORY_MUSIC;
-                collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-            } else if (mime.startsWith("image/")) {
-                folder = Environment.DIRECTORY_PICTURES;
-                collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-            } else {
-                folder = Environment.DIRECTORY_MOVIES;
-                collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            try (InputStream in = new FileInputStream(f)) {
+                return toGallery(c, in, f.getName(), mime);
             }
-            ContentResolver cr = c.getContentResolver();
-            ContentValues v = new ContentValues();
-            v.put(MediaStore.MediaColumns.DISPLAY_NAME, f.getName());
-            v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
-            v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul");
-            v.put(MediaStore.MediaColumns.IS_PENDING, 1);
-            Uri uri = cr.insert(collection, v);
-            if (uri == null) throw new Exception("Couldn't save to the Gallery.");
-            try (InputStream in = new FileInputStream(f); OutputStream out = cr.openOutputStream(uri)) {
-                if (out == null) throw new Exception("Couldn't save to the Gallery.");
-                byte[] buf = new byte[256 * 1024];
-                for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
-            } catch (Exception e) {
-                cr.delete(uri, null, null);
-                String msg = String.valueOf(e.getMessage());
-                throw new Exception(msg.contains("ENOSPC") ? "no space" : msg, e);
-            }
-            v.clear();
-            v.put(MediaStore.MediaColumns.IS_PENDING, 0);
-            cr.update(uri, v, null, null);
-            return uri;
         }
 
         // ---- Notifications ----
@@ -561,6 +530,46 @@ final class Downloads {
         }
         send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         return Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    }
+
+    /**
+     * Copies a file into shared storage through MediaStore (Movies/Haul, Pictures/Haul or Music/Haul, by its type), so
+     * no storage permission is needed. Used for downloads and for WhatsApp statuses.
+     */
+    static Uri toGallery(Context c, InputStream in, String name, String mime) throws Exception {
+        String folder;
+        Uri collection;
+        if (mime.startsWith("audio/")) {
+            folder = Environment.DIRECTORY_MUSIC;
+            collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        } else if (mime.startsWith("image/")) {
+            folder = Environment.DIRECTORY_PICTURES;
+            collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        } else {
+            folder = Environment.DIRECTORY_MOVIES;
+            collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        }
+        ContentResolver cr = c.getContentResolver();
+        ContentValues v = new ContentValues();
+        v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+        v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul");
+        v.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = cr.insert(collection, v);
+        if (uri == null) throw new Exception("Couldn't save to the Gallery.");
+        try (OutputStream out = cr.openOutputStream(uri)) {
+            if (out == null) throw new Exception("Couldn't save to the Gallery.");
+            byte[] buf = new byte[256 * 1024];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        } catch (Exception e) {
+            cr.delete(uri, null, null);
+            String msg = String.valueOf(e.getMessage());
+            throw new Exception(msg.contains("ENOSPC") ? "no space" : msg, e);
+        }
+        v.clear();
+        v.put(MediaStore.MediaColumns.IS_PENDING, 0);
+        cr.update(uri, v, null, null);
+        return uri;
     }
 
     /** Where a haul's files are in the Gallery. */

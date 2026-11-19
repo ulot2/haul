@@ -389,6 +389,11 @@ final class Sheets {
             d.dismiss();
             if (Build.VERSION.SDK_INT < 33) Toast.makeText(a, "Link copied", Toast.LENGTH_SHORT).show();
         });
+        if (Statuses.isStatus(i.url)) {
+            // A saved WhatsApp status has no link: nothing to copy, and nothing to download again.
+            d.findViewById(R.id.actCopy).setVisibility(View.GONE);
+            d.findViewById(R.id.actAgain).setVisibility(View.GONE);
+        }
         Button again = d.findViewById(R.id.actAgain);
         again.setEnabled(!active);
         again.setAlpha(active ? 0.4f : 1f);
