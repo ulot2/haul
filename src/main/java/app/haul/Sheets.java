@@ -148,6 +148,7 @@ final class Sheets {
         for (int k = 0; k < q.length; k++) {
             String id = ids[k];
             q[k].setOnClickListener(v -> {
+                if (!id.equals(draft.quality)) Look.tick(v);
                 draft.quality = id;
                 mark.run();
             });
@@ -168,6 +169,7 @@ final class Sheets {
         Button go = d.findViewById(R.id.addGo);
         go.setText(many ? "Download " + urls.size() + " links" : "Download");
         go.setOnClickListener(v -> {
+            Look.confirm(v);
             d.dismiss();
             if (many) {
                 // A list: all of it in this quality, with no questions (a carousel comes whole, a TikTok photo post
