@@ -39,24 +39,27 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Haul's screen, in three tabs:
+ * Haul's screen, in four tabs:
  * - DOWNLOAD, where it opens: the wordmark and a link field. Paste (or a link found copied) opens HAUL THIS AS
  *   (Sheets.add): quality, clip, Download. Links copied one after another gather in the field.
  * - DOWNLOADS: the hold, every haul as a ticket with its picture, with search and filters; long-press to select.
  * - STATUSES: WhatsApp's statuses (StatusesPage).
+ * - SETTINGS (SettingsPage).
+ * Every tap is felt: buttons give under the finger (animator/press), and tab switches and the main actions tick.
  */
 public class MainActivity extends Activity {
     static final String EXTRA_RETRY = "retry", EXTRA_NOTIFICATION = "notification", EXTRA_TAB = "tab";
-    static final String TAB_DOWNLOAD = "download", TAB_HOLD = "hold", TAB_STATUSES = "statuses";
+    static final String TAB_DOWNLOAD = "download", TAB_HOLD = "hold", TAB_STATUSES = "statuses", TAB_SETTINGS = "settings";
     private static final String ALL = "all", VIDEOS = "videos", PHOTOS = "photos", AUDIO = "audio", FAILED = "failed";
 
-    private View content, dock, updateCard, notifyCard, wifiBadge, tabs, pages, linkBox, downloadContent, statusesContent;
-    private View pageDownload, pageHold, pageStatuses;
+    private View content, dock, updateCard, notifyCard, wifiBadge, tabs, pages, linkBox, downloadContent, statusesContent, settingsContent;
+    private View pageDownload, pageHold, pageStatuses, pageSettings;
     private LinearLayout hold;
     private TextView count, empty, updateTitle, selectCount, holdCount;
     private EditText linkField, search;
     private ImageButton linkGo;
     private StatusesPage statuses;
+    private SettingsPage settings;
     private String tab = TAB_DOWNLOAD;
     /** The open HAUL THIS AS, so a link copied meanwhile doesn't open a second. */
     private Dialog haulSheet;
@@ -68,7 +71,7 @@ public class MainActivity extends Activity {
     private String filter = ALL;
     /** What is typed in the search box; "" shows everything (that the filter lets through). */
     private String query = "";
-    private int contentTop, downloadTop, statusesTop, tabsBottom, holdBottom;
+    private int contentTop, downloadTop, statusesTop, settingsTop, tabsBottom, holdBottom;
     private final Runnable render = this::render;
     /** The hold's rows by haul id, and what each one shows, so a redraw only touches rows that changed. */
     private final Map<String, View> rows = new HashMap<>();
@@ -99,6 +102,8 @@ public class MainActivity extends Activity {
         pageDownload = findViewById(R.id.pageDownload);
         pageHold = findViewById(R.id.pageHold);
         pageStatuses = findViewById(R.id.pageStatuses);
+        pageSettings = findViewById(R.id.pageSettings);
+        settingsContent = findViewById(R.id.settingsContent);
         downloadContent = findViewById(R.id.downloadContent);
         statusesContent = findViewById(R.id.stContent);
         content = findViewById(R.id.content);
@@ -116,6 +121,7 @@ public class MainActivity extends Activity {
         linkField = findViewById(R.id.linkField);
         linkGo = findViewById(R.id.linkGo);
         statuses = new StatusesPage(this, pageStatuses);
+        settings = new SettingsPage(this, pageSettings);
 
         findViewById(R.id.selectClose).setOnClickListener(v -> stopSelecting());
         findViewById(R.id.selectAll).setOnClickListener(v -> {
@@ -128,14 +134,20 @@ public class MainActivity extends Activity {
         holdBottom = content.getPaddingBottom();
         downloadTop = downloadContent.getPaddingTop();
         statusesTop = statusesContent.getPaddingTop();
+        settingsTop = settingsContent.getPaddingTop();
         tabsBottom = tabs.getPaddingBottom();
         findViewById(R.id.root).setOnApplyWindowInsetsListener(this::applyInsets);
         // Keep the last row clear of the selection bar, whatever height it has.
         dock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitBottom());
 
-        findViewById(R.id.tabDownload).setOnClickListener(v -> show(TAB_DOWNLOAD));
-        findViewById(R.id.tabHold).setOnClickListener(v -> show(TAB_HOLD));
-        findViewById(R.id.tabStatuses).setOnClickListener(v -> show(TAB_STATUSES));
+        String[][] tabIds = {{TAB_DOWNLOAD, "" + R.id.tabDownload}, {TAB_HOLD, "" + R.id.tabHold},
+                {TAB_STATUSES, "" + R.id.tabStatuses}, {TAB_SETTINGS, "" + R.id.tabSettings}};
+        for (String[] t : tabIds) {
+            findViewById(Integer.parseInt(t[1])).setOnClickListener(v -> {
+                if (!t[0].equals(tab)) Look.tick(v);
+                show(t[0]);
+            });
+        }
 
         String[][] chips = {{ALL, "" + R.id.fAll}, {VIDEOS, "" + R.id.fVideo}, {PHOTOS, "" + R.id.fPhotos},
                 {AUDIO, "" + R.id.fAudio}, {FAILED, "" + R.id.fFailed}};
@@ -176,11 +188,11 @@ public class MainActivity extends Activity {
             return true;
         });
         linkGo.setOnClickListener(v -> {
+            Look.confirm(v);
             if (Haul.links(linkField.getText()).isEmpty()) paste();
             else openSheet();
         });
 
-        findViewById(R.id.settings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         findViewById(R.id.notifyOn).setOnClickListener(v -> Sheets.open(this, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
         findViewById(R.id.update).setOnClickListener(v -> {
@@ -311,6 +323,8 @@ public class MainActivity extends Activity {
         downloadContent.setPadding(downloadContent.getPaddingLeft(), downloadTop + b[1], downloadContent.getPaddingRight(), 0);
         statusesContent.setPadding(statusesContent.getPaddingLeft(), statusesTop + b[1], statusesContent.getPaddingRight(),
                 statusesContent.getPaddingBottom());
+        settingsContent.setPadding(settingsContent.getPaddingLeft(), settingsTop + b[1], settingsContent.getPaddingRight(),
+                settingsContent.getPaddingBottom());
         boolean typing = keyboard > nav;
         tabs.setVisibility(typing ? View.GONE : View.VISIBLE);
         tabs.setPadding(tabs.getPaddingLeft(), tabs.getPaddingTop(), tabs.getPaddingRight(), tabsBottom + nav);
@@ -339,6 +353,7 @@ public class MainActivity extends Activity {
         }
         render();
         if (TAB_STATUSES.equals(tab)) statuses.resume();
+        if (TAB_SETTINGS.equals(tab)) settings.resume();
         Updates.checkSoon(this, () -> runOnUiThread(this::render));
     }
 
@@ -362,26 +377,38 @@ public class MainActivity extends Activity {
     // ---- The tabs ----
 
     private void show(String which) {
-        if (!TAB_HOLD.equals(which) && !TAB_STATUSES.equals(which)) which = TAB_DOWNLOAD;
+        if (!TAB_HOLD.equals(which) && !TAB_STATUSES.equals(which) && !TAB_SETTINGS.equals(which)) which = TAB_DOWNLOAD;
         boolean changed = !which.equals(tab);
         tab = which;
-        pageDownload.setVisibility(TAB_DOWNLOAD.equals(tab) ? View.VISIBLE : View.GONE);
-        pageHold.setVisibility(TAB_HOLD.equals(tab) ? View.VISIBLE : View.GONE);
-        pageStatuses.setVisibility(TAB_STATUSES.equals(tab) ? View.VISIBLE : View.GONE);
-        mark(R.id.tabDownload, R.id.tabDownloadIcon, R.id.tabDownloadLabel, TAB_DOWNLOAD);
-        mark(R.id.tabHold, R.id.tabHoldIcon, R.id.tabHoldLabel, TAB_HOLD);
-        mark(R.id.tabStatuses, R.id.tabStatusesIcon, R.id.tabStatusesLabel, TAB_STATUSES);
+        View[] all = {pageDownload, pageHold, pageStatuses, pageSettings};
+        String[] names = {TAB_DOWNLOAD, TAB_HOLD, TAB_STATUSES, TAB_SETTINGS};
+        for (int k = 0; k < all.length; k++) {
+            boolean on = names[k].equals(tab);
+            if (on && changed && all[k].getVisibility() != View.VISIBLE) {
+                // A quick fade in, so a tab switch reads as moving, not as a flicker.
+                all[k].animate().cancel();
+                all[k].setAlpha(0f);
+                all[k].animate().alpha(1f).setDuration(160).start();
+            }
+            all[k].setVisibility(on ? View.VISIBLE : View.GONE);
+        }
+        mark(R.id.tabDownload, R.id.tabDownloadPill, R.id.tabDownloadIcon, R.id.tabDownloadLabel, TAB_DOWNLOAD);
+        mark(R.id.tabHold, R.id.tabHoldPill, R.id.tabHoldIcon, R.id.tabHoldLabel, TAB_HOLD);
+        mark(R.id.tabStatuses, R.id.tabStatusesPill, R.id.tabStatusesIcon, R.id.tabStatusesLabel, TAB_STATUSES);
+        mark(R.id.tabSettings, R.id.tabSettingsPill, R.id.tabSettingsIcon, R.id.tabSettingsLabel, TAB_SETTINGS);
         if (changed) {
             hideKeyboard(linkField);
             if (!TAB_HOLD.equals(tab) && !selected.isEmpty()) stopSelecting();
             if (TAB_STATUSES.equals(tab)) statuses.resume();
+            if (TAB_SETTINGS.equals(tab)) settings.resume();
         }
         watchBack();
     }
 
-    /** The current tab: its icon in clay, its name in bold ink; the others muted. */
-    private void mark(int tabId, int iconId, int labelId, String which) {
+    /** The current tab: its icon in clay on a soft pill, its name in bold ink; the others muted. */
+    private void mark(int tabId, int pillId, int iconId, int labelId, String which) {
         boolean on = which.equals(tab);
+        findViewById(pillId).setActivated(on);
         ((ImageView) findViewById(iconId)).setImageTintList(ColorStateList.valueOf(getColor(on ? R.color.clay : R.color.ink_muted)));
         TextView label = findViewById(labelId);
         label.setTextColor(getColor(on ? R.color.ink : R.color.ink_muted));

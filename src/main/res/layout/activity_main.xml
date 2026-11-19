@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-Haul's screen: three tabs over one ground, the tab bar at the bottom in the ground's own color (no line), so it blends in.
+Haul's screen: four tabs over one ground, the tab bar at the bottom in the ground's own color (no line), so it blends in.
 - DOWNLOAD (page_download): where Haul opens. The wordmark and the link field; a link opens HAUL THIS AS.
 - DOWNLOADS: the hold. Every download as a numbered ticket with its picture; search, filters; long-press to select.
 - STATUSES (page_statuses): WhatsApp's statuses.
+- SETTINGS (page_settings).
 The status bar's height pads each page's top, the navigation bar the tab bar's bottom, in code. With the keyboard up the
 tab bar steps aside, so the field stays in view.
 -->
@@ -273,30 +274,44 @@ tab bar steps aside, so the field stays in view.
         <include
             layout="@layout/page_statuses"
             android:visibility="gone" />
+
+        <include
+            layout="@layout/page_settings"
+            android:visibility="gone" />
     </FrameLayout>
 
-    <!-- The tabs: the current one's icon in clay and its name in bold ink, the others muted. -->
+    <!-- The tabs: the current one's icon in clay on a soft pill, its name in bold ink; the others muted. -->
     <LinearLayout
         android:id="@+id/tabs"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/ground"
+        android:clipChildren="false"
         android:orientation="horizontal"
-        android:paddingStart="8dp"
+        android:paddingStart="4dp"
         android:paddingTop="6dp"
-        android:paddingEnd="8dp"
+        android:paddingEnd="4dp"
         android:paddingBottom="10dp">
 
         <LinearLayout
             android:id="@+id/tabDownload"
             style="@style/Haul.Tab">
 
-            <ImageView
-                android:id="@+id/tabDownloadIcon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:importantForAccessibility="no"
-                android:src="@drawable/ic_download" />
+            <FrameLayout
+                android:id="@+id/tabDownloadPill"
+                android:layout_width="56dp"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_tab_pill"
+                android:clipChildren="false">
+
+                <ImageView
+                    android:id="@+id/tabDownloadIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_download" />
+            </FrameLayout>
 
             <TextView
                 android:id="@+id/tabDownloadLabel"
@@ -309,8 +324,11 @@ tab bar steps aside, so the field stays in view.
             style="@style/Haul.Tab">
 
             <FrameLayout
-                android:layout_width="48dp"
-                android:layout_height="24dp">
+                android:id="@+id/tabHoldPill"
+                android:layout_width="56dp"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_tab_pill"
+                android:clipChildren="false">
 
                 <ImageView
                     android:id="@+id/tabHoldIcon"
@@ -326,7 +344,8 @@ tab bar steps aside, so the field stays in view.
                     android:layout_width="wrap_content"
                     android:layout_height="18dp"
                     android:layout_gravity="end|top"
-                    android:layout_marginTop="-4dp"
+                    android:layout_marginTop="-5dp"
+                    android:layout_marginEnd="-4dp"
                     android:background="@drawable/bg_count"
                     android:fontFamily="@font/jetbrains_mono_semibold"
                     android:gravity="center"
@@ -349,17 +368,52 @@ tab bar steps aside, so the field stays in view.
             android:id="@+id/tabStatuses"
             style="@style/Haul.Tab">
 
-            <ImageView
-                android:id="@+id/tabStatusesIcon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:importantForAccessibility="no"
-                android:src="@drawable/ic_status" />
+            <FrameLayout
+                android:id="@+id/tabStatusesPill"
+                android:layout_width="56dp"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_tab_pill"
+                android:clipChildren="false">
+
+                <ImageView
+                    android:id="@+id/tabStatusesIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_status" />
+            </FrameLayout>
 
             <TextView
                 android:id="@+id/tabStatusesLabel"
                 style="@style/Haul.TabLabel"
                 android:text="Statuses" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/tabSettings"
+            style="@style/Haul.Tab">
+
+            <FrameLayout
+                android:id="@+id/tabSettingsPill"
+                android:layout_width="56dp"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_tab_pill"
+                android:clipChildren="false">
+
+                <ImageView
+                    android:id="@+id/tabSettingsIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_sliders" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/tabSettingsLabel"
+                style="@style/Haul.TabLabel"
+                android:text="Settings" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

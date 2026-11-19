@@ -33,7 +33,8 @@ from is the "Haul redesign" canvas (App, System, Style boards).
 - Buttons: `Haul.Button.Primary` (clay, 54dp), `Haul.Button.Outline` (line, 48dp), `Haul.IconButton` (44dp square).
 - Choices: `Haul.Chip` (filters) and `Haul.Segment` (quality): ink fill when chosen (`setActivated`).
 - `Haul.Card` for settings groups and notices; bottom sheets on `bg_sheet` with `Haul.Handle`.
-- Tabs: Download · Downloads · Statuses, at the bottom, in the ground's own color with no line, so they blend in. The current one: clay icon, bold ink name; the others muted. A clay count on Downloads while any are going.
+- Tabs: Download · Downloads · Statuses · Settings, at the bottom, in the ground's own color with no line, so they blend in. The current one: clay icon on a soft raised pill (`bg_tab_pill`), bold ink name; the others muted. A clay count on Downloads while any are going. Switching fades the page in (160 ms).
+- Taps are felt: every button gives a little under the finger (`animator/press`, 96%, springing back) besides its ripple; status tiles too. A light haptic tick on a tab or a choice, a firmer one on paste, Download and Save.
 - The Download page: the wordmark (60sp) over the feed (`page_download`: tilted cards in the thumbnail tones with site tags, and the clay one pulled out, as in the logo, fading into the ground), and one pill field (`bg_pill`, clay outline once it holds a link) with a round clay button (`bg_go`): paste, then download.
 - HAUL THIS AS (`sheet_add`): the post's preview, quality segments, Clip a section, Download.
 - The selection bar: a floating card at the bottom of the Downloads tab while rows are selected.

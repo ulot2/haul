@@ -73,7 +73,10 @@ final class StatusesPage {
         chipWhatsApp.setOnClickListener(v -> show(Statuses.WHATSAPP));
         chipBusiness.setOnClickListener(v -> show(Statuses.BUSINESS));
         findViewById(R.id.stConnectGo).setOnClickListener(v -> pickFolder());
-        saveAll.setOnClickListener(v -> saveAll());
+        saveAll.setOnClickListener(v -> {
+            Look.confirm(v);
+            saveAll();
+        });
     }
 
     private <T extends View> T findViewById(int id) {
@@ -298,7 +301,10 @@ final class StatusesPage {
         String what = Haul.VIDEO.equals(s.kind) ? "Video" : Haul.AUDIO.equals(s.kind) ? "Voice status" : "Photo";
         box.setContentDescription(what + (s.modified > 0 ? ", " + DateUtils.getRelativeTimeSpanString(s.modified) : "")
                 + (had != null ? ", saved. Tap to open." : ". Tap to save."));
+        box.setForeground(a.getDrawable(R.drawable.fg_press));
+        box.setStateListAnimator(android.animation.AnimatorInflater.loadStateListAnimator(a, R.animator.press));
         box.setOnClickListener(v -> {
+            if (had == null) Look.confirm(v);
             if (had != null) {
                 a.startActivity(PlayerActivity.open(a, had.id, 0));
             } else if (!saving) {

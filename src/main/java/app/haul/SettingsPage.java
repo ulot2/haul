@@ -8,7 +8,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Icon;
 import android.os.Build;
-import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
@@ -16,57 +15,49 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** Settings: downloads, shortcuts, notifications, the engine, about. */
-public class SettingsActivity extends Activity {
+/** The Settings tab: downloads, shortcuts, notifications, the engine, about. MainActivity shows it and passes on its resume. */
+final class SettingsPage {
     private static final String AUDIO_TARGET = "app.haul.ShareAudio";
     private Button engineUpdate, aboutCheck;
     private TextView engineVersion, engineHelp, notifState, aboutCheckResult;
 
-    @Override
-    protected void onCreate(Bundle state) {
-        super.onCreate(state);
-        setContentView(R.layout.activity_settings);
-        MainActivity.edgeToEdge(this);
-        View content = findViewById(R.id.settingsContent);
-        int top = content.getPaddingTop(), bottom = content.getPaddingBottom();
-        findViewById(R.id.settingsScroll).setOnApplyWindowInsetsListener((v, insets) -> {
-            int[] b = MainActivity.bars(insets);
-            content.setPadding(content.getPaddingLeft(), top + b[1], content.getPaddingRight(), bottom + b[3]);
-            v.setPadding(b[0], 0, b[2], 0);
-            return insets;
-        });
-        findViewById(R.id.back).setOnClickListener(v -> finish());
-        findViewById(R.id.aboutWelcome).setOnClickListener(v -> startActivity(new Intent(this, WelcomeActivity.class)));
+    private final Activity a;
+    private final View root;
+
+    SettingsPage(Activity a, View root) {
+        this.a = a;
+        this.root = root;
+        findViewById(R.id.aboutWelcome).setOnClickListener(v -> a.startActivity(new Intent(a, WelcomeActivity.class)));
 
         Button[] q = {findViewById(R.id.sBest), findViewById(R.id.sSmall), findViewById(R.id.sAudio)};
         String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO};
         Runnable mark = () -> {
-            for (int k = 0; k < q.length; k++) q[k].setActivated(ids[k].equals(Haul.quality(this)));
+            for (int k = 0; k < q.length; k++) q[k].setActivated(ids[k].equals(Haul.quality(a)));
         };
         for (int k = 0; k < q.length; k++) {
             String id = ids[k];
             q[k].setOnClickListener(v -> {
-                Haul.setQuality(this, id);
+                Haul.setQuality(a, id);
                 mark.run();
             });
         }
         mark.run();
 
         Switch ask = findViewById(R.id.swAsk), audio = findViewById(R.id.swAudio), wifi = findViewById(R.id.swWifi);
-        ask.setChecked(Haul.askQuality(this));
-        ask.setOnCheckedChangeListener((b, on) -> Haul.set(this, "ask_quality", on));
-        audio.setChecked(Haul.audioTarget(this));
+        ask.setChecked(Haul.askQuality(a));
+        ask.setOnCheckedChangeListener((b, on) -> Haul.set(a, "ask_quality", on));
+        audio.setChecked(Haul.audioTarget(a));
         audio.setOnCheckedChangeListener((b, on) -> {
-            Haul.set(this, "audio_target", on);
+            Haul.set(a, "audio_target", on);
             // The second share target is an alias of the share screen; turning it off hides it from the share sheet.
-            getPackageManager().setComponentEnabledSetting(new ComponentName(this, AUDIO_TARGET),
+            a.getPackageManager().setComponentEnabledSetting(new ComponentName(a, AUDIO_TARGET),
                     on ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                     PackageManager.DONT_KILL_APP);
         });
-        wifi.setChecked(Haul.wifiOnly(this));
+        wifi.setChecked(Haul.wifiOnly(a));
         wifi.setOnCheckedChangeListener((b, on) -> {
-            Haul.set(this, "wifi_only", on);
-            Downloads.settingsChanged(this);
+            Haul.set(a, "wifi_only", on);
+            Downloads.settingsChanged(a);
         });
         ((TextView) findViewById(R.id.wifiHelp)).setText(Build.VERSION.SDK_INT >= 34
                 ? "Links wait in the hold until the phone is on Wi-Fi."
@@ -75,15 +66,15 @@ public class SettingsActivity extends Activity {
         findViewById(R.id.addTile).setOnClickListener(v -> addTile());
 
         notifState = findViewById(R.id.notifState);
-        findViewById(R.id.notifSettings).setOnClickListener(v -> Sheets.open(this, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
+        findViewById(R.id.notifSettings).setOnClickListener(v -> Sheets.open(a, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, a.getPackageName())));
 
         engineVersion = findViewById(R.id.engineVersion);
         engineHelp = findViewById(R.id.engineHelp);
         engineUpdate = findViewById(R.id.engineUpdate);
         engineUpdate.setOnClickListener(v -> updateEngine());
 
-        ((TextView) findViewById(R.id.aboutVersion)).setText("Haul " + Updates.installed(this));
+        ((TextView) findViewById(R.id.aboutVersion)).setText("Haul " + Updates.installed(a));
         aboutCheck = findViewById(R.id.aboutCheck);
         aboutCheckResult = findViewById(R.id.aboutCheckResult);
         aboutCheck.setOnClickListener(v -> checkForUpdate());
@@ -92,7 +83,7 @@ public class SettingsActivity extends Activity {
 
     /** With a newer Haul known, the button downloads it; otherwise it checks. */
     private void showUpdate() {
-        String newer = Updates.offered(this);
+        String newer = Updates.offered(a);
         aboutCheck.setEnabled(true);
         if (newer.isEmpty()) {
             aboutCheck.setText("Check for updates");
@@ -100,8 +91,8 @@ public class SettingsActivity extends Activity {
         } else {
             aboutCheck.setText("Download Haul " + newer);
             aboutCheck.setOnClickListener(v -> {
-                String url = Haul.prefs(this).getString("update_url", "");
-                if (!url.isEmpty()) Sheets.open(this, new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+                String url = Haul.prefs(a).getString("update_url", "");
+                if (!url.isEmpty()) Sheets.open(a, new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
             });
         }
     }
@@ -110,12 +101,12 @@ public class SettingsActivity extends Activity {
         aboutCheck.setEnabled(false);
         aboutCheck.setText("Checking…");
         new Thread(() -> {
-            Updates.Found found = Updates.checkNow(this);
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+            Updates.Found found = Updates.checkNow(a);
+            a.runOnUiThread(() -> {
+                if (a.isFinishing() || a.isDestroyed()) return;
                 aboutCheckResult.setVisibility(View.VISIBLE);
                 aboutCheckResult.setText(found == Updates.Found.NEWER
-                        ? "Haul " + Updates.offered(this) + " is out. Download it, open it, and tap Update. Your hold stays."
+                        ? "Haul " + Updates.offered(a) + " is out. Download it, open it, and tap Update. Your hold stays."
                         : found == Updates.Found.LATEST ? "You have the latest Haul."
                         : "Couldn't reach GitHub. Check your connection and try again.");
                 showUpdate();
@@ -123,32 +114,35 @@ public class SettingsActivity extends Activity {
         }, "haul-update-check").start();
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        boolean on = getSystemService(NotificationManager.class).areNotificationsEnabled();
+    private <T extends View> T findViewById(int id) {
+        return root.findViewById(id);
+    }
+
+    /** The tab is shown, or Haul is back on screen with it: notifications may have been turned on or off meanwhile. */
+    void resume() {
+        boolean on = a.getSystemService(NotificationManager.class).areNotificationsEnabled();
         notifState.setText(on ? "Notifications are on" : "Notifications are off");
-        String v = Engine.version(this);
+        String v = Engine.version(a);
         engineVersion.setText(v.isEmpty() ? "yt-dlp" : "yt-dlp " + v);
     }
 
     /** Android 13+ asks the user to add the tile right here; older Android has to be told where to drag it. */
     private void addTile() {
         if (Build.VERSION.SDK_INT >= 33) {
-            getSystemService(StatusBarManager.class).requestAddTileService(new ComponentName(this, HaulTile.class),
-                    "Haul", Icon.createWithResource(this, R.drawable.ic_notify), getMainExecutor(), result -> {
+            a.getSystemService(StatusBarManager.class).requestAddTileService(new ComponentName(a, HaulTile.class),
+                    "Haul", Icon.createWithResource(a, R.drawable.ic_notify), a.getMainExecutor(), result -> {
                         if (result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED) {
-                            Toast.makeText(this, "The Haul tile is already in Quick Settings", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(a, "The Haul tile is already in Quick Settings", Toast.LENGTH_SHORT).show();
                         }
                     });
         } else {
-            Toast.makeText(this, "Pull down the shade twice, tap the pencil, and drag Haul into your tiles.", Toast.LENGTH_LONG).show();
+            Toast.makeText(a, "Pull down the shade twice, tap the pencil, and drag Haul into your tiles.", Toast.LENGTH_LONG).show();
         }
     }
 
     private void updateEngine() {
         if (Downloads.busy()) {
-            Toast.makeText(this, "Wait until the downloads finish", Toast.LENGTH_SHORT).show();
+            Toast.makeText(a, "Wait until the downloads finish", Toast.LENGTH_SHORT).show();
             return;
         }
         engineUpdate.setEnabled(false);
@@ -156,16 +150,16 @@ public class SettingsActivity extends Activity {
         new Thread(() -> {
             String msg;
             try {
-                msg = Engine.update(this) ? "Updated to " + Engine.version(this) + "." : "Up to date. Checked just now.";
+                msg = Engine.update(a) ? "Updated to " + Engine.version(a) + "." : "Up to date. Checked just now.";
             } catch (Exception e) {
                 msg = "Couldn't reach GitHub. Try again later.";
             }
             String m = msg;
-            runOnUiThread(() -> {
+            a.runOnUiThread(() -> {
                 engineUpdate.setEnabled(true);
                 engineUpdate.setText("Update");
                 engineHelp.setText(m);
-                String v = Engine.version(this);
+                String v = Engine.version(a);
                 engineVersion.setText(v.isEmpty() ? "yt-dlp" : "yt-dlp " + v);
             });
         }).start();

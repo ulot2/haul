@@ -41,11 +41,6 @@
             android:name=".WelcomeActivity"
             android:exported="false" />
 
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false"
-            android:parentActivityName=".MainActivity" />
-
         <!-- Over the app a link came from: takes the link from the share sheet (TikTok, Instagram, X...), starts the
              download (after a quick quality choice, if that setting is on), and closes. -->
         <activity
