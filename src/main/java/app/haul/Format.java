@@ -21,6 +21,18 @@ final class Format {
         return String.format(Locale.ROOT, "%.2f GB", mb / 1024);
     }
 
+    /** A moment to a tenth of a second, for clipping sounds: 12345 (ms) → "0:12.3", 3725000 → "1:02:05.0". */
+    static String exact(long millis) {
+        long tenths = Math.max(0, Math.round(millis / 100.0));
+        int seconds = (int) (tenths / 10);
+        return clock(seconds) + "." + (tenths % 10);
+    }
+
+    /** 30000 (ms) → "30.0 s", 95500 → "1:35.5". */
+    static String span(long millis) {
+        return millis < 60_000 ? String.format(Locale.ROOT, "%.1f s", Math.round(millis / 100.0) / 10.0) : exact(millis);
+    }
+
     /** 148 → "0148". */
     static String ticket(int no) {
         return String.format(Locale.ROOT, "%04d", Math.max(0, no));
@@ -32,6 +44,18 @@ final class Format {
         int total = 0;
         for (String part : text.trim().split(":")) total = total * 60 + Integer.parseInt(part);
         return total;
+    }
+
+    /**
+     * What happened to a list of links: "Downloading 3 links · 1 already saved · 1 already in line"; when none was
+     * new, only what they already were.
+     */
+    static String many(int added, int saved, int waiting) {
+        StringBuilder s = new StringBuilder();
+        if (added > 0) s.append("Downloading ").append(added).append(added == 1 ? " link" : " links");
+        if (saved > 0) s.append(s.length() > 0 ? " · " : "").append(saved).append(" already saved");
+        if (waiting > 0) s.append(s.length() > 0 ? " · " : "").append(waiting).append(" already in line");
+        return s.length() == 0 ? "No links" : s.toString();
     }
 
     private Format() {}

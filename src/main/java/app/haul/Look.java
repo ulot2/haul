@@ -41,6 +41,7 @@ final class Look {
             case "Threads": return "TH";
             case "Pinterest": return "PN";
             case "Vimeo": return "VM";
+            case "WhatsApp": return "WA";
             default: return site.length() > 2 ? site.substring(0, 2).toUpperCase(java.util.Locale.ROOT) : site.toUpperCase(java.util.Locale.ROOT);
         }
     }
@@ -76,6 +77,7 @@ final class Look {
             s = Haul.AUDIO.equals(i.quality) ? "Audio" : qualityName(i.quality);
         }
         if (i.clipped()) s += " · clip " + Format.clock(i.clipStart) + "–" + Format.clock(i.clipEnd);
+        if (i.cut()) s += " · clip " + Format.exact(i.cutFrom) + "–" + Format.exact(i.cutTo);
         return s;
     }
 
@@ -85,6 +87,16 @@ final class Look {
         if (DateUtils.isToday(time)) return "Today " + DateUtils.formatDateTime(c, time, DateUtils.FORMAT_SHOW_TIME);
         if (DateUtils.isToday(time + DateUtils.DAY_IN_MILLIS)) return "Yesterday";
         return DateUtils.formatDateTime(c, time, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH);
+    }
+
+    /** A day, for when a post went up: "Nov 3", with the year when it isn't this year's. */
+    static String day(Context c, long time) {
+        if (time <= 0) return "–";
+        int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
+        java.util.Calendar then = java.util.Calendar.getInstance(), now = java.util.Calendar.getInstance();
+        then.setTimeInMillis(time);
+        if (then.get(java.util.Calendar.YEAR) != now.get(java.util.Calendar.YEAR)) flags |= DateUtils.FORMAT_SHOW_YEAR;
+        return DateUtils.formatDateTime(c, time, flags);
     }
 
     /** "tiktok.com/@user/video/73…" without the https:// and the tracking query. */

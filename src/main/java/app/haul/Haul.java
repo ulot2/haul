@@ -30,7 +30,8 @@ final class Haul {
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
     /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of each with the sound. */
     static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";
-    private static final int KEEP = 50;
+    /** How many hauls the hold keeps; the oldest finished ones go first. Search makes a long hold easy to look through. */
+    private static final int KEEP = 200;
     private static final Pattern LINK = Pattern.compile("https?://[^\\s<>\"'{}|\\\\^`]+", Pattern.CASE_INSENSITIVE);
 
     /** One link the user asked for, and what came of it. */
@@ -42,6 +43,11 @@ final class Haul {
         String took = "";              // where the download's time went, from Stages ("12.4 s: start 2.1 · read 3.4 …")
         boolean sound;                 // saved photos whose last file is the post's sound (a TikTok photo post)
         String as = "";                // AS_PHOTOS or AS_SLIDESHOW for a TikTok photo post; "" otherwise
+        String caption = "", by = "";  // what the post said, and who posted it; "" when unknown (or saved before Haul kept them)
+        long posted;                   // when it was posted, in milliseconds; 0 when unknown
+        String page = "";              // the post's own address, as the site gave it (a short link's full one)
+        String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
+        long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
         int count = 0;                 // files saved; a post with several videos or photos saves several
@@ -55,7 +61,9 @@ final class Haul {
                     .put("quality", quality).put("count", count).put("time", time).put("kind", kind)
                     .put("uris", new JSONArray(uris)).put("no", no).put("clipStart", clipStart).put("clipEnd", clipEnd)
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
-                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds);
+                    .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
+                    .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
+                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo);
         }
 
         static Item of(JSONObject o) {
@@ -87,6 +95,13 @@ final class Haul {
             i.sound = o.optBoolean("sound");
             i.took = o.optString("took");
             i.seconds = o.optInt("seconds");
+            i.caption = o.optString("caption");
+            i.by = o.optString("by");
+            i.posted = o.optLong("posted");
+            i.page = o.optString("page");
+            i.source = o.optString("source");
+            i.cutFrom = o.optLong("cutFrom", -1);
+            i.cutTo = o.optLong("cutTo", -1);
             return i;
         }
 
@@ -101,6 +116,11 @@ final class Haul {
 
         boolean clipped() {
             return clipStart >= 0 && clipEnd > clipStart;
+        }
+
+        /** A sound clipped from a file already saved, not a download: made on the phone, no site involved. */
+        boolean cut() {
+            return !source.isEmpty() && cutFrom >= 0 && cutTo > cutFrom;
         }
     }
 
@@ -145,7 +165,7 @@ final class Haul {
         changed();
     }
 
-    // ---- The hold: the last 50 hauls, newest first ----
+    // ---- The hold: the last 200 hauls, newest first ----
 
     static synchronized List<Item> items(Context c) {
         return new ArrayList<>(load(c));
@@ -158,6 +178,12 @@ final class Haul {
 
     /** A new haul for this link, with its own quality and, if wanted, a section (seconds; -1 for the whole). */
     static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
+        return add(c, url, quality, clipStart, clipEnd, pick, as, seconds, null);
+    }
+
+    /** The same, with more set up (setup, when given) before the queue can see it. */
+    static synchronized Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds,
+                                 Consumer<Item> setup) {
         List<Item> list = load(c);
         Item i = new Item();
         i.time = System.currentTimeMillis();
@@ -172,6 +198,7 @@ final class Haul {
         i.seconds = Math.max(0, seconds);
         int no = prefs(c).getInt("next_no", 1);
         i.no = no;
+        if (setup != null) setup.accept(i);
         prefs(c).edit().putInt("next_no", no + 1).apply();
         list.add(0, i);
         // Trim the oldest finished ones; never drop one that is still going.
@@ -249,6 +276,29 @@ final class Haul {
         return null;
     }
 
+    /**
+     * The newest saved haul of the same post, saved the same way (as sound, as a GIF, or as video and photos), or null.
+     * A clip is a section picked on purpose, so it doesn't count either way.
+     */
+    static synchronized Item saved(Context c, String url, String quality) {
+        for (Item i : load(c)) {
+            if (!DONE.equals(i.status) || i.clipped() || i.cut() || !sameWay(i.quality, quality)) continue;
+            if (Seen.same(url, i.url) || Seen.same(url, i.page)) return i;
+        }
+        return null;
+    }
+
+    /** Best and 720p are both "the video"; the sound alone and a GIF are other things to keep. */
+    static boolean sameWay(String a, String b) {
+        boolean audioA = AUDIO.equals(a), audioB = AUDIO.equals(b), gifA = GIF.equals(a), gifB = GIF.equals(b);
+        return audioA == audioB && gifA == gifB;
+    }
+
+    /** True when the search finds this haul: in its title, caption, creator, site, link or ticket number ("148"). */
+    static boolean matches(Item i, String query) {
+        return Find.matches(query, i.title, i.caption, i.by, i.site, i.url, i.page, "No. " + Format.ticket(i.no));
+    }
+
     static void setProgress(String id, float percent) {
         progress.put(id, percent);
         changed();
@@ -301,10 +351,33 @@ final class Haul {
     static String firstLink(CharSequence text) {
         if (text == null) return null;
         Matcher m = LINK.matcher(text);
-        if (!m.find()) return null;
-        String url = m.group();
+        while (m.find()) {
+            String url = trim(m.group());
+            if (!url.isEmpty()) return url;
+        }
+        return null;
+    }
+
+    /**
+     * Every link in some text, in order, each post once (the same post under two links counts once): a list pasted
+     * from notes or a chat. Empty when there is none.
+     */
+    static List<String> links(CharSequence text) {
+        List<String> out = new ArrayList<>();
+        if (text == null) return out;
+        java.util.Set<String> posts = new java.util.HashSet<>();
+        Matcher m = LINK.matcher(text);
+        while (m.find()) {
+            String url = trim(m.group());
+            if (!url.isEmpty() && posts.add(Seen.key(url))) out.add(url);
+        }
+        return out;
+    }
+
+    /** A link without the punctuation that ends the sentence around it: "(see https://x.com/a/status/1)." */
+    private static String trim(String url) {
         while (!url.isEmpty() && ".,;:!?)]".indexOf(url.charAt(url.length() - 1)) >= 0) url = url.substring(0, url.length() - 1);
-        return url.isEmpty() ? null : url;
+        return url;
     }
 
     /** "TikTok", "Instagram", "X"... from the link, for the list. Unknown sites show their address. */

@@ -3,7 +3,7 @@
 THE HOLD (Freight). Haul is a cargo manifest: every download is a numbered ticket with its picture.
 STORY: most hauls start from the share sheet. When this screen is open, the copied link waits in the dock at the
 bottom, one tap from downloading; the hold above shows what came in. Tap a row for its sheet.
-FIRST VIEWPORT: the wordmark, the filters, the newest hauls, and the dock.
+FIRST VIEWPORT: the wordmark, the search, the filters, the newest hauls, and the dock.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
@@ -24,6 +24,7 @@ FIRST VIEWPORT: the wordmark, the filters, the newest hauls, and the dock.
             android:id="@+id/content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:focusableInTouchMode="true"
             android:orientation="vertical"
             android:paddingStart="20dp"
             android:paddingTop="22dp"
@@ -49,6 +50,13 @@ FIRST VIEWPORT: the wordmark, the filters, the newest hauls, and the dock.
                     android:layout_marginStart="10dp"
                     android:layout_weight="1"
                     android:text="HAUL" />
+
+                <ImageButton
+                    android:id="@+id/statuses"
+                    style="@style/Haul.IconButton"
+                    android:layout_marginEnd="8dp"
+                    android:contentDescription="WhatsApp statuses"
+                    android:src="@drawable/ic_status" />
 
                 <ImageButton
                     android:id="@+id/settings"
@@ -83,10 +91,56 @@ FIRST VIEWPORT: the wordmark, the filters, the newest hauls, and the dock.
                     android:visibility="gone" />
             </LinearLayout>
 
+            <!-- Search the hold: captions, titles, creators, sites, links, ticket numbers. Works with the filters. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_field"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingEnd="4dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:alpha="0.6"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_search" />
+
+                <EditText
+                    android:id="@+id/search"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:fontFamily="@font/archivo_regular"
+                    android:hint="Search captions, creators, sites"
+                    android:imeOptions="actionSearch"
+                    android:importantForAutofill="no"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:textColor="@color/ink"
+                    android:textColorHint="@color/ink_muted"
+                    android:textSize="15sp" />
+
+                <ImageButton
+                    android:id="@+id/searchClear"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@null"
+                    android:contentDescription="Clear search"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_close"
+                    android:visibility="gone" />
+            </LinearLayout>
+
             <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="12dp"
                 android:scrollbars="none">
 
                 <LinearLayout
