@@ -29,9 +29,9 @@ import android.widget.Toast;
 /**
  * The floating badge: while Haul reads a post shared from another app, it floats over that app (Android's "Display
  * over other apps"), so the user carries on instead of waiting.
- * - Reading: a capsule, Haul's turning mark and "Reading the post…", for 3 seconds; then it draws in to an 80dp disc,
+ * - Reading: a capsule, Haul's turning mark and "Reading the post…", for 3 seconds; then it draws in to a 68dp disc,
  *   the mark with a clay arc running round it. A tap opens it out again.
- * - Something to pick: a clay capsule, the count, "Pick the photos", for 5 seconds; then an 80dp clay disc with the
+ * - Something to pick: a clay capsule, the count, "Pick the photos", for 5 seconds; then a 68dp clay disc with the
  *   count. Either way rings ripple out of it until it's tapped; a tap opens the picker.
  * - Done: a clay check and "Downloading", then it fades away.
  * Drag it anywhere: let go, it settles on the nearer side (and grows and shrinks from that side), and stays there
@@ -42,12 +42,12 @@ final class Badge {
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final int READING = 1, PICK = 2, DONE = 3;
     private static final int OPEN_READING = 3000, OPEN_PICK = 5000;
-    /** dp around the badge, inside its window, for the rings to ripple into. */
-    private static final int ROOM = 24;
+    /** dp around the badge, inside its window, for the rings to ripple into; and the drawn-in disc's size. */
+    private static final int ROOM = 24, DISC = 68;
 
-    private static FrameLayout window, holder, disc, iconBox;
+    private static FrameLayout window, disc, iconBox;
+    private static Rings holder;
     private static LinearLayout capsule, discCount;
-    private static View ring;
     private static ImageView loader, check, chevron, discMark;
     private static ProgressBar arc;
     private static TextView title, label, iconCount, discNumber;
@@ -210,18 +210,9 @@ final class Badge {
         window = new FrameLayout(c);
         window.setClipChildren(false);
         window.setPadding(room, room, room, room);
-        holder = new FrameLayout(c);
-        holder.setClipChildren(false);
+        // Holds the capsule or the disc, exactly its size, and draws the rings round it (see Rings).
+        holder = new Rings(c);
         window.addView(holder, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        // The ring, the badge's own shape, behind it: ripples out while something waits to be picked.
-        ring = new View(c);
-        GradientDrawable ringShape = new GradientDrawable();
-        ringShape.setCornerRadius(dp(c, 999));
-        ringShape.setStroke(dp(c, 3), c.getColor(R.color.clay));
-        ring.setBackground(ringShape);
-        ring.setAlpha(0f);
-        holder.addView(ring, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         // The capsule: 64dp tall, an icon disc, two lines of words, an arrow when it's a button.
         capsule = new LinearLayout(c);
@@ -263,30 +254,30 @@ final class Badge {
         capsule.addView(chevron, arrow);
         holder.addView(capsule, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(c, 64)));
 
-        // The disc: 80dp, the mark with a clay arc running round it, or the count and PICK.
+        // The disc: 68dp, the mark with a clay arc running round it, or the count and PICK.
         disc = new FrameLayout(c);
         disc.setElevation(dp(c, 8));
         arc = new ProgressBar(c, null, android.R.attr.progressBarStyleLarge);
         arc.setIndeterminate(true);
         arc.setIndeterminateTintList(ColorStateList.valueOf(c.getColor(R.color.clay)));
-        disc.addView(arc, new FrameLayout.LayoutParams(dp(c, 76), dp(c, 76), Gravity.CENTER));
+        disc.addView(arc, new FrameLayout.LayoutParams(dp(c, DISC - 4), dp(c, DISC - 4), Gravity.CENTER));
         discMark = new ImageView(c);
         discMark.setImageResource(R.drawable.ic_mark);
-        disc.addView(discMark, new FrameLayout.LayoutParams(dp(c, 34), dp(c, 40), Gravity.CENTER));
+        disc.addView(discMark, new FrameLayout.LayoutParams(dp(c, 28), dp(c, 32), Gravity.CENTER));
         discCount = new LinearLayout(c);
         discCount.setOrientation(LinearLayout.VERTICAL);
         discCount.setGravity(Gravity.CENTER);
-        discNumber = text(c, 30, R.font.archivo_condensed_black, Gravity.CENTER);
+        discNumber = text(c, 26, R.font.archivo_condensed_black, Gravity.CENTER);
         discNumber.setTextColor(c.getColor(R.color.on_clay));
         discNumber.setIncludeFontPadding(false);
-        TextView pickWord = text(c, 10, R.font.jetbrains_mono_semibold, Gravity.CENTER);
+        TextView pickWord = text(c, 9, R.font.jetbrains_mono_semibold, Gravity.CENTER);
         pickWord.setText("PICK");
         pickWord.setLetterSpacing(0.09f);
         pickWord.setTextColor(c.getColor(R.color.on_clay));
         discCount.addView(discNumber);
         discCount.addView(pickWord);
         disc.addView(discCount, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        holder.addView(disc, new FrameLayout.LayoutParams(dp(c, 80), dp(c, 80)));
+        holder.addView(disc, new FrameLayout.LayoutParams(dp(c, DISC), dp(c, DISC)));
         disc.setVisibility(View.GONE);
 
         params = new WindowManager.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -348,6 +339,44 @@ final class Badge {
         listening = false;
     }
 
+    /**
+     * Holds the badge (the capsule or the disc), exactly its size, and draws the rippling ring round its outline: the
+     * same rounded shape, grown by up to the room around it (inside the window), fading as it goes. Drawn, not a view of
+     * its own: a view filling its parent would make a wrapped window as big as the screen.
+     */
+    private static final class Rings extends FrameLayout {
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF box = new android.graphics.RectF();
+        private float t = -1f;
+
+        Rings(Context c) {
+            super(c);
+            setClipChildren(false);
+            setWillNotDraw(false);
+            paint.setStyle(android.graphics.Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(c, 3));
+        }
+
+        /** 0 to 1 through one ripple; below 0, no ring. */
+        void ring(float t) {
+            this.t = t;
+            invalidate();
+        }
+
+        @Override
+        protected void dispatchDraw(android.graphics.Canvas canvas) {
+            if (t >= 0f && getWidth() > 0) {
+                float grow = dp(getContext(), ROOM) * t;
+                box.set(-grow, -grow, getWidth() + grow, getHeight() + grow);
+                float radius = Math.min(box.width(), box.height()) / 2f;
+                paint.setColor(getContext().getColor(R.color.clay));
+                paint.setAlpha(Math.round(205 * (1f - t)));
+                canvas.drawRoundRect(box, radius, radius, paint);
+            }
+            super.dispatchDraw(canvas);
+        }
+    }
+
     /** Rings ripple out of the badge (its own shape, growing by the room around it) and fade; it swells a little with each. */
     private static void startPulse() {
         if (pulse != null) return;
@@ -356,11 +385,9 @@ final class Badge {
         pulse.setRepeatCount(ValueAnimator.INFINITE);
         pulse.setInterpolator(new DecelerateInterpolator());
         pulse.addUpdateListener(a -> {
-            if (ring == null || holder == null || holder.getWidth() == 0) return;
-            float t = (float) a.getAnimatedValue(), grow = 2f * dp(app, ROOM) * t;
-            ring.setScaleX(1f + grow / holder.getWidth());
-            ring.setScaleY(1f + grow / holder.getHeight());
-            ring.setAlpha(0.8f * (1f - t));
+            if (holder == null) return;
+            float t = (float) a.getAnimatedValue();
+            holder.ring(t);
             View face = expanded ? capsule : disc;
             float swell = 1f + 0.05f * (float) Math.sin(Math.PI * Math.min(1f, t * 2.5f));
             face.setScaleX(swell);
@@ -372,7 +399,7 @@ final class Badge {
     private static void stopPulse() {
         if (pulse != null) pulse.cancel();
         pulse = null;
-        if (ring != null) ring.setAlpha(0f);
+        if (holder != null) holder.ring(-1f);
         for (View v : new View[]{capsule, disc}) {
             if (v == null) continue;
             v.setScaleX(1f);

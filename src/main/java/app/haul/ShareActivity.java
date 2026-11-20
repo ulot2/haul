@@ -58,6 +58,19 @@ public class ShareActivity extends Activity {
         }
     }
 
+    // The badge steps aside while Haul's own sheets are up (the picker, the quality); it's back when they close.
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Badge.haulOnScreen(true);
+    }
+
+    @Override
+    protected void onPause() {
+        Badge.haulOnScreen(false);
+        super.onPause();
+    }
+
     /** HAUL THIS AS: three buttons over the app the link came from; the default quality is the filled one. */
     private void ask(String url) {
         setContentView(R.layout.sheet_quality);
