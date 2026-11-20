@@ -37,6 +37,10 @@ final class Sheets {
         int clipStart = -1, clipEnd = -1;
         Engine.Info info;     // the video's length and picture, read once per link
         String infoUrl = "";
+        /** From the share sheet: what Download does with one link (instead of Choose.add), so it can go on aside. */
+        Go go;
+        /** Backed out (Back, or a tap outside HAUL THIS AS or the clip sheet): the share screen closes. */
+        Runnable onCancel;
 
         Draft(String url, String quality) {
             this.url = url == null ? "" : url;
@@ -46,6 +50,11 @@ final class Sheets {
         boolean clipped() {
             return clipStart >= 0 && clipEnd > clipStart;
         }
+    }
+
+    /** Downloads one link, in this quality and section (seconds; -1 for the whole). */
+    interface Go {
+        void go(String url, String quality, int clipStart, int clipEnd);
     }
 
     /** Called with the link once a new haul is in the queue. */
@@ -178,9 +187,16 @@ final class Sheets {
             }
             // A TikTok photo post asks how to save it; an Instagram carousel lets the user pick; a post already saved
             // says so.
+            if (draft.go != null) {
+                draft.go.go(url, draft.quality, draft.clipStart, draft.clipEnd);
+                return;
+            }
             Choose.add(a, url, draft.quality, draft.clipStart, draft.clipEnd, i -> {
                 if (i != null) added.on(url);
             });
+        });
+        d.setOnCancelListener(x -> {
+            if (draft.onCancel != null) draft.onCancel.run();
         });
         d.show();
         return d;
@@ -196,6 +212,9 @@ final class Sheets {
 
     private static void clip(Activity a, Draft draft, Added added) {
         Dialog d = sheet(a, R.layout.sheet_clip);
+        d.setOnCancelListener(x -> {
+            if (draft.onCancel != null) draft.onCancel.run();
+        });
         ImageView preview = d.findViewById(R.id.clipPreview);
         TextView previewLabel = d.findViewById(R.id.clipPreviewLabel);
         ImageView loading = d.findViewById(R.id.clipLoading);

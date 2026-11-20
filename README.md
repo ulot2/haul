@@ -70,7 +70,7 @@ Videos come as MP4 with H.264 video and AAC audio, because those play everywhere
 - **720p**: smaller files: at most 720p (the largest the site has up to that).
 - **Audio**: just the sound, as M4A, in **Music/Haul**.
 
-The default is in **Settings**, which can also ask each time you share. Photos (Instagram photo posts and carousels, TikTok slideshows) land in **Pictures/Haul**. **Wi‑Fi only** keeps links waiting until the phone is on Wi‑Fi (on Android 13 and older they stop with a note instead).
+The default is in **Settings**. Turn on **Ask when sharing** and sharing a post opens **HAUL THIS AS** over the app you're in, the same as in Haul: the quality, and **Clip a section** to keep only part of a video. Off, a shared post downloads at once. Photos (Instagram photo posts and carousels, TikTok slideshows) land in **Pictures/Haul**. **Wi‑Fi only** keeps links waiting until the phone is on Wi‑Fi (on Android 13 and older they stop with a note instead).
 
 A clip is cut at the nearest keyframe, without re-encoding, so it is quick but may start a second or two early.
 
