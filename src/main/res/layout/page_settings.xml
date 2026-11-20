@@ -58,11 +58,11 @@
                 android:orientation="horizontal">
 
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ask quality when sharing" />
-                    <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="A small sheet opens over TikTok, so you pick Best, 720p or Audio each time." />
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ask when sharing" />
+                    <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="HAUL THIS AS opens over TikTok: the quality, and Clip a section if you want only part of it. Off: it downloads at once." />
                 </LinearLayout>
 
-                <Switch android:id="@+id/swAsk" style="@style/Haul.Switch" android:layout_marginStart="14dp" android:contentDescription="Ask quality when sharing" />
+                <Switch android:id="@+id/swAsk" style="@style/Haul.Switch" android:layout_marginStart="14dp" android:contentDescription="Ask when sharing" />
             </LinearLayout>
 
             <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="14dp" android:background="@color/line" />
