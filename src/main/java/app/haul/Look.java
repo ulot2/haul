@@ -53,6 +53,7 @@ final class Look {
 
     /** What a haul is doing before there is a percent, in the notification and the hold. */
     static String stage(Haul.Item i, float progress) {
+        if (i.decide) return "Reading the post";
         if (progress == Engine.Progress.READING) return Haul.PHOTOS.equals(i.kind) || !i.as.isEmpty() ? "Reading the post" : "Reading the link";
         if (progress == Engine.Progress.WORKING) {
             if (Haul.AS_SLIDESHOW.equals(i.as)) return i.pick.contains(",") || i.pick.isEmpty() ? "Making the videos" : "Making the video";

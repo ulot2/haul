@@ -46,10 +46,13 @@ public class ClipActivity extends Activity {
         }
         String link = url;
         // Same questions as the share sheet: how to save a TikTok photo post, which items of an Instagram carousel.
-        Choose.add(this, link, Haul.quality(this), -1, -1, i -> {
+        Choose.add(this, link, Haul.quality(this), -1, -1, true, i -> {
             if (i != null) {
                 Haul.prefs(this).edit().putString("last_filled", link).apply();   // the hold won't offer it again
-                Toast.makeText(this, "Haul: downloading from " + Haul.site(link), Toast.LENGTH_SHORT).show();
+                if (!i.decide || !Badge.allowed(this)) {   // the badge says it otherwise
+                    Toast.makeText(this, (i.decide ? "Haul: reading the post from " : "Haul: downloading from ") + Haul.site(link),
+                            Toast.LENGTH_SHORT).show();
+                }
             }
             close();
         });

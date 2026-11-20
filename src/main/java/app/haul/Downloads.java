@@ -114,6 +114,21 @@ final class Downloads {
         return i;
     }
 
+    /**
+     * A link shared from another app that has to be read first (Reading.needed): into the hold at once, while the
+     * share screen is still up (so Android lets the queue start), and read by the queue beside any download. Null when
+     * this link is already waiting or going.
+     */
+    static Haul.Item addToRead(Context c, String url, String quality) {
+        Haul.Item i;
+        synchronized (Downloads.class) {
+            if (Haul.activeFor(c, url, "", "") != null) return null;
+            i = Haul.add(c, url, quality, -1, -1, "", "", 0, x -> x.decide = true);
+        }
+        start(c);
+        return i;
+    }
+
     /** Tries an existing (failed, canceled or finished) haul again, with the quality and section it had. */
     static void retry(Context c, String id) {
         Haul.update(c, id, i -> {
@@ -219,6 +234,8 @@ final class Downloads {
         work.setShowBadge(false);
         nm.createNotificationChannel(work);
         nm.createNotificationChannel(new NotificationChannel(CH_DONE, "Finished downloads", NotificationManager.IMPORTANCE_DEFAULT));
+        // A post read in the background with something to pick from: shown over the app the user is in.
+        nm.createNotificationChannel(new NotificationChannel(Reading.CH_CHOOSE, "Posts to pick from", NotificationManager.IMPORTANCE_HIGH));
     }
 
     // ---- The runner ----
@@ -272,7 +289,19 @@ final class Downloads {
                         active = stopped == REQUEUE;   // Android starts the job again later
                         return false;
                     }
+                    // Links shared to be read first are read beside the downloads, each on a thread of its own, so a
+                    // long download doesn't keep the user waiting to pick from a post.
+                    for (Haul.Item r; (r = Haul.takeReading(c)) != null; ) read(r);
                     next = Haul.takeNext(c);
+                    if (next == null && readers.get() > 0) {
+                        if (current == null) host.show(ongoing("Reading the post…", null, -1, null));
+                        try {
+                            LOCK.wait(1000);   // a reader done: it may have left a link to download
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        continue;
+                    }
                     if (next == null && (updated || !Engine.stale(c))) {
                         active = false;
                         return true;
@@ -286,6 +315,31 @@ final class Downloads {
                     Engine.updateIfStale(c);
                 }
             }
+        }
+
+        /** Links being read right now, each on its own thread. */
+        private final java.util.concurrent.atomic.AtomicInteger readers = new java.util.concurrent.atomic.AtomicInteger();
+
+        private void read(Haul.Item item) {
+            readers.incrementAndGet();
+            Haul.setProgress(item.id, Engine.Progress.READING);
+            new Thread(() -> {
+                try {
+                    Reading.decide(c, item);
+                } catch (Exception e) {
+                    // couldn't be read here: download the link as it is, which says what went wrong if it fails
+                    Haul.update(c, item.id, i -> {
+                        if (!Haul.WORKING.equals(i.status)) return;
+                        i.decide = false;
+                        i.status = Haul.QUEUED;
+                    });
+                } finally {
+                    readers.decrementAndGet();
+                    synchronized (LOCK) {
+                        LOCK.notifyAll();
+                    }
+                }
+            }, "haul-reading").start();
         }
 
         /** Called on the main thread when Android stops the host, with the reason to show. Must return at once. */

@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The badge that floats over the app a post was shared from while Haul reads it (Badge); asked once. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Android 14+: downloads run as a user-initiated data transfer job (HaulJob), which waits for a connection. -->
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
     <!-- To say "waiting for a connection" in the hold. -->

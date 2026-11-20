@@ -15,6 +15,8 @@ import android.widget.Toast;
  * from notes) downloads them all, with no questions.
  */
 public class ShareActivity extends Activity {
+    /** Opened from the badge or the "pick" notification: the picker for a post read in the background (Reading). */
+    static final String ACTION_CHOOSE = "app.haul.CHOOSE", EXTRA_CHOOSE = "choose";
     /** Every link in what was shared; more than one makes it a list. */
     private java.util.List<String> links = new java.util.ArrayList<>();
 
@@ -22,6 +24,16 @@ public class ShareActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Intent in = getIntent();
+        if (ACTION_CHOOSE.equals(in.getAction())) {
+            Haul.Item waiting = Haul.get(this, in.getStringExtra(EXTRA_CHOOSE));
+            if (waiting == null || !Haul.CHOOSE.equals(waiting.status)) {
+                Toast.makeText(this, "Haul: that post was picked from already", Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+            Choose.choose(this, waiting, i -> finish());
+            return;
+        }
         CharSequence text = null;
         if (Intent.ACTION_SEND.equals(in.getAction())) {
             text = in.getCharSequenceExtra(Intent.EXTRA_TEXT);
@@ -83,15 +95,60 @@ public class ShareActivity extends Activity {
             finish();
             return;
         }
-        // A TikTok photo post asks how to save it, and an Instagram carousel shows its items to pick, over the app the
-        // link came from; anything else is added at once.
-        Choose.add(this, url, quality, -1, -1, i -> {
-            if (i != null) confirm(url, quality);
+        // A post that has to be read first (a TikTok photo post, an Instagram carousel, a TikTok short link) is read
+        // aside, with a badge floating over the app; asked once whether that badge may float there.
+        if (Reading.needed(url, quality, -1) && !Badge.allowed(this) && !Haul.prefs(this).getBoolean("asked_overlay", false)) {
+            askBadge(url, quality);
+            return;
+        }
+        go(url, quality, null);
+    }
+
+    private void go(String url, String quality, Runnable after) {
+        Choose.add(this, url, quality, -1, -1, true, i -> {
+            if (i != null) confirm(url, quality, i);
+            if (after != null) after.run();
             finish();
         });
     }
 
-    private void confirm(String url, String quality) {
+    /** KEEP SCROLLING: may the badge float over other apps? Allow opens Android's switch for it; the link goes on either way. */
+    private void askBadge(String url, String quality) {
+        setContentView(R.layout.sheet_overlay);
+        Haul.prefs(this).edit().putBoolean("asked_overlay", true).apply();
+        android.view.View sheet = findViewById(R.id.oSheet);
+        int pad = sheet.getPaddingBottom();
+        findViewById(R.id.oScrim).setOnApplyWindowInsetsListener((v, insets) -> {
+            sheet.setPadding(sheet.getPaddingLeft(), sheet.getPaddingTop(), sheet.getPaddingRight(), pad + MainActivity.bars(insets)[3]);
+            return insets;
+        });
+        Runnable later = () -> {
+            findViewById(R.id.oScrim).setVisibility(android.view.View.GONE);
+            go(url, quality, null);
+        };
+        findViewById(R.id.oScrim).setOnClickListener(v -> later.run());
+        findViewById(R.id.oLater).setOnClickListener(v -> later.run());
+        findViewById(R.id.oAllow).setOnClickListener(v -> {
+            findViewById(R.id.oScrim).setVisibility(android.view.View.GONE);
+            // This post goes on with a notification; once allowed, the next one gets the badge.
+            go(url, quality, () -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:" + getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                } catch (Exception ignored) {
+                    // no such screen on this phone: Settings › Floating badge says where
+                }
+            });
+        });
+    }
+
+    private void confirm(String url, String quality, Haul.Item i) {
+        if (i.decide && Badge.allowed(this)) return;   // the badge says it
+        if (i.decide) {
+            Toast.makeText(this, "Haul: reading the " + Haul.site(url) + " post. Carry on; a notification says when it's ready.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (!getSystemService(NotificationManager.class).areNotificationsEnabled()) {
             // Without notifications there is no progress and no "saved" message, so say where to look.
             Toast.makeText(this, "Haul: downloading from " + Haul.site(url) + ". Open Haul to see when it's done, "

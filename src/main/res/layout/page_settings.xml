@@ -125,6 +125,16 @@
             <Button android:id="@+id/addTile" style="@style/Haul.Button.Outline" android:layout_width="wrap_content" android:layout_height="44dp" android:layout_marginStart="14dp" android:text="Add tile" />
         </LinearLayout>
 
+        <!-- The badge that floats over other apps while Haul reads a shared post (Display over other apps). -->
+        <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp" android:gravity="center_vertical" android:orientation="horizontal">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:id="@+id/badgeState" style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="While Haul reads a post you shared, a badge floats over the app: carry on, drag it anywhere. It pulses when there's something to pick." />
+            </LinearLayout>
+
+            <Button android:id="@+id/badgeSettings" style="@style/Haul.Button.Outline" android:layout_width="wrap_content" android:layout_height="44dp" android:layout_marginStart="14dp" android:text="Open" />
+        </LinearLayout>
+
         <!-- Notifications -->
         <TextView style="@style/Haul.Label" android:layout_marginTop="22dp" android:text="Notifications" />
 

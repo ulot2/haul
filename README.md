@@ -12,6 +12,8 @@ In TikTok (or any app), tap **Share**, then **Haul**. The video downloads in the
 
 When a download is done, its notification has **Share** (straight to WhatsApp, say) and **Delete**. In the **Downloads** tab, every download is a numbered row with its picture; tap one to play, share, copy its link, download it again or delete it.
 
+**Keep scrolling while Haul reads.** Some posts have to be read before they download: a TikTok short link, a TikTok post that might be photos, an Instagram post with several photos and videos. When you share one, Haul doesn't hold you up: a small badge floats over TikTok (or wherever you are) while it reads, and you carry on. Drag the badge anywhere; it settles on the nearer side and stays there. A plain video just downloads: the badge shows a ✓ and fades. A post with something to pick from makes the badge turn clay and pulse, with a notification too: tap either, and the picker opens over your app. Long-press the badge to put it away (the notification stays). The first time, Haul asks to **display over other apps**, which the badge needs; without it, notifications do the same job. **Settings › Floating badge** turns it on later.
+
 Some posts ask first:
 
 - An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
