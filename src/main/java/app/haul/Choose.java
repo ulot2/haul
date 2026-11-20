@@ -77,6 +77,14 @@ final class Choose {
         if (p != null) {
             Dialog d = reading(a, "PICK FROM THE POST", "", picked);
             grid(a, d, p.url, item.quality, p.post, p.tiktok, picked);
+            // Not wanted after all: the post goes, and its badge and notification with it.
+            View cancel = d.findViewById(R.id.pickCancel);
+            cancel.setVisibility(View.VISIBLE);
+            cancel.setOnClickListener(v -> {
+                Reading.forget(a, item.id);
+                Haul.remove(a, item.id);
+                d.dismiss();   // reports nothing added: the share screen closes
+            });
             return;
         }
         start(a, item.url, item.quality, -1, -1, picked, true);
@@ -435,6 +443,8 @@ final class Choose {
             w.setGravity(Gravity.BOTTOM);
         }
         d.setOnDismissListener(x -> done.on(null));
+        View close = d.findViewById(R.id.pickClose);
+        if (close != null) close.setOnClickListener(v -> d.dismiss());   // same as Back: nothing added, nothing lost
         return d;
     }
 
