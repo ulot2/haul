@@ -26,6 +26,8 @@ import java.util.regex.Pattern;
 /** Shared bits: settings, the list of hauls (the hold), and links. */
 final class Haul {
     static final String QUEUED = "queued", WORKING = "working", DONE = "done", FAILED = "failed", CANCELED = "canceled";
+    /** Read, and waiting for the user to pick from the post (a TikTok photo post's pictures, an Instagram carousel). */
+    static final String CHOOSE = "choose";
     static final String BEST = "best", SMALL = "small", AUDIO = "audio", GIF = "gif";
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
     /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of each with the sound. */
@@ -48,6 +50,7 @@ final class Haul {
         String page = "";              // the post's own address, as the site gave it (a short link's full one)
         String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
         long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
+        boolean decide;                // shared from another app: read the post first (Reading), then download or ask
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
         int count = 0;                 // files saved; a post with several videos or photos saves several
@@ -63,7 +66,7 @@ final class Haul {
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
                     .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
                     .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
-                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo);
+                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("decide", decide);
         }
 
         static Item of(JSONObject o) {
@@ -102,6 +105,7 @@ final class Haul {
             i.source = o.optString("source");
             i.cutFrom = o.optLong("cutFrom", -1);
             i.cutTo = o.optLong("cutTo", -1);
+            i.decide = o.optBoolean("decide");
             return i;
         }
 
@@ -112,6 +116,11 @@ final class Haul {
 
         boolean active() {
             return QUEUED.equals(status) || WORKING.equals(status);
+        }
+
+        /** Still to be dealt with: going, waiting, or waiting for the user to pick. Never trimmed from the hold. */
+        boolean held() {
+            return active() || CHOOSE.equals(status);
         }
 
         boolean clipped() {
@@ -202,7 +211,7 @@ final class Haul {
         prefs(c).edit().putInt("next_no", no + 1).apply();
         list.add(0, i);
         // Trim the oldest finished ones; never drop one that is still going.
-        for (int k = list.size() - 1; k >= 0 && list.size() > KEEP; k--) if (!list.get(k).active()) list.remove(k);
+        for (int k = list.size() - 1; k >= 0 && list.size() > KEEP; k--) if (!list.get(k).held()) list.remove(k);
         save(c);
         return i;
     }
@@ -247,17 +256,48 @@ final class Haul {
         if (changed) save(c);
     }
 
-    /** The oldest waiting haul, now marked as working, or null when none is waiting. */
+    /** The oldest waiting haul, now marked as working, or null when none is waiting. Links still to be read wait for takeReading. */
     static synchronized Item takeNext(Context c) {
         List<Item> list = load(c);
         for (int k = list.size() - 1; k >= 0; k--) {
             Item i = list.get(k);
-            if (QUEUED.equals(i.status)) {
+            if (QUEUED.equals(i.status) && !i.decide) {
                 i.status = WORKING;
                 save(c);
                 return i;
             }
         }
+        return null;
+    }
+
+    /** The oldest link waiting to be read (shared from another app), now marked as working, or null. */
+    static synchronized Item takeReading(Context c) {
+        List<Item> list = load(c);
+        for (int k = list.size() - 1; k >= 0; k--) {
+            Item i = list.get(k);
+            if (QUEUED.equals(i.status) && i.decide) {
+                i.status = WORKING;
+                save(c);
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /** How many shared links are being read or wait to be, and how many wait for the user to pick: for the badge. */
+    static synchronized int[] reading(Context c) {
+        int read = 0, pick = 0;
+        for (Item i : load(c)) {
+            if (i.decide && i.active()) read++;
+            if (CHOOSE.equals(i.status)) pick++;
+        }
+        return new int[]{read, pick};
+    }
+
+    /** The oldest haul waiting for the user to pick from its post, or null. */
+    static synchronized Item firstToChoose(Context c) {
+        List<Item> list = load(c);
+        for (int k = list.size() - 1; k >= 0; k--) if (CHOOSE.equals(list.get(k).status)) return list.get(k);
         return null;
     }
 

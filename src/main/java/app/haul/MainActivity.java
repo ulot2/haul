@@ -349,6 +349,7 @@ public class MainActivity extends Activity {
         } catch (RuntimeException ignored) {
             // without it, the waiting labels just update less often
         }
+        Badge.haulOnScreen(true);   // the Downloads tab shows what the badge would
         render();
         if (TAB_STATUSES.equals(tab)) statuses.resume();
         if (TAB_SETTINGS.equals(tab)) settings.resume();
@@ -358,6 +359,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         Haul.unlisten(render);
+        Badge.haulOnScreen(false);
         try {
             getSystemService(ConnectivityManager.class).unregisterNetworkCallback(network);
         } catch (RuntimeException ignored) {
@@ -653,8 +655,16 @@ public class MainActivity extends Activity {
                     pct.setText(Math.round(p) + "%");
                 }
                 break;
+            case Haul.CHOOSE:
+                // Read in the background, and waiting for the user to pick from the post: a tap opens the picker.
+                meta.setText(i.site + " · Tap to pick from the post");
+                state.setVisibility(View.VISIBLE);
+                state.setAllCaps(true);
+                state.setText("Pick");
+                state.setTextColor(getColor(R.color.clay_text));
+                break;
             case Haul.QUEUED:
-                meta.setText(i.site + " · " + Look.what(i) + " · in line");
+                meta.setText(i.site + " · " + (i.decide ? "Reading the post · in line" : Look.what(i) + " · in line"));
                 state.setVisibility(View.VISIBLE);
                 state.setAllCaps(true);
                 state.setText(waiting());
@@ -682,8 +692,10 @@ public class MainActivity extends Activity {
         check.setVisibility(selecting ? View.VISIBLE : View.GONE);
         check.setBackgroundResource(chosen ? R.drawable.bg_check_on : R.drawable.bg_check_off);
         check.setImageResource(chosen ? R.drawable.ic_check : 0);
+        if (!Haul.CHOOSE.equals(i.status)) state.setTextColor(getColor(R.color.ink_muted));
         row.setOnClickListener(v -> {
-            if (selected.isEmpty()) Sheets.item(this, i);
+            if (selected.isEmpty() && Haul.CHOOSE.equals(i.status)) Choose.choose(this, i, added -> render());
+            else if (selected.isEmpty()) Sheets.item(this, i);
             else toggle(i.id);
         });
         row.setOnLongClickListener(v -> {
@@ -783,6 +795,7 @@ public class MainActivity extends Activity {
         List<Uri> refused = new ArrayList<>();
         for (Haul.Item i : chosen) {
             if (i.active()) Downloads.cancel(this, i.id);
+            if (Haul.CHOOSE.equals(i.status)) Reading.forget(this, i.id);   // and its "pick" notification
             if (files && Haul.DONE.equals(i.status)) {
                 for (String u : i.uris) Thumbs.forget(u);
                 refused.addAll(Downloads.delete(this, i));

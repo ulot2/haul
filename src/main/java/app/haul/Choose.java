@@ -39,7 +39,47 @@ final class Choose {
     private static final int[] TONES = {R.color.tone0, R.color.tone1, R.color.tone2, R.color.tone3, R.color.tone4, R.color.tone5};
 
     static void add(Activity a, String url, String quality, int clipStart, int clipEnd, Done done) {
-        unlessSaved(a, url, url, quality, clipStart, done, () -> start(a, url, quality, clipStart, clipEnd, done, false));
+        add(a, url, quality, clipStart, clipEnd, false, done);
+    }
+
+    /**
+     * aside: from another app (the share sheet, the tile). A link that has to be read first doesn't hold the user up:
+     * it goes into the hold at once, to be read by the queue while the badge floats over their app (see Reading), and
+     * done hears of it straight away.
+     */
+    static void add(Activity a, String url, String quality, int clipStart, int clipEnd, boolean aside, Done done) {
+        unlessSaved(a, url, url, quality, clipStart, done, () -> {
+            if (aside && Reading.needed(url, quality, clipStart)) {
+                Haul.Item i = Downloads.addToRead(a, url, quality);
+                if (i == null) Toast.makeText(a, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
+                else Badge.show(a);
+                done.on(i);
+                return;
+            }
+            start(a, url, quality, clipStart, clipEnd, done, false);
+        });
+    }
+
+    /**
+     * A haul waiting as CHOOSE (read in the background): its post's grid, to pick from. Picked, the haul makes way for
+     * the downloads chosen; backed out, it waits on. Haul was closed meanwhile (what was read is gone)? The post is
+     * read again, here.
+     */
+    static void choose(Activity a, Haul.Item item, Done done) {
+        Reading.Pending p = Reading.pending(item.id);
+        Done picked = added -> {
+            if (added != null) {
+                Reading.forget(a, item.id);
+                Haul.remove(a, item.id);
+            }
+            done.on(added);
+        };
+        if (p != null) {
+            Dialog d = reading(a, "PICK FROM THE POST", "", picked);
+            grid(a, d, p.url, item.quality, p.post, p.tiktok, picked);
+            return;
+        }
+        start(a, item.url, item.quality, -1, -1, picked, true);
     }
 
     /** asked: the user already chose to download it again, so the post isn't checked a second time. */

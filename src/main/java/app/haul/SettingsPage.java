@@ -64,6 +64,8 @@ final class SettingsPage {
                 : "On mobile data, links stop with a note; tap them on Wi-Fi. (Android 14 and later wait for Wi-Fi instead.)");
 
         findViewById(R.id.addTile).setOnClickListener(v -> addTile());
+        findViewById(R.id.badgeSettings).setOnClickListener(v -> Sheets.open(a, new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:" + a.getPackageName()))));
 
         notifState = findViewById(R.id.notifState);
         findViewById(R.id.notifSettings).setOnClickListener(v -> Sheets.open(a, new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -122,6 +124,7 @@ final class SettingsPage {
     void resume() {
         boolean on = a.getSystemService(NotificationManager.class).areNotificationsEnabled();
         notifState.setText(on ? "Notifications are on" : "Notifications are off");
+        ((TextView) findViewById(R.id.badgeState)).setText(Badge.allowed(a) ? "Floating badge: on" : "Floating badge: off");
         String v = Engine.version(a);
         engineVersion.setText(v.isEmpty() ? "yt-dlp" : "yt-dlp " + v);
     }
