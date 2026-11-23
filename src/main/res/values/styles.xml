@@ -34,6 +34,28 @@
         <item name="android:textColor">@color/ink_muted</item>
     </style>
 
+    <!-- What's new: one new thing, its icon in a tile beside a title and a line or two. -->
+    <style name="Haul.NewsRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <style name="Haul.NewsTile">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/bg_tile</item>
+    </style>
+
+    <style name="Haul.NewsIcon">
+        <item name="android:layout_width">22dp</item>
+        <item name="android:layout_height">22dp</item>
+        <item name="android:layout_gravity">center</item>
+        <item name="android:importantForAccessibility">no</item>
+        <item name="android:tint">@color/clay</item>
+    </style>
+
     <!-- A tab at the bottom of Haul's screen: its icon over its name. -->
     <style name="Haul.Tab">
         <item name="android:layout_width">0dp</item>

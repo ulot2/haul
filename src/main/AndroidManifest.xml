@@ -38,6 +38,11 @@
             android:exported="false"
             android:theme="@style/Theme.Haul.Player" />
 
+        <!-- Once after an update with news: what's new. Settings › About opens it again. -->
+        <activity
+            android:name=".WhatsNewActivity"
+            android:exported="false" />
+
         <!-- The first time Haul opens: how to use it. Settings › About opens it again. -->
         <activity
             android:name=".WelcomeActivity"

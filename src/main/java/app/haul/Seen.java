@@ -34,6 +34,31 @@ final class Seen {
         return tidy(u);
     }
 
+    /** Posts on the sites Haul knows, beyond the four whose ids key() reads (TikTok, Instagram, X, YouTube). */
+    private static final Pattern POST = Pattern.compile("(?i)^https?://(?:[\\w-]+\\.)*(?:"
+            + "(?:vm|vt)\\.tiktok\\.com/\\w+"                                     // TikTok short links
+            + "|tiktok\\.com/t/\\w+"
+            + "|instagram\\.com/(?:stories|share)/"
+            + "|facebook\\.com/(?:.+/videos/|watch|reel/|share/|story\\.php)|fb\\.watch/"
+            + "|reddit\\.com/r/[^/]+/(?:comments|s)/|redd\\.it/"
+            + "|threads\\.(?:net|com)/@[^/]+/post/"
+            + "|snapchat\\.com/(?:spotlight|t)/"
+            + "|pinterest\\.[a-z.]+/pin/|pin\\.it/"
+            + "|vimeo\\.com/\\d+"
+            + ")");
+
+    /**
+     * True when a link looks like a post Haul can download (a video or photos on a site it knows), so it's worth
+     * offering when copied. A link to anything else (a document, a shop, a news page) isn't offered; it can still be
+     * pasted by hand, for the other sites yt-dlp reads.
+     */
+    static boolean isPost(String url) {
+        if (url == null) return false;
+        String k = key(url);
+        if (k.startsWith("tiktok:") || k.startsWith("instagram:") || k.startsWith("x:") || k.startsWith("youtube:")) return true;
+        return POST.matcher(url.trim()).find();
+    }
+
     /** True when both links lead to the same post. */
     static boolean same(String a, String b) {
         String ka = key(a);
