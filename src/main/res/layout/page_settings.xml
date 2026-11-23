@@ -189,6 +189,13 @@
                 android:layout_width="match_parent"
                 android:layout_marginTop="10dp"
                 android:text="How to use Haul" />
+
+            <Button
+                android:id="@+id/aboutNews"
+                style="@style/Haul.Button.Outline"
+                android:layout_width="match_parent"
+                android:layout_marginTop="10dp"
+                android:text="What\'s new in Haul" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

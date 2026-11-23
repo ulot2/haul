@@ -40,8 +40,9 @@ import java.util.Set;
 
 /**
  * Haul's screen, in four tabs:
- * - DOWNLOAD, where it opens: the wordmark and a link field. Paste (or a link found copied) opens HAUL THIS AS
- *   (Sheets.add): quality, clip, Download. Links copied one after another gather in the field.
+ * - DOWNLOAD, where it opens: the wordmark and a link field. Paste opens HAUL THIS AS (Sheets.add): quality, clip,
+ *   Download. A post found copied is offered under the field (Download, or ×), never pasted unasked; posts copied one
+ *   after another gather in the offer.
  * - DOWNLOADS: the hold, every haul as a ticket with its picture, with search and filters; long-press to select.
  * - STATUSES: WhatsApp's statuses (StatusesPage).
  * - SETTINGS (SettingsPage).
@@ -57,7 +58,8 @@ public class MainActivity extends Activity {
     private LinearLayout hold;
     private TextView count, empty, updateTitle, selectCount, holdCount;
     private EditText linkField, search;
-    private ImageButton linkGo;
+    private ImageButton linkGo, linkClear;
+    private View suggest, sites;
     private StatusesPage statuses;
     private SettingsPage settings;
     private String tab = TAB_DOWNLOAD;
@@ -120,6 +122,9 @@ public class MainActivity extends Activity {
         linkBox = findViewById(R.id.linkBox);
         linkField = findViewById(R.id.linkField);
         linkGo = findViewById(R.id.linkGo);
+        linkClear = findViewById(R.id.linkClear);
+        suggest = findViewById(R.id.suggest);
+        sites = findViewById(R.id.sites);
         statuses = new StatusesPage(this, pageStatuses);
         settings = new SettingsPage(this, pageSettings);
 
@@ -186,6 +191,13 @@ public class MainActivity extends Activity {
             openSheet();
             return true;
         });
+        linkClear.setOnClickListener(v -> {
+            linkField.setText("");
+            Haul.prefs(this).edit().putString("dock_link", "").apply();
+        });
+        findViewById(R.id.suggestYes).setOnClickListener(v -> takeSuggestion());
+        findViewById(R.id.suggestNo).setOnClickListener(v -> dropSuggestion());
+        showSuggestion(false);
         linkGo.setOnClickListener(v -> {
             if (Haul.links(linkField.getText()).isEmpty()) paste();
             else openSheet();
@@ -203,7 +215,12 @@ public class MainActivity extends Activity {
 
         if (state == null && WelcomeActivity.due(this)) {
             // First time on this phone: how to use Haul, which also asks for notifications once it has said why.
+            // What's new is for those who used Haul before; this release's news is no news to them.
+            WhatsNewActivity.seen(this);
             startActivity(new Intent(this, WelcomeActivity.class));
+        } else if (state == null && WhatsNewActivity.due(this)) {
+            // Updated: what changed, once.
+            startActivity(new Intent(this, WhatsNewActivity.class));
         } else if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                 && !Haul.prefs(this).getBoolean("asked_notifications", false)) {
             Haul.prefs(this).edit().putBoolean("asked_notifications", true).apply();
@@ -426,6 +443,62 @@ public class MainActivity extends Activity {
         linkBox.setActivated(has || linkField.hasFocus());
         linkGo.setImageResource(has ? R.drawable.ic_download : R.drawable.ic_paste);
         linkGo.setContentDescription(has ? "Download" : "Paste");
+        linkClear.setVisibility(linkField.length() > 0 ? View.VISIBLE : View.GONE);
+    }
+
+    // ---- A copied post, offered ----
+
+    /** The copied posts on offer (one to a line), or none. */
+    private List<String> suggestion() {
+        return split(Haul.prefs(this).getString("suggest", ""));
+    }
+
+    /** Under the field: "Download the copied link?" with the site and the link, Download and ×; else the sites line. */
+    private void showSuggestion(boolean animate) {
+        List<String> links = suggestion();
+        if (links.isEmpty()) {
+            suggest.setVisibility(View.GONE);
+            sites.setVisibility(View.VISIBLE);
+            return;
+        }
+        String first = links.get(0), site = Haul.site(first);
+        java.util.Set<String> all = new LinkedHashSet<>();
+        for (String l : links) all.add(Haul.site(l));
+        ((TextView) findViewById(R.id.suggestAsk)).setText(links.size() == 1 ? "Download the copied link?"
+                : "Download " + links.size() + " copied links?");
+        ((TextView) findViewById(R.id.suggestLink)).setText(links.size() == 1 ? site + " · " + Look.shortLink(first)
+                : String.join(", ", all));
+        View box = findViewById(R.id.suggestBox);
+        box.setBackgroundTintList(ColorStateList.valueOf(Look.tone(this, first)));
+        box.setClipToOutline(true);
+        ((TextView) findViewById(R.id.suggestTag)).setText(links.size() == 1 ? Look.tag(site) : "×" + links.size());
+        sites.setVisibility(View.GONE);
+        if (animate && suggest.getVisibility() != View.VISIBLE) {
+            suggest.setAlpha(0f);
+            suggest.setTranslationY(Sheets.dp(this, 12));
+            suggest.animate().alpha(1f).translationY(0f).setDuration(220).start();
+        }
+        suggest.setVisibility(View.VISIBLE);
+    }
+
+    /** Yes: the offer goes into the field, and HAUL THIS AS opens. */
+    private void takeSuggestion() {
+        List<String> links = suggestion();
+        Haul.prefs(this).edit().putString("suggest", "").apply();
+        showSuggestion(false);
+        if (links.isEmpty()) return;
+        setField(links);
+        openSheet();
+    }
+
+    /** No: the offer goes, and those links aren't offered again. */
+    private void dropSuggestion() {
+        Haul.prefs(this).edit().putString("last_filled", Haul.prefs(this).getString("suggest", ""))
+                .putString("suggest", "").apply();
+        suggest.animate().alpha(0f).setDuration(150).withEndAction(() -> {
+            suggest.setAlpha(1f);
+            showSuggestion(false);
+        }).start();
     }
 
     /** The round button with nothing in the field: what was copied goes in, and HAUL THIS AS opens. */
@@ -492,17 +565,18 @@ public class MainActivity extends Activity {
         } catch (RuntimeException ignored) {
             // no access: nothing to offer
         }
+        // Only posts (a video or photos on a site Haul knows) are offered: a copied document or shop page isn't.
+        links.removeIf(l -> !Seen.isPost(l));
         if (links.isEmpty()) return;
         List<String> handled = split(Haul.prefs(this).getString("last_filled", ""));
-        boolean fresh = System.currentTimeMillis() - Haul.prefs(this).getLong("dock_time", 0) > Haul.COLLECT_FOR;
-        List<String> waiting = fresh ? new ArrayList<>() : Haul.links(linkField.getText());
+        handled.addAll(Haul.links(linkField.getText()));   // already in the field
+        boolean fresh = System.currentTimeMillis() - Haul.prefs(this).getLong("suggest_time", 0) > Haul.COLLECT_FOR;
+        List<String> waiting = fresh ? new ArrayList<>() : suggestion();
         List<String> now = Haul.collect(waiting, links, handled);
         if (now.isEmpty() || now.equals(waiting)) return;   // nothing new
-        setField(now);
-        if (!selected.isEmpty()) return;   // busy choosing rows: the link waits in the field
-        show(TAB_DOWNLOAD);
-        if (haulSheet != null && haulSheet.isShowing()) haulSheet.dismiss();   // reopened with the links gathered so far
-        openSheet();
+        Haul.prefs(this).edit().putString("suggest", String.join("\n", now))
+                .putLong("suggest_time", System.currentTimeMillis()).apply();
+        showSuggestion(true);
     }
 
     private static List<String> split(String lines) {

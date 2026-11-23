@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WHAT'S NEW: shown once, the first time Haul opens after an update (never on a fresh install, which gets the welcome);
+     Settings › About opens it again. Each new thing in a line or two, its icon in a tile; Got it closes it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/newsRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ground"
+    android:orientation="vertical"
+    android:paddingStart="24dp"
+    android:paddingTop="28dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="20dp">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="26dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_mark" />
+
+                <TextView
+                    android:id="@+id/newsVersion"
+                    style="@style/Haul.Label"
+                    android:layout_marginStart="10dp"
+                    android:text="Haul" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/newsTitle"
+                style="@style/Haul.Wordmark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textSize="52sp" />
+
+            <TextView
+                style="@style/Haul.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Here\'s what changed since your last update."
+                android:textSize="15sp" />
+
+            <LinearLayout style="@style/Haul.NewsRow">
+                <FrameLayout style="@style/Haul.NewsTile">
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_tabs" />
+                </FrameLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="A new home" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Paste a link on Download. Your saves are in Downloads; Statuses and Settings are tabs too." />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Haul.NewsRow">
+                <FrameLayout style="@style/Haul.NewsTile">
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_badge" />
+                </FrameLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Keep scrolling" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Share a post and carry on. A floating badge reads it, and pulses when there\'s something to pick." />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Haul.NewsRow">
+                <FrameLayout style="@style/Haul.NewsTile">
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_scissors" />
+                </FrameLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clip as you share" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Keep just part of a video, right from the share sheet." />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Haul.NewsRow">
+                <FrameLayout style="@style/Haul.NewsTile">
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_status" />
+                </FrameLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="WhatsApp statuses" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Save the statuses you\'ve seen, before they\'re gone." />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Haul.NewsRow">
+                <FrameLayout style="@style/Haul.NewsTile">
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_music" />
+                </FrameLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clip the sound" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Cut the part of a song you want, for a ringtone, to a tenth of a second." />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Haul.NewsRow">
+                <FrameLayout style="@style/Haul.NewsTile">
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_search" />
+                </FrameLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Captions and search" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Haul keeps each post\'s caption. Find any download by caption, creator or site." />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Haul.NewsRow">
+                <FrameLayout style="@style/Haul.NewsTile">
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_link" />
+                </FrameLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Many links, no doubles" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Copy a few links in a row and download them together. Haul tells you when you have a post already." />
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/newsDone"
+        style="@style/Haul.Button.Primary"
+        android:layout_width="match_parent"
+        android:layout_marginTop="16dp"
+        android:text="Got it" />
+</LinearLayout>

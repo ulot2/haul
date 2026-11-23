@@ -28,6 +28,7 @@ final class SettingsPage {
         this.a = a;
         this.root = root;
         findViewById(R.id.aboutWelcome).setOnClickListener(v -> a.startActivity(new Intent(a, WelcomeActivity.class)));
+        findViewById(R.id.aboutNews).setOnClickListener(v -> a.startActivity(new Intent(a, WhatsNewActivity.class)));
 
         Button[] q = {findViewById(R.id.sBest), findViewById(R.id.sSmall), findViewById(R.id.sAudio)};
         String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO};
