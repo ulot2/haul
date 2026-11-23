@@ -168,5 +168,21 @@ final class Photos {
         return d.length() > 80 ? d.substring(0, 80).trim() + "…" : d;
     }
 
+    /** A TikTok post page's whole caption, its author's @handle (as yt-dlp names TikTok's uploaders) and when it was posted. */
+    static Caption tiktokCaption(String html) {
+        JSONObject item = tiktokItem(html);
+        if (item == null) return Caption.NONE;
+        JSONObject author = item.optJSONObject("author");
+        String by = author == null ? "" : author.optString("uniqueId");
+        if (by.isEmpty() && author != null) by = author.optString("nickname");
+        long created = 0;
+        try {
+            created = Long.parseLong(item.optString("createTime").trim()) * 1000;   // TikTok gives it as a string, in seconds
+        } catch (NumberFormatException ignored) {
+            // not given
+        }
+        return new Caption(item.optString("desc"), by, created);
+    }
+
     private Photos() {}
 }

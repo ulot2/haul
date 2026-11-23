@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The badge that floats over the app a post was shared from while Haul reads it (Badge); asked once. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Android 14+: downloads run as a user-initiated data transfer job (HaulJob), which waits for a connection. -->
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
     <!-- To say "waiting for a connection" in the hold. -->
@@ -36,15 +38,15 @@
             android:exported="false"
             android:theme="@style/Theme.Haul.Player" />
 
+        <!-- Once after an update with news: what's new. Settings › About opens it again. -->
+        <activity
+            android:name=".WhatsNewActivity"
+            android:exported="false" />
+
         <!-- The first time Haul opens: how to use it. Settings › About opens it again. -->
         <activity
             android:name=".WelcomeActivity"
             android:exported="false" />
-
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false"
-            android:parentActivityName=".MainActivity" />
 
         <!-- Over the app a link came from: takes the link from the share sheet (TikTok, Instagram, X...), starts the
              download (after a quick quality choice, if that setting is on), and closes. -->

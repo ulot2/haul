@@ -15,9 +15,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -39,6 +37,10 @@ final class Sheets {
         int clipStart = -1, clipEnd = -1;
         Engine.Info info;     // the video's length and picture, read once per link
         String infoUrl = "";
+        /** From the share sheet: what Download does with one link (instead of Choose.add), so it can go on aside. */
+        Go go;
+        /** Backed out (Back, or a tap outside HAUL THIS AS or the clip sheet): the share screen closes. */
+        Runnable onCancel;
 
         Draft(String url, String quality) {
             this.url = url == null ? "" : url;
@@ -48,6 +50,11 @@ final class Sheets {
         boolean clipped() {
             return clipStart >= 0 && clipEnd > clipStart;
         }
+    }
+
+    /** Downloads one link, in this quality and section (seconds; -1 for the whole). */
+    interface Go {
+        void go(String url, String quality, int clipStart, int clipEnd);
     }
 
     /** Called with the link once a new haul is in the queue. */
@@ -68,20 +75,84 @@ final class Sheets {
         return d;
     }
 
-    // ---- New haul ----
+    // ---- HAUL THIS AS ----
 
-    static void add(Activity a, Draft draft, Added added) {
+    /**
+     * HAUL THIS AS, over the Download page once a link is pasted (or found copied): what Haul reads of the link (its
+     * picture, title, who posted it, how long), the quality, a section to clip, and Download. draft.url holds the link,
+     * or several separated by spaces: those download together, in the quality picked, with no clip. Download hands a
+     * single link to Choose (a TikTok photo post, an Instagram carousel or a post already saved ask their question
+     * there); added hears of it with the link (or the links, one to a line). Returns the sheet, or null for no link.
+     */
+    static Dialog add(Activity a, Draft draft, Added added) {
+        List<String> urls = Haul.links(draft.url);
+        if (urls.isEmpty()) return null;
+        boolean many = urls.size() > 1;
+        String url = urls.get(0);
         Dialog d = sheet(a, R.layout.sheet_add);
-        EditText link = d.findViewById(R.id.addLink);
-        link.setText(draft.url);
+
+        TextView title = d.findViewById(R.id.addTitle), meta = d.findViewById(R.id.addMeta);
+        View box = d.findViewById(R.id.addThumbBox);
+        ImageView thumb = d.findViewById(R.id.addThumb);
+        box.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Look.tone(a, url)));
+        box.setClipToOutline(true);
+        if (many) {
+            java.util.Set<String> sites = new java.util.LinkedHashSet<>();
+            for (String u : urls) sites.add(Haul.site(u));
+            ((TextView) d.findViewById(R.id.addSite)).setText(urls.size() + " links");
+            ((TextView) d.findViewById(R.id.addTag)).setText("×" + urls.size());
+            title.setText(urls.size() + " links, each saved as picked");
+            meta.setText(String.join(", ", sites));
+        } else {
+            ((TextView) d.findViewById(R.id.addSite)).setText(Haul.site(url));
+            ((TextView) d.findViewById(R.id.addTag)).setText(Look.tag(Haul.site(url)));
+            title.setText(Look.shortLink(url));
+            // Read the link while the user picks: the download then starts from what was read, and the sheet shows it.
+            Engine.readAhead(a, url);
+            java.util.function.Consumer<Engine.Info> show = info -> {
+                if (info == null) {
+                    meta.setText(Haul.site(url));
+                    return;
+                }
+                if (!info.title.isEmpty()) title.setText(info.title);
+                meta.setText(info.duration > 0 ? Haul.site(url) + " · " + Format.clock(info.duration) : Haul.site(url));
+                if (!info.thumbnail.isEmpty()) Thumbs.showUrl(thumb, info.thumbnail);
+            };
+            if (draft.info != null && draft.infoUrl.equals(url)) {
+                show.accept(draft.info);
+            } else if (Photos.tiktokPhotoId(url) != null) {
+                meta.setText("TikTok photos");   // read when Download is tapped, to pick the pictures
+            } else {
+                meta.setText("Reading the link…");
+                new Thread(() -> {
+                    Engine.Info info;
+                    try {
+                        info = Engine.info(a, url);
+                    } catch (Exception e) {
+                        info = null;
+                    }
+                    Engine.Info got = info;
+                    a.runOnUiThread(() -> {
+                        if (got != null) {
+                            draft.info = got;
+                            draft.infoUrl = url;
+                        }
+                        if (d.isShowing()) show.accept(got);
+                    });
+                }, "haul-info").start();
+            }
+        }
+
         Button[] q = {d.findViewById(R.id.addBest), d.findViewById(R.id.addSmall), d.findViewById(R.id.addAudio), d.findViewById(R.id.addGif)};
         String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO, Haul.GIF};
         String[] subs = {"H.264", "Smaller", "M4A", "No sound"};
+        TextView clipValue = d.findViewById(R.id.addClipValue);
         Runnable mark = () -> {
             for (int k = 0; k < q.length; k++) {
                 q[k].setActivated(ids[k].equals(draft.quality));
                 q[k].setText(twoLines(Look.qualityName(ids[k]), subs[k]));
             }
+            clipValue.setText(clipText(draft));   // Audio clips a sound, not a video
         };
         for (int k = 0; k < q.length; k++) {
             String id = ids[k];
@@ -91,55 +162,59 @@ final class Sheets {
             });
         }
         mark.run();
-        // Read the link while the user picks a quality: the download then starts from what was read.
-        if (Haul.firstLink(draft.url) != null) Engine.readAhead(a, Haul.firstLink(draft.url));
-        TextView clipValue = d.findViewById(R.id.addClipValue);
-        clipValue.setText(draft.clipped() ? Format.clock(draft.clipStart) + "–" + Format.clock(draft.clipEnd) : "Whole video");
 
-        d.findViewById(R.id.addClip).setOnClickListener(v -> {
-            String url = Haul.firstLink(link.getText());
-            if (url == null) {
-                link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
-                return;
-            }
-            if (!url.equals(draft.url)) {
-                draft.clipStart = draft.clipEnd = -1;   // a new link: the old section doesn't fit it
-            }
+        View clipRow = d.findViewById(R.id.addClip);
+        if (many) {
+            clipRow.setVisibility(View.GONE);   // a section is of one video
+        } else {
             draft.url = url;
+            clipRow.setOnClickListener(v -> {
+                d.dismiss();
+                clip(a, draft, added);   // comes back to this sheet
+            });
+        }
+
+        Button go = d.findViewById(R.id.addGo);
+        go.setText(many ? "Download " + urls.size() + " links" : "Download");
+        go.setOnClickListener(v -> {
             d.dismiss();
-            clip(a, draft, added);
-        });
-        Runnable go = () -> {
-            String url = Haul.firstLink(link.getText());
-            if (url == null) {
-                link.setError(link.length() == 0 ? "Paste a link first" : "That isn't a link. It should start with https://");
+            if (many) {
+                // A list: all of it in this quality, with no questions (a carousel comes whole, a TikTok photo post
+                // as its pictures and sound).
+                Toast.makeText(a, Downloads.addAll(a, urls, draft.quality), Toast.LENGTH_LONG).show();
+                added.on(String.join("\n", urls));
                 return;
             }
-            boolean sameLink = url.equals(draft.url);
-            d.dismiss();
-            // A TikTok photo post asks how to save it; an Instagram carousel lets the user pick.
-            Choose.add(a, url, draft.quality, sameLink ? draft.clipStart : -1, sameLink ? draft.clipEnd : -1, i -> {
+            // A TikTok photo post asks how to save it; an Instagram carousel lets the user pick; a post already saved
+            // says so.
+            if (draft.go != null) {
+                draft.go.go(url, draft.quality, draft.clipStart, draft.clipEnd);
+                return;
+            }
+            Choose.add(a, url, draft.quality, draft.clipStart, draft.clipEnd, i -> {
                 if (i != null) added.on(url);
             });
-        };
-        d.findViewById(R.id.addGo).setOnClickListener(v -> go.run());
-        link.setOnEditorActionListener((v, action, e) -> {
-            if (action != EditorInfo.IME_ACTION_GO) return false;
-            go.run();
-            return true;
         });
-        if (draft.url.isEmpty() && d.getWindow() != null) {
-            link.requestFocus();
-            d.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-        }
+        d.setOnCancelListener(x -> {
+            if (draft.onCancel != null) draft.onCancel.run();
+        });
         d.show();
+        return d;
     }
 
     // ---- Clip a section ----
 
+    /** What the sheet's clip row says: the section, or the whole video (or sound, for Audio). */
+    private static String clipText(Draft draft) {
+        if (draft.clipped()) return Format.clock(draft.clipStart) + "–" + Format.clock(draft.clipEnd);
+        return Haul.AUDIO.equals(draft.quality) ? "Whole sound" : "Whole video";
+    }
+
     private static void clip(Activity a, Draft draft, Added added) {
         Dialog d = sheet(a, R.layout.sheet_clip);
+        d.setOnCancelListener(x -> {
+            if (draft.onCancel != null) draft.onCancel.run();
+        });
         ImageView preview = d.findViewById(R.id.clipPreview);
         TextView previewLabel = d.findViewById(R.id.clipPreviewLabel);
         ImageView loading = d.findViewById(R.id.clipLoading);
@@ -153,6 +228,7 @@ final class Sheets {
         View selection = d.findViewById(R.id.clipSelection);
         Button use = d.findViewById(R.id.clipUse);
         previewLabel.setText(Look.shortLink(draft.url));
+        if (Haul.AUDIO.equals(draft.quality)) ((Button) d.findViewById(R.id.clipWhole)).setText("Whole sound");
 
         Runnable back = () -> {
             d.dismiss();
@@ -274,6 +350,8 @@ final class Sheets {
             facts.add(new String[]{"Saved", Look.when(a, i.doneAt)});
             facts.add(new String[]{"Album", Downloads.album(i)});
             facts.add(new String[]{"From", i.site});
+            if (!i.by.isEmpty()) facts.add(new String[]{"By", i.by});
+            if (i.posted > 0) facts.add(new String[]{"Posted", Look.day(a, i.posted)});
             if (!i.took.isEmpty()) facts.add(new String[]{"Took", i.took});
         } else {
             facts.add(new String[]{"Quality", Look.what(i)});
@@ -287,6 +365,20 @@ final class Sheets {
             for (int j = k; j < k + 2; j++) row.addView(fact(a, j < facts.size() ? facts.get(j) : null),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
             grid.addView(row);
+        }
+
+        if (!i.caption.isEmpty()) {
+            d.findViewById(R.id.sheetCaptionBox).setVisibility(View.VISIBLE);
+            TextView caption = d.findViewById(R.id.sheetCaption);
+            caption.setText(i.caption);
+            caption.setOnClickListener(v -> caption.setMaxLines(caption.getMaxLines() == 6 ? Integer.MAX_VALUE : 6));
+            d.findViewById(R.id.sheetCopyCaption).setOnClickListener(v -> {
+                a.getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Caption", i.caption));
+                // Not offered back in the dock: a caption may hold a link, and it isn't one the user copied to download.
+                String inside = Haul.firstLink(i.caption);
+                if (inside != null) Haul.prefs(a).edit().putString("last_filled", inside).apply();
+                if (Build.VERSION.SDK_INT < 33) Toast.makeText(a, "Caption copied", Toast.LENGTH_SHORT).show();
+            });
         }
 
         Button primary = d.findViewById(R.id.sheetPrimary);
@@ -308,6 +400,15 @@ final class Sheets {
             primary.setVisibility(View.GONE);
         }
 
+        if (done && soundOf(i) != null) {
+            Button cutButton = d.findViewById(R.id.sheetCut);
+            cutButton.setVisibility(View.VISIBLE);
+            cutButton.setOnClickListener(v -> {
+                d.dismiss();
+                cut(a, i);
+            });
+        }
+
         d.findViewById(R.id.actShare).setOnClickListener(v -> {
             if (!done) {
                 Toast.makeText(a, "Nothing saved to share yet", Toast.LENGTH_SHORT).show();
@@ -322,6 +423,11 @@ final class Sheets {
             d.dismiss();
             if (Build.VERSION.SDK_INT < 33) Toast.makeText(a, "Link copied", Toast.LENGTH_SHORT).show();
         });
+        if (Statuses.isStatus(i.url)) {
+            // A saved WhatsApp status has no link: nothing to copy, and nothing to download again.
+            d.findViewById(R.id.actCopy).setVisibility(View.GONE);
+            d.findViewById(R.id.actAgain).setVisibility(View.GONE);
+        }
         Button again = d.findViewById(R.id.actAgain);
         again.setEnabled(!active);
         again.setAlpha(active ? 0.4f : 1f);
@@ -338,6 +444,174 @@ final class Sheets {
             else Haul.remove(a, i.id);
         });
         d.show();
+    }
+
+    // ---- Clip the sound of a saved haul ----
+
+    /** One step of the sliders, in milliseconds; − and + move one step. */
+    private static final int STEP = 100;
+
+    /**
+     * The saved file whose sound can be clipped: the sound or video itself, or the sound that came with a TikTok
+     * post's photos (saved last); null when there is none.
+     */
+    static String soundOf(Haul.Item i) {
+        if (!Haul.DONE.equals(i.status) || i.uris.isEmpty()) return null;
+        if (Haul.AUDIO.equals(i.kind) || Haul.VIDEO.equals(i.kind)) return i.uris.get(0);
+        if (Haul.PHOTOS.equals(i.kind) && i.sound) return i.uris.get(i.uris.size() - 1);
+        return null;
+    }
+
+    /**
+     * CLIP THE SOUND: start and end to a tenth of a second (a slider for the rough place, − and + for the exact one),
+     * heard with Play before it's saved. Saving queues the clip, which FFmpeg makes from the saved file.
+     */
+    static void cut(Activity a, Haul.Item i) {
+        String source = soundOf(i);
+        if (source == null) return;
+        Dialog d = sheet(a, R.layout.sheet_cut);
+        ((TextView) d.findViewById(R.id.cutTitle)).setText(Look.title(i));
+        ImageView loading = d.findViewById(R.id.cutLoading);
+        Choose.spin(loading);
+        TextView status = d.findViewById(R.id.cutStatus);
+        View controls = d.findViewById(R.id.cutControls);
+        SeekBar start = d.findViewById(R.id.cutStart), end = d.findViewById(R.id.cutEnd);
+        TextView range = d.findViewById(R.id.cutRange), length = d.findViewById(R.id.cutLength);
+        TextView startLabel = d.findViewById(R.id.cutStartLabel), endLabel = d.findViewById(R.id.cutEndLabel);
+        Button play = d.findViewById(R.id.cutPlay), save = d.findViewById(R.id.cutSave);
+
+        android.media.MediaPlayer[] player = {null};
+        android.os.Handler ticks = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable stop = () -> {
+            ticks.removeCallbacksAndMessages(null);
+            try {
+                if (player[0] != null && player[0].isPlaying()) player[0].pause();
+            } catch (IllegalStateException ignored) {
+            }
+            play.setText("Play the section");
+        };
+        Runnable draw = () -> {
+            long s = (long) start.getProgress() * STEP, e = (long) end.getProgress() * STEP;
+            range.setText(Format.exact(s) + " – " + Format.exact(e));
+            length.setText(Format.span(e - s));
+            startLabel.setText("Start · " + Format.exact(s));
+            endLabel.setText("End · " + Format.exact(e));
+            save.setEnabled(e > s);
+            save.setAlpha(e > s ? 1f : 0.4f);
+        };
+        SeekBar.OnSeekBarChangeListener moved = new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int p, boolean byUser) {
+                // Keep start before end: moving one past the other pushes the other along.
+                if (bar == start && p >= end.getProgress()) end.setProgress(Math.min(end.getMax(), p + 1));
+                if (bar == end && p <= start.getProgress()) start.setProgress(Math.max(0, p - 1));
+                stop.run();   // what was playing is no longer the section
+                draw.run();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar bar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar bar) {
+            }
+        };
+        int[][] nudges = {{R.id.cutStartLess, -1}, {R.id.cutStartMore, 1}, {R.id.cutEndLess, -1}, {R.id.cutEndMore, 1}};
+        for (int[] n : nudges) {
+            SeekBar bar = n[0] == R.id.cutStartLess || n[0] == R.id.cutStartMore ? start : end;
+            d.findViewById(n[0]).setOnClickListener(v -> bar.setProgress(Math.max(0, Math.min(bar.getMax(), bar.getProgress() + n[1]))));
+        }
+
+        play.setOnClickListener(v -> {
+            if (player[0] != null && player[0].isPlaying()) {
+                stop.run();
+                return;
+            }
+            long from = (long) start.getProgress() * STEP, to = (long) end.getProgress() * STEP;
+            try {
+                if (player[0] == null) {
+                    android.media.MediaPlayer mp = new android.media.MediaPlayer();
+                    mp.setDataSource(a, Uri.parse(source));
+                    mp.prepare();
+                    player[0] = mp;
+                }
+                player[0].seekTo(from, android.media.MediaPlayer.SEEK_CLOSEST);
+                player[0].start();
+            } catch (Exception e) {
+                Toast.makeText(a, "Haul couldn't play this file", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            play.setText("Stop");
+            // Stops at the end of the section, as the clip will.
+            Runnable watch = new Runnable() {
+                @Override
+                public void run() {
+                    android.media.MediaPlayer mp = player[0];
+                    if (mp == null) return;
+                    if (!mp.isPlaying() || mp.getCurrentPosition() >= to) stop.run();
+                    else ticks.postDelayed(this, 40);
+                }
+            };
+            ticks.postDelayed(watch, 40);
+        });
+        save.setOnClickListener(v -> {
+            stop.run();
+            Downloads.cut(a, i, source, (long) start.getProgress() * STEP, (long) end.getProgress() * STEP);
+            d.dismiss();
+        });
+        d.setOnDismissListener(x -> {
+            ticks.removeCallbacksAndMessages(null);
+            if (player[0] != null) {
+                player[0].release();
+                player[0] = null;
+            }
+        });
+        d.show();
+
+        // How long it is, and whether it has sound at all, from the file itself.
+        new Thread(() -> {
+            long millis = 0;
+            boolean sound = false;
+            android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+            try {
+                r.setDataSource(a, Uri.parse(source));
+                String dur = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+                millis = dur == null ? 0 : Long.parseLong(dur);
+                sound = "yes".equals(r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
+            } catch (Exception ignored) {
+                // deleted, or unreadable: said below
+            } finally {
+                try {
+                    r.release();
+                } catch (Exception ignored) {
+                }
+            }
+            long total = millis;
+            boolean hasSound = sound;
+            a.runOnUiThread(() -> {
+                if (!d.isShowing()) return;
+                loading.setVisibility(View.GONE);
+                if (total < 2 * STEP) {
+                    status.setText("Haul couldn't open this file. It may have been deleted from the Gallery.");
+                    return;
+                }
+                if (!hasSound) {
+                    status.setText("This video has no sound.");
+                    return;
+                }
+                status.setVisibility(View.GONE);
+                controls.setVisibility(View.VISIBLE);
+                int max = (int) (total / STEP);
+                start.setMax(max);
+                end.setMax(max);
+                start.setProgress(0);
+                end.setProgress(Math.min(max, 30_000 / STEP));   // 30 seconds to start with: about a ringtone's length
+                start.setOnSeekBarChangeListener(moved);
+                end.setOnSeekBarChangeListener(moved);
+                draw.run();
+            });
+        }, "haul-cut").start();
     }
 
     /** A saved haul: delete the file too, or only take it off the list. */

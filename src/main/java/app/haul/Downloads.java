@@ -79,6 +79,56 @@ final class Downloads {
         return i;
     }
 
+    /**
+     * Several links at once (pasted from notes or a chat), each in this quality, with no questions: a carousel comes
+     * whole, a TikTok photo post as its pictures and sound. A post already saved the same way (still in the Gallery)
+     * is left out, and so is one already waiting. Returns what happened, as Format.many says it.
+     */
+    static String addAll(Context c, List<String> urls, String quality) {
+        int added = 0, saved = 0, waiting = 0;
+        for (String url : urls) {
+            Haul.Item had = Haul.saved(c, url, quality);
+            if (had != null && stillThere(c, had)) saved++;
+            else if (add(c, url, quality, -1, -1) != null) added++;
+            else waiting++;
+        }
+        return Format.many(added, saved, waiting);
+    }
+
+    /**
+     * Clips a section of a saved haul's sound (fromMs to toMs of the file at source) into a new haul: an M4A in
+     * Music/Haul, made on the phone. It keeps the post's link, title and caption.
+     */
+    static Haul.Item cut(Context c, Haul.Item from, String source, long fromMs, long toMs) {
+        Haul.Item i = Haul.add(c, from.url, Haul.AUDIO, -1, -1, "", "", 0, x -> {
+            x.source = source;
+            x.cutFrom = fromMs;
+            x.cutTo = toMs;
+            x.title = from.title;
+            x.caption = from.caption;
+            x.by = from.by;
+            x.posted = from.posted;
+            x.page = from.page;
+        });
+        start(c);
+        return i;
+    }
+
+    /**
+     * A link shared from another app that has to be read first (Reading.needed): into the hold at once, while the
+     * share screen is still up (so Android lets the queue start), and read by the queue beside any download. Null when
+     * this link is already waiting or going.
+     */
+    static Haul.Item addToRead(Context c, String url, String quality) {
+        Haul.Item i;
+        synchronized (Downloads.class) {
+            if (Haul.activeFor(c, url, "", "") != null) return null;
+            i = Haul.add(c, url, quality, -1, -1, "", "", 0, x -> x.decide = true);
+        }
+        start(c);
+        return i;
+    }
+
     /** Tries an existing (failed, canceled or finished) haul again, with the quality and section it had. */
     static void retry(Context c, String id) {
         Haul.update(c, id, i -> {
@@ -107,6 +157,20 @@ final class Downloads {
         }
         Haul.remove(c, i.id);
         return refused;
+    }
+
+    /**
+     * True while the first file of a saved haul is still in the Gallery. Only a file that is plainly gone counts as
+     * gone: when Android won't say, it is taken to be there.
+     */
+    static boolean stillThere(Context c, Haul.Item i) {
+        if (i.uri.isEmpty() || "null".equals(i.uri)) return false;
+        try (android.database.Cursor cur = c.getContentResolver().query(Uri.parse(i.uri),
+                new String[]{MediaStore.MediaColumns._ID}, null, null, null)) {
+            return cur == null || cur.getCount() > 0;
+        } catch (RuntimeException e) {
+            return true;
+        }
     }
 
     /** Wi-Fi only was switched: a job still waiting is scheduled again with the new rule. */
@@ -170,6 +234,8 @@ final class Downloads {
         work.setShowBadge(false);
         nm.createNotificationChannel(work);
         nm.createNotificationChannel(new NotificationChannel(CH_DONE, "Finished downloads", NotificationManager.IMPORTANCE_DEFAULT));
+        // A post read in the background with something to pick from: shown over the app the user is in.
+        nm.createNotificationChannel(new NotificationChannel(Reading.CH_CHOOSE, "Posts to pick from", NotificationManager.IMPORTANCE_HIGH));
     }
 
     // ---- The runner ----
@@ -223,7 +289,19 @@ final class Downloads {
                         active = stopped == REQUEUE;   // Android starts the job again later
                         return false;
                     }
+                    // Links shared to be read first are read beside the downloads, each on a thread of its own, so a
+                    // long download doesn't keep the user waiting to pick from a post.
+                    for (Haul.Item r; (r = Haul.takeReading(c)) != null; ) read(r);
                     next = Haul.takeNext(c);
+                    if (next == null && readers.get() > 0) {
+                        if (current == null) host.show(ongoing("Reading the post…", null, -1, null));
+                        try {
+                            LOCK.wait(1000);   // a reader done: it may have left a link to download
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        continue;
+                    }
                     if (next == null && (updated || !Engine.stale(c))) {
                         active = false;
                         return true;
@@ -237,6 +315,31 @@ final class Downloads {
                     Engine.updateIfStale(c);
                 }
             }
+        }
+
+        /** Links being read right now, each on its own thread. */
+        private final java.util.concurrent.atomic.AtomicInteger readers = new java.util.concurrent.atomic.AtomicInteger();
+
+        private void read(Haul.Item item) {
+            readers.incrementAndGet();
+            Haul.setProgress(item.id, Engine.Progress.READING);
+            new Thread(() -> {
+                try {
+                    Reading.decide(c, item);
+                } catch (Exception e) {
+                    // couldn't be read here: download the link as it is, which says what went wrong if it fails
+                    Haul.update(c, item.id, i -> {
+                        if (!Haul.WORKING.equals(i.status)) return;
+                        i.decide = false;
+                        i.status = Haul.QUEUED;
+                    });
+                } finally {
+                    readers.decrementAndGet();
+                    synchronized (LOCK) {
+                        LOCK.notifyAll();
+                    }
+                }
+            }, "haul-reading").start();
         }
 
         /** Called on the main thread when Android stops the host, with the reason to show. Must return at once. */
@@ -266,7 +369,7 @@ final class Downloads {
             showProgress(item, -1);
             File dir = new File(c.getCacheDir(), "haul/" + id);
             try {
-                if (!host.waitsForNetwork() && Haul.wifiOnly(c)
+                if (!item.cut() && !host.waitsForNetwork() && Haul.wifiOnly(c)
                         && c.getSystemService(ConnectivityManager.class).isActiveNetworkMetered()) {
                     throw new IllegalStateException(NO_WIFI);
                 }
@@ -276,7 +379,7 @@ final class Downloads {
                 try {
                     got = fetch(item, dir, stages);
                 } catch (Exception first) {
-                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id)) throw first;
+                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id) || item.cut()) throw first;   // a clip needs no new yt-dlp
                     // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                     if (!Engine.updateAfterFailure(c)) throw first;
                     stages.on(Engine.Progress.STARTING, System.currentTimeMillis());
@@ -302,6 +405,8 @@ final class Downloads {
                 final String m = firstMime, kind = anyVideo ? Haul.VIDEO : anyImage || !anyAudio ? Haul.PHOTOS : Haul.AUDIO;
                 final boolean sound = Haul.PHOTOS.equals(kind) && anyAudio;
                 final String t = !got.title.isEmpty() ? got.title : titleOf(got.files.get(0).getName());
+                final Caption caption = got.caption;
+                final String page = got.page;
                 final long bytes = size;
                 final int count = got.files.size(), height = got.height;
                 final int duration = item.clipped() ? item.clipEnd - item.clipStart : got.duration;
@@ -317,6 +422,10 @@ final class Downloads {
                     i.sound = sound;
                     i.took = took;
                     i.title = t;
+                    i.caption = caption.text;
+                    i.by = caption.by;
+                    i.posted = caption.posted;
+                    i.page = page;
                     i.count = count;
                     i.size = bytes;
                     i.duration = duration;
@@ -361,41 +470,10 @@ final class Downloads {
 
         // ---- Into the Gallery ----
 
-        /** Copies the file into shared storage through MediaStore, so no storage permission is needed. */
         private Uri save(File f, String mime) throws Exception {
-            String folder;
-            Uri collection;
-            if (mime.startsWith("audio/")) {
-                folder = Environment.DIRECTORY_MUSIC;
-                collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-            } else if (mime.startsWith("image/")) {
-                folder = Environment.DIRECTORY_PICTURES;
-                collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-            } else {
-                folder = Environment.DIRECTORY_MOVIES;
-                collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            try (InputStream in = new FileInputStream(f)) {
+                return toGallery(c, in, f.getName(), mime);
             }
-            ContentResolver cr = c.getContentResolver();
-            ContentValues v = new ContentValues();
-            v.put(MediaStore.MediaColumns.DISPLAY_NAME, f.getName());
-            v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
-            v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul");
-            v.put(MediaStore.MediaColumns.IS_PENDING, 1);
-            Uri uri = cr.insert(collection, v);
-            if (uri == null) throw new Exception("Couldn't save to the Gallery.");
-            try (InputStream in = new FileInputStream(f); OutputStream out = cr.openOutputStream(uri)) {
-                if (out == null) throw new Exception("Couldn't save to the Gallery.");
-                byte[] buf = new byte[256 * 1024];
-                for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
-            } catch (Exception e) {
-                cr.delete(uri, null, null);
-                String msg = String.valueOf(e.getMessage());
-                throw new Exception(msg.contains("ENOSPC") ? "no space" : msg, e);
-            }
-            v.clear();
-            v.put(MediaStore.MediaColumns.IS_PENDING, 0);
-            cr.update(uri, v, null, null);
-            return uri;
         }
 
         // ---- Notifications ----
@@ -478,6 +556,7 @@ final class Downloads {
 
     static PendingIntent openApp(Context c, int code) {
         return PendingIntent.getActivity(c, code, new Intent(c, MainActivity.class)
+                .putExtra(MainActivity.EXTRA_TAB, MainActivity.TAB_HOLD)   // the Downloads tab, where it's going
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
     }
 
@@ -506,6 +585,46 @@ final class Downloads {
         }
         send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         return Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    }
+
+    /**
+     * Copies a file into shared storage through MediaStore (Movies/Haul, Pictures/Haul or Music/Haul, by its type), so
+     * no storage permission is needed. Used for downloads and for WhatsApp statuses.
+     */
+    static Uri toGallery(Context c, InputStream in, String name, String mime) throws Exception {
+        String folder;
+        Uri collection;
+        if (mime.startsWith("audio/")) {
+            folder = Environment.DIRECTORY_MUSIC;
+            collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        } else if (mime.startsWith("image/")) {
+            folder = Environment.DIRECTORY_PICTURES;
+            collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        } else {
+            folder = Environment.DIRECTORY_MOVIES;
+            collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        }
+        ContentResolver cr = c.getContentResolver();
+        ContentValues v = new ContentValues();
+        v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+        v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul");
+        v.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = cr.insert(collection, v);
+        if (uri == null) throw new Exception("Couldn't save to the Gallery.");
+        try (OutputStream out = cr.openOutputStream(uri)) {
+            if (out == null) throw new Exception("Couldn't save to the Gallery.");
+            byte[] buf = new byte[256 * 1024];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        } catch (Exception e) {
+            cr.delete(uri, null, null);
+            String msg = String.valueOf(e.getMessage());
+            throw new Exception(msg.contains("ENOSPC") ? "no space" : msg, e);
+        }
+        v.clear();
+        v.put(MediaStore.MediaColumns.IS_PENDING, 0);
+        cr.update(uri, v, null, null);
+        return uri;
     }
 
     /** Where a haul's files are in the Gallery. */

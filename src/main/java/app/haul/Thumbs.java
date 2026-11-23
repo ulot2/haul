@@ -120,6 +120,58 @@ final class Thumbs {
         });
     }
 
+    /**
+     * Shows a WhatsApp status (a file in WhatsApp's folder, reached through the folder Haul was allowed to read),
+     * about width×height pixels. Android makes thumbnails for its Gallery, not always for other folders, so: Android's
+     * thumbnail where it gives one, else a frame from the video, else the photo itself, shrunk.
+     */
+    static void showStatus(Context c, ImageView view, String uri, boolean video, int width, int height) {
+        view.setTag(uri);
+        Bitmap hit = CACHE.get(uri);
+        view.setImageBitmap(hit);
+        if (hit != null || MISSING.contains(uri)) return;
+        Context app = c.getApplicationContext();
+        POOL.execute(() -> {
+            Uri u = Uri.parse(uri);
+            Bitmap b = null;
+            try {
+                b = app.getContentResolver().loadThumbnail(u, new Size(width, height), null);
+            } catch (Exception ignored) {
+                // not offered for this folder: made below
+            }
+            if (b == null && video) {
+                android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+                try {
+                    r.setDataSource(app, u);
+                    b = r.getScaledFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, width, height);
+                } catch (Exception | OutOfMemoryError ignored) {
+                    // no frame: the tone stays
+                } finally {
+                    try {
+                        r.release();
+                    } catch (Exception ignored) {
+                    }
+                }
+            } else if (b == null) {
+                try {
+                    BitmapFactory.Options o = new BitmapFactory.Options();
+                    o.inJustDecodeBounds = true;
+                    try (InputStream in = app.getContentResolver().openInputStream(u)) {
+                        BitmapFactory.decodeStream(in, null, o);
+                    }
+                    o.inSampleSize = sample(o.outWidth, width);
+                    o.inJustDecodeBounds = false;
+                    try (InputStream in = app.getContentResolver().openInputStream(u)) {
+                        b = BitmapFactory.decodeStream(in, null, o);
+                    }
+                } catch (Exception | OutOfMemoryError ignored) {
+                    // gone already (WhatsApp clears them after a day)
+                }
+            }
+            deliver(uri, b, view);
+        });
+    }
+
     /** The largest power of two to shrink a picture by that still leaves it at least as wide as its cell. */
     static int sample(int pictureWidth, int cellWidth) {
         int s = 1;

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Freight, light (see DESIGN.md). The dark set, the one Haul is designed in first, is in values-night. -->
 <resources>
+    <!-- The ground, see-through: where the Download page's feed fades in. -->
+    <color name="ground_clear">#00F3F0E9</color>
     <color name="ground">#F3F0E9</color>
     <color name="surface">#FFFFFF</color>
     <color name="raised">#E8E3D9</color>

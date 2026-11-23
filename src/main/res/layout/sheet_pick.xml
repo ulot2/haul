@@ -15,13 +15,29 @@
 
     <View style="@style/Haul.Handle" />
 
-    <TextView
-        android:id="@+id/pickTitle"
-        style="@style/Haul.Heading"
-        android:layout_width="wrap_content"
+    <!-- The title, and × to close: the post waits (read in the background, it waits as "Pick"). -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="PICK FROM THE POST" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/pickTitle"
+            style="@style/Haul.Heading"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="PICK FROM THE POST" />
+
+        <ImageButton
+            android:id="@+id/pickClose"
+            style="@style/Haul.IconButton"
+            android:layout_marginStart="12dp"
+            android:contentDescription="Close, and pick later"
+            android:src="@drawable/ic_close" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/pickReading"
@@ -141,4 +157,13 @@
             android:layout_marginStart="10dp"
             android:layout_weight="1.4" />
     </LinearLayout>
+
+    <!-- A post read in the background, not wanted after all: it goes from Haul, with its badge and notification. -->
+    <Button
+        android:id="@+id/pickCancel"
+        style="@style/Haul.Button.Outline"
+        android:layout_width="match_parent"
+        android:layout_marginTop="10dp"
+        android:text="Cancel this download"
+        android:visibility="gone" />
 </LinearLayout>

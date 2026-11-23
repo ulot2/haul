@@ -11,6 +11,11 @@ import android.widget.TextView;
 final class Look {
     private static final int[] TONES = {R.color.tone0, R.color.tone1, R.color.tone2, R.color.tone3, R.color.tone4, R.color.tone5};
 
+    /** A steady tone for something (a link, a haul): the same one each time, while there's no picture. */
+    static int tone(Context c, String key) {
+        return c.getColor(TONES[Math.abs(String.valueOf(key).hashCode()) % TONES.length]);
+    }
+
     /** The picture box: a steady tone per haul, the site's tag, and the saved file's own frame once there is one. */
     static void picture(Context c, View box, ImageView image, ImageView icon, TextView tag, Haul.Item i, int w, int h) {
         box.setBackgroundTintList(ColorStateList.valueOf(c.getColor(TONES[Math.abs(i.id.hashCode()) % TONES.length])));
@@ -41,12 +46,14 @@ final class Look {
             case "Threads": return "TH";
             case "Pinterest": return "PN";
             case "Vimeo": return "VM";
+            case "WhatsApp": return "WA";
             default: return site.length() > 2 ? site.substring(0, 2).toUpperCase(java.util.Locale.ROOT) : site.toUpperCase(java.util.Locale.ROOT);
         }
     }
 
     /** What a haul is doing before there is a percent, in the notification and the hold. */
     static String stage(Haul.Item i, float progress) {
+        if (i.decide) return "Reading the post";
         if (progress == Engine.Progress.READING) return Haul.PHOTOS.equals(i.kind) || !i.as.isEmpty() ? "Reading the post" : "Reading the link";
         if (progress == Engine.Progress.WORKING) {
             if (Haul.AS_SLIDESHOW.equals(i.as)) return i.pick.contains(",") || i.pick.isEmpty() ? "Making the videos" : "Making the video";
@@ -76,6 +83,7 @@ final class Look {
             s = Haul.AUDIO.equals(i.quality) ? "Audio" : qualityName(i.quality);
         }
         if (i.clipped()) s += " · clip " + Format.clock(i.clipStart) + "–" + Format.clock(i.clipEnd);
+        if (i.cut()) s += " · clip " + Format.exact(i.cutFrom) + "–" + Format.exact(i.cutTo);
         return s;
     }
 
@@ -85,6 +93,16 @@ final class Look {
         if (DateUtils.isToday(time)) return "Today " + DateUtils.formatDateTime(c, time, DateUtils.FORMAT_SHOW_TIME);
         if (DateUtils.isToday(time + DateUtils.DAY_IN_MILLIS)) return "Yesterday";
         return DateUtils.formatDateTime(c, time, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH);
+    }
+
+    /** A day, for when a post went up: "Nov 3", with the year when it isn't this year's. */
+    static String day(Context c, long time) {
+        if (time <= 0) return "–";
+        int flags = DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
+        java.util.Calendar then = java.util.Calendar.getInstance(), now = java.util.Calendar.getInstance();
+        then.setTimeInMillis(time);
+        if (then.get(java.util.Calendar.YEAR) != now.get(java.util.Calendar.YEAR)) flags |= DateUtils.FORMAT_SHOW_YEAR;
+        return DateUtils.formatDateTime(c, time, flags);
     }
 
     /** "tiktok.com/@user/video/73…" without the https:// and the tracking query. */

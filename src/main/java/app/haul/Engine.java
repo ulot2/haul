@@ -154,12 +154,17 @@ final class Engine {
         final List<File> files = new ArrayList<>();
         String title = "";
         int duration = -1, height = -1;
+        /** The post's caption, who posted it and when. */
+        Caption caption = Caption.NONE;
+        /** The post's own address, as the site gives it: a short link shared again is then known as the same post. */
+        String page = "";
         /** Shortcuts that didn't work, so the slower way was taken ("page by yt-dlp"); shown with what the download took. */
         final List<String> slow = new ArrayList<>();
     }
 
     /** Empties dir, downloads the haul into it: the link (or its chosen items, or a section), or a TikTok photo post. */
     static Result download(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+        if (item.cut()) return cutSound(c, item, dir, progress);
         if (!item.as.isEmpty()) return tiktokPhotos(c, item, dir, progress, false);
         Result r = fetch(c, item, dir, progress, false);
         if (Haul.AUDIO.equals(item.quality)) return r;
@@ -333,7 +338,12 @@ final class Engine {
         for (File f : files) {
             if (f.isFile() && f.length() > 0 && MEDIA.contains(ext(f.getName()))) out.files.add(f);
         }
-        for (JSONObject info : infos(dir)) {
+        List<JSONObject> infos = infos(dir);
+        out.caption = Caption.of(infos);
+        for (JSONObject info : infos) {
+            if (out.page.isEmpty()) out.page = info.optString("webpage_url").trim();
+        }
+        for (JSONObject info : infos) {
             JSONArray formats = info.optJSONArray("formats");
             if (formats == null || formats.length() == 0) continue;
             out.title = info.optString("title");
@@ -508,6 +518,8 @@ final class Engine {
             if (images.isEmpty()) continue;
             String desc = Photos.tiktokDesc(page);
             out.title = desc.isEmpty() ? "TikTok photos" : desc;
+            out.caption = Photos.tiktokCaption(page);
+            out.page = "https://www.tiktok.com/@_/photo/" + photoId;
             List<Want> wants = new ArrayList<>();
             for (int n : Post.chosen(item.pick, images.size())) {
                 // named by its place in the post, whichever were chosen
@@ -549,6 +561,8 @@ final class Engine {
         // One picture of several, asked for on its own: say which, so the hold tells the videos of a post apart.
         boolean one = item.pick.matches("\\d+") && made.files.size() == 1;
         made.title = one ? out.title + " · " + item.pick : out.title;
+        made.caption = out.caption;
+        made.page = out.page;
         made.duration = seconds;
         made.height = 1920;
         return made;
@@ -816,6 +830,53 @@ final class Engine {
             if (STOPPED.remove(id) || exit == 137 || exit == 143) throw new InterruptedException();   // canceled
             throw new Exception(MADE + lastLine(said));
         }
+    }
+
+    // ---- Clipping a saved sound ----
+
+    static final String SOURCE_GONE = "The file to clip is gone from the Gallery. Download the post again, then clip it.";
+
+    /**
+     * A section of a saved file's sound (an M4A, or a video's sound), as an M4A of its own: copied out of the Gallery,
+     * cut by FFmpeg to the tenth of a second, and turned into AAC, which plays everywhere and makes a ringtone.
+     * Nothing is downloaded.
+     */
+    private static Result cutSound(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+        init(c);
+        deleteAll(dir);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        progress.on(Progress.WORKING);
+        File source = new File(dir, "source");
+        try (InputStream in = c.getContentResolver().openInputStream(android.net.Uri.parse(item.source));
+             java.io.OutputStream out = new java.io.FileOutputStream(source)) {
+            if (in == null) throw new Exception(SOURCE_GONE);
+            byte[] buf = new byte[256 * 1024];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        } catch (java.io.FileNotFoundException | SecurityException e) {
+            throw new Exception(SOURCE_GONE, e);
+        }
+        String when = Format.exact(item.cutFrom) + "–" + Format.exact(item.cutTo);
+        String base = item.title.replaceFirst("\\s*·\\s*\\d[\\d:.]*–[\\d:.]+$", "");   // a clip of a clip: one time range
+        File made = new File(dir, safeName((base.isEmpty() ? "Sound" : base) + " " + when.replace(':', '.').replace('–', '-')) + ".m4a");
+        // -ss before the input seeks fast; with the sound turned into AAC (not copied), the cut is still exact.
+        ffmpeg(item.id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", seconds(item.cutFrom), "-i", source.getAbsolutePath(), "-t", seconds(item.cutTo - item.cutFrom),
+                "-map", "0:a:0", "-vn", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", made.getAbsolutePath())), made);
+        //noinspection ResultOfMethodCallIgnored
+        source.delete();
+        Result r = new Result();
+        r.files.add(made);
+        r.title = (base.isEmpty() ? "Sound" : base) + " · " + when;
+        r.duration = (int) Math.round((item.cutTo - item.cutFrom) / 1000.0);
+        r.caption = new Caption(item.caption, item.by, item.posted);
+        r.page = item.page;
+        return r;
+    }
+
+    /** 12345 (ms) → "12.345", as FFmpeg takes times. */
+    private static String seconds(long millis) {
+        return String.format(Locale.ROOT, "%.3f", millis / 1000.0);
     }
 
     // ---- GIFs ----
@@ -1121,7 +1182,7 @@ final class Engine {
      *  HTTP failure in "Unable to download webpage: HTTP Error 404", so the plain network check has to come last. */
     static String friendly(Throwable e) {
         String m = String.valueOf(e.getMessage());
-        if (m.startsWith(MADE)) return m;
+        if (m.startsWith(MADE) || m.equals(SOURCE_GONE)) return m;
         String low = m.toLowerCase(Locale.ROOT);
         if (m.equals("NO_FILES") || has(low, "no video formats", "no video could be found", "there's no video", "no media found"))
             return "Haul found no video or photos in this post.";
