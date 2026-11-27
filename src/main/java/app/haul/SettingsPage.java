@@ -30,7 +30,6 @@ final class SettingsPage {
         this.root = root;
         findViewById(R.id.aboutWelcome).setOnClickListener(v -> a.startActivity(new Intent(a, WelcomeActivity.class)));
         findViewById(R.id.aboutNews).setOnClickListener(v -> a.startActivity(new Intent(a, WhatsNewActivity.class)));
-        findViewById(R.id.aboutReport).setOnClickListener(v -> saveReport());
 
         Button[] q = {findViewById(R.id.sBest), findViewById(R.id.sSmall), findViewById(R.id.sAudio)};
         String[] ids = {Haul.BEST, Haul.SMALL, Haul.AUDIO};
@@ -159,41 +158,6 @@ final class SettingsPage {
         ((TextView) findViewById(R.id.badgeState)).setText(Badge.allowed(a) ? "Floating badge: on" : "Floating badge: off");
         String v = Engine.version(a);
         engineVersion.setText(v.isEmpty() ? "yt-dlp" : "yt-dlp " + v);
-    }
-
-    /**
-     * The last Instagram read (what Instagram sent around any song it mentioned), saved to the phone's Download
-     * folder: for a photo post whose song didn't come through, to send and look into.
-     */
-    private void saveReport() {
-        java.io.File report = Engine.instagramReport(a);
-        if (!report.isFile()) {
-            Toast.makeText(a, "Download an Instagram post first, then save the report", Toast.LENGTH_LONG).show();
-            return;
-        }
-        new Thread(() -> {
-            String said;
-            try {
-                android.content.ContentValues v = new android.content.ContentValues();
-                v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "Haul Instagram report.txt");
-                v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
-                v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
-                android.net.Uri to = a.getContentResolver().insert(
-                        android.provider.MediaStore.Downloads.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY), v);
-                if (to == null) throw new Exception("no file");
-                try (java.io.InputStream in = new java.io.FileInputStream(report);
-                     java.io.OutputStream out = a.getContentResolver().openOutputStream(to)) {
-                    if (out == null) throw new Exception("no file");
-                    byte[] buf = new byte[64 * 1024];
-                    for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
-                }
-                said = "Saved \"Haul Instagram report.txt\" to Download";
-            } catch (Exception e) {
-                said = "Couldn't save the report";
-            }
-            String message = said;
-            a.runOnUiThread(() -> Toast.makeText(a, message, Toast.LENGTH_LONG).show());
-        }, "haul-report").start();
     }
 
     private void open(Intent pick, int request) {
