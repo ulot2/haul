@@ -41,15 +41,4 @@ public class InstaMusicTest {
         assertNull(InstaMusic.parse(null));
         assertNull(InstaMusic.of(null));
     }
-
-    @Test
-    public void foundInsideAPagesEscapedScript() {
-        String html = "<script>require(\"x\", \"{\\\"music_metadata\\\":{\\\"music_info\\\":{\\\"music_asset_info\\\":{"
-                + "\\\"title\\\":\\\"Song\\\",\\\"progressive_download_url\\\":\\\"https:\\\\/\\\\/cdn\\\\/s.m4a\\\"},"
-                + "\\\"music_consumption_info\\\":{\\\"audio_asset_start_time_in_ms\\\":5000}}}}\")</script>";
-        InstaMusic.Music m = InstaMusic.parse(Collections.singletonList(html));
-        assertEquals("https://cdn/s.m4a", m.url);
-        assertEquals("Song", m.title);
-        assertEquals(5000, m.from);
-    }
 }

@@ -36,10 +36,8 @@ final class InstaMusic {
     /** The song of the first page that has one, or null when Instagram sent none. */
     static Music parse(List<String> pages) {
         if (pages == null) return null;
-        for (String raw : pages) {
-            if (raw == null) continue;
-            // A web page may carry the post's data inside a script's string, its quotes escaped (\"music_metadata\").
-            String page = raw.contains("\"music_metadata\"") || raw.contains("\"music_info\"") ? raw : unescape(raw);
+        for (String page : pages) {
+            if (page == null) continue;
             int at = page.indexOf("\"music_metadata\"");
             if (at < 0) at = page.indexOf("\"music_info\"");
             if (at < 0) continue;
@@ -57,11 +55,6 @@ final class InstaMusic {
             return m;
         }
         return null;
-    }
-
-    /** A page's escaped JSON made plain: \" to ", \/ to /, and \\ to \. */
-    static String unescape(String s) {
-        return s.replace("\\\\", "\u0000").replace("\\\"", "\"").replace("\\/", "/").replace("\u0000", "\\");
     }
 
     /** As kept beside the post's details: {"url":…,"title":…,"artist":…,"from":…,"length":…}. */
