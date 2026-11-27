@@ -405,10 +405,12 @@ final class Downloads {
                 String firstMime = "";
                 long size = 0;
                 boolean anyVideo = false, anyAudio = false, anyImage = false;
+                // By site or by creator (Settings), each download into its folder under …/Haul.
+                final String sub = Folders.sub(Haul.folders(c), item.site, got.caption.by.isEmpty() ? item.by : got.caption.by);
                 for (File f : got.files) {
                     String mime = mime(f.getName());
                     size += f.length();
-                    uris.add(String.valueOf(save(f, mime)));
+                    uris.add(String.valueOf(save(f, mime, sub)));
                     if (firstMime.isEmpty()) firstMime = mime;
                     anyVideo |= mime.startsWith("video/");
                     anyAudio |= mime.startsWith("audio/");
@@ -428,6 +430,7 @@ final class Downloads {
                 Haul.update(c, id, i -> {
                     i.status = Haul.DONE;
                     i.error = "";
+                    i.folder = sub;
                     i.retries = 0;
                     i.retryAt = 0;
                     i.uris = uris;
@@ -497,9 +500,9 @@ final class Downloads {
 
         // ---- Into the Gallery ----
 
-        private Uri save(File f, String mime) throws Exception {
+        private Uri save(File f, String mime, String sub) throws Exception {
             try (InputStream in = new FileInputStream(f)) {
-                return toGallery(c, in, f.getName(), mime);
+                return toGallery(c, in, f.getName(), mime, sub);
             }
         }
 
@@ -619,6 +622,11 @@ final class Downloads {
      * no storage permission is needed. Used for downloads and for WhatsApp statuses.
      */
     static Uri toGallery(Context c, InputStream in, String name, String mime) throws Exception {
+        return toGallery(c, in, name, mime, "");
+    }
+
+    /** The same, into a folder of its own under …/Haul (sub, from Folders; "" for none). */
+    static Uri toGallery(Context c, InputStream in, String name, String mime, String sub) throws Exception {
         String folder;
         Uri collection;
         if (mime.startsWith("audio/")) {
@@ -635,7 +643,7 @@ final class Downloads {
         ContentValues v = new ContentValues();
         v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
         v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
-        v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul");
+        v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul" + (sub == null || sub.isEmpty() ? "" : "/" + sub));
         v.put(MediaStore.MediaColumns.IS_PENDING, 1);
         Uri uri = cr.insert(collection, v);
         if (uri == null) throw new Exception("Couldn't save to the Gallery.");
@@ -656,8 +664,9 @@ final class Downloads {
 
     /** Where a haul's files are in the Gallery. */
     static String album(Haul.Item i) {
-        if (i.sound) return "Pictures/Haul and Music/Haul";
-        return Haul.AUDIO.equals(i.kind) ? "Music/Haul" : Haul.PHOTOS.equals(i.kind) ? "Pictures/Haul" : "Movies/Haul";
+        String in = i.folder.isEmpty() ? "" : "/" + i.folder;
+        if (i.sound) return "Pictures/Haul" + in + " and Music/Haul" + in;
+        return (Haul.AUDIO.equals(i.kind) ? "Music/Haul" : Haul.PHOTOS.equals(i.kind) ? "Pictures/Haul" : "Movies/Haul") + in;
     }
 
     static String mime(String name) {

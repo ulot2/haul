@@ -53,6 +53,7 @@ final class Haul {
         String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
         long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
         boolean decide;                // shared from another app: read the post first (Reading), then download or ask
+        String folder = "";            // the folder under …/Haul its files went to (Folders); "" for none
         int retries;                   // times tried again after the site limited downloads (Retry)
         long retryAt;                  // waiting until then to try again (the site is limiting downloads); 0 otherwise
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
@@ -71,7 +72,7 @@ final class Haul {
                     .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
                     .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
                     .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("decide", decide)
-                    .put("retries", retries).put("retryAt", retryAt);
+                    .put("retries", retries).put("retryAt", retryAt).put("folder", folder);
         }
 
         static Item of(JSONObject o) {
@@ -113,6 +114,7 @@ final class Haul {
             i.decide = o.optBoolean("decide");
             i.retries = o.optInt("retries");
             i.retryAt = o.optLong("retryAt");
+            i.folder = o.optString("folder");
             return i;
         }
 
@@ -168,6 +170,11 @@ final class Haul {
         return prefs(c).getBoolean("ask_quality", false);
     }
 
+    /** Where new downloads go: Folders.ONE (all together), SITE or CREATOR. */
+    static String folders(Context c) {
+        return prefs(c).getString("folders", Folders.ONE);
+    }
+
     static boolean wifiOnly(Context c) {
         return prefs(c).getBoolean("wifi_only", false);
     }
@@ -221,6 +228,61 @@ final class Haul {
         for (int k = list.size() - 1; k >= 0 && list.size() > KEEP; k--) if (!list.get(k).held()) list.remove(k);
         save(c);
         return i;
+    }
+
+    // ---- Backup and restore ----
+
+    static final String FROM_BACKUP = "From your backup. Tap to download it again.";
+
+    /** The whole hold as a backup file's text: {"haul":1,"at":…,"items":[…]}. */
+    static synchronized String backup(Context c) throws Exception {
+        JSONArray a = new JSONArray();
+        for (Item i : load(c)) a.put(i.json());
+        return new JSONObject().put("haul", 1).put("at", System.currentTimeMillis()).put("items", a).toString();
+    }
+
+    /**
+     * A haul from a backup, as it comes back: saved, when its file is on this phone (fileThere); else waiting to be
+     * downloaded again with a tap (FROM_BACKUP). Null for one that can't come back without its file: a WhatsApp status,
+     * a still, a clipped sound, which were made on the old phone, not downloaded.
+     */
+    static Item restored(Item i, boolean fileThere) {
+        if (i == null || i.id == null || i.id.isEmpty() || i.url == null || i.url.isEmpty()) return null;
+        if (DONE.equals(i.status) && fileThere) return i;
+        if (Statuses.isStatus(i.url) || STILL.equals(i.quality) || !i.source.isEmpty()) return null;
+        i.status = FAILED;
+        i.error = FROM_BACKUP;
+        i.decide = false;
+        i.retries = 0;
+        i.retryAt = 0;
+        i.uri = "";
+        i.uris = new ArrayList<>();
+        return i;
+    }
+
+    /**
+     * Brings a backup's hauls into the hold: those it hasn't already (by id), newest first, keeping the last KEEP.
+     * fileThere tells whether a saved haul's first file is on this phone. Returns how many came back.
+     */
+    static synchronized int restore(Context c, String text, java.util.function.Predicate<Item> fileThere) throws Exception {
+        JSONArray a = new JSONObject(text).getJSONArray("items");
+        List<Item> list = load(c);
+        java.util.Set<String> have = new java.util.HashSet<>();
+        for (Item i : list) have.add(i.id);
+        int n = 0;
+        for (int k = 0; k < a.length(); k++) {
+            Item raw = Item.of(a.getJSONObject(k));
+            if (have.contains(raw.id)) continue;
+            Item back = restored(raw, DONE.equals(raw.status) && fileThere.test(raw));
+            if (back == null) continue;
+            list.add(back);
+            have.add(back.id);
+            n++;
+        }
+        list.sort((x, y) -> Long.compare(y.time, x.time));
+        for (int k = list.size() - 1; k >= 0 && list.size() > KEEP; k--) if (!list.get(k).held()) list.remove(k);
+        if (n > 0) save(c);
+        return n;
     }
 
     static synchronized void update(Context c, String id, Consumer<Item> edit) {

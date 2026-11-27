@@ -389,6 +389,7 @@ public class MainActivity extends Activity {
         super.onActivityResult(request, result, data);
         if (request == Sheets.REQ_DELETE) render();
         if (request == StatusesPage.REQ_FOLDER) statuses.onActivityResult(request, result, data);
+        if (request == SettingsPage.REQ_BACKUP || request == SettingsPage.REQ_RESTORE) settings.onActivityResult(request, result, data);
     }
 
     // ---- The tabs ----

@@ -31,6 +31,8 @@ No account, no ads, no server of its own. yt-dlp runs on the phone and updates i
 - Several links at once (copied or pasted as a list, or shared as text from notes): each post once, in the chosen quality, with no questions (a carousel whole, a TikTok photo post as pictures and sound); posts already saved or already waiting are left out and counted.
 - A download the site is limiting (Instagram's "rate-limit reached or login required", or HTTP 429: Retry) waits and tries again by itself, after 2, 5 and 10 minutes, the queue staying up meanwhile; then it fails. Try again starts over.
 - The player saves the frame on screen of a video as a JPEG in Pictures/Haul (a haul of quality STILL: never downloaded again).
+- Folders (Settings): ONE, by SITE or by CREATOR under …/Haul (Folders.sub), for new downloads, stills and statuses; the haul keeps its folder.
+- Back up / Restore (Settings › Your list): the hold as a JSON file (Storage Access Framework). Restore adds what's missing: saved with its file here, else FAILED "From your backup" (Try again downloads it); statuses, stills and clipped sounds without their files are left out.
 - One download at a time; others wait in the queue. Android 14+: a user-initiated data transfer job (waits for a connection, no daily limit). Android 10-13, or if Android refuses the job: a foreground service.
 - No sign-in: private, age-restricted and some rate-limited posts fail with a clear reason.
 - Updates: the app checks GitHub releases (public repo ulot2/haul) every 6 hours; yt-dlp updates daily (after the queue empties) and after a failure.

@@ -252,7 +252,8 @@ public class PlayerActivity extends Activity {
         String base = Look.title(of).replaceAll("[\\\\/:*?\"<>|\\n\\r\\t]", " ").trim();
         if (base.length() > 60) base = base.substring(0, 60).trim();
         String name = (base.isEmpty() ? "Still" : base) + " still " + when.replace(':', '.') + ".jpg";
-        Uri saved = Downloads.toGallery(this, new java.io.ByteArrayInputStream(jpeg.toByteArray()), name, "image/jpeg");
+        String sub = Folders.sub(Haul.folders(this), of.site, of.by);
+        Uri saved = Downloads.toGallery(this, new java.io.ByteArrayInputStream(jpeg.toByteArray()), name, "image/jpeg", sub);
         long bytes = jpeg.size();
         Haul.add(this, of.url, Haul.STILL, -1, -1, "", "", 0, i -> {
             i.status = Haul.DONE;
@@ -268,9 +269,10 @@ public class PlayerActivity extends Activity {
             i.by = of.by;
             i.posted = of.posted;
             i.page = of.page;
+            i.folder = sub;
             i.doneAt = System.currentTimeMillis();
         });
-        return "Saved the frame at " + when + " (" + w + "×" + h + ") to Pictures/Haul";
+        return "Saved the frame at " + when + " (" + w + "×" + h + ") to Pictures/Haul" + (sub.isEmpty() ? "" : "/" + sub);
     }
 
     /** A photo, fitted to the screen; a GIF moves. Decoded at about screen size, so large photos don't run out of memory. */
