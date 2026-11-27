@@ -134,6 +134,8 @@ final class Downloads {
         Haul.update(c, id, i -> {
             i.status = Haul.QUEUED;
             i.error = "";
+            i.retries = 0;   // tried by hand: a fresh start, now
+            i.retryAt = 0;
         });
         start(c);
     }
@@ -293,6 +295,17 @@ final class Downloads {
                     // long download doesn't keep the user waiting to pick from a post.
                     for (Haul.Item r; (r = Haul.takeReading(c)) != null; ) read(r);
                     next = Haul.takeNext(c);
+                    long retryAt = next == null && readers.get() == 0 ? Haul.nextRetry(c) : 0;
+                    if (retryAt > 0) {
+                        // The site is limiting downloads: stay up, and try again when the time comes (Retry).
+                        host.show(ongoing("Waiting to try again at " + Format.time(retryAt), "The site is limiting downloads for now", -1, null));
+                        try {
+                            LOCK.wait(Math.max(1000, Math.min(30_000, retryAt - System.currentTimeMillis())));
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        continue;
+                    }
                     if (next == null && readers.get() > 0) {
                         if (current == null) host.show(ongoing("Reading the post…", null, -1, null));
                         try {
@@ -415,6 +428,8 @@ final class Downloads {
                 Haul.update(c, id, i -> {
                     i.status = Haul.DONE;
                     i.error = "";
+                    i.retries = 0;
+                    i.retryAt = 0;
                     i.uris = uris;
                     i.uri = uris.get(0);
                     i.mime = m;
@@ -441,11 +456,23 @@ final class Downloads {
                         i.status = Haul.CANCELED;
                         if (i.error.isEmpty()) i.error = "Canceled.";
                     });
+                } else if (Retry.limited(item.site, String.valueOf(e.getMessage())) && item.retries < Retry.MAX) {
+                    // The site is limiting downloads for now (Instagram, often): wait, and try again by itself.
+                    int n = item.retries + 1;
+                    long at = System.currentTimeMillis() + Retry.wait(n);
+                    Haul.update(c, id, i -> {
+                        i.status = Haul.QUEUED;
+                        i.retries = n;
+                        i.retryAt = at;
+                        i.error = i.site + " is limiting downloads. Trying again at " + Format.time(at) + ".";
+                    });
                 } else {
                     String why = NO_WIFI.equals(e.getMessage()) ? NO_WIFI : Engine.friendly(e);
+                    boolean tried = item.retries > 0;
                     Haul.update(c, id, i -> {
                         i.status = Haul.FAILED;
-                        i.error = why;
+                        i.error = tried ? why + " (tried " + (i.retries + 1) + " times)" : why;
+                        i.retryAt = 0;
                     });
                     notifyFailed(Haul.get(c, id));
                 }

@@ -428,6 +428,7 @@ final class Sheets {
             d.findViewById(R.id.actCopy).setVisibility(View.GONE);
             d.findViewById(R.id.actAgain).setVisibility(View.GONE);
         }
+        if (Haul.STILL.equals(i.quality)) d.findViewById(R.id.actAgain).setVisibility(View.GONE);   // made here, from a video
         Button again = d.findViewById(R.id.actAgain);
         again.setEnabled(!active);
         again.setAlpha(active ? 0.4f : 1f);
