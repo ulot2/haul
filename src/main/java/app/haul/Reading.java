@@ -104,7 +104,9 @@ final class Reading {
             } catch (Exception e) {
                 post = null;
             }
-            if (post == null || post.entries.size() <= 1) queue(c, item, link);   // one photo or video: as it is
+            if (post != null) post.withMusic(Engine.music(c, link));
+            // One photo or video, without a song: as it is. With a song, or several: the user picks.
+            if (post == null || post.entries.size() <= 1 && !post.sound) queue(c, item, link);
             else choose(c, item, link, post, false);
             return;
         }

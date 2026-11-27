@@ -70,10 +70,16 @@ final class Downloads {
 
     /** The same, for a TikTok photo post saved as videos: seconds is how long each runs (0: as long as the sound). */
     static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
+        return add(c, url, quality, clipStart, clipEnd, pick, as, seconds, null);
+    }
+
+    /** The same, with more set up before the queue sees it (setup, when given: an Instagram post's song). */
+    static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds,
+                         java.util.function.Consumer<Haul.Item> setup) {
         Haul.Item i;
         synchronized (Downloads.class) {   // two quick shares of one link: only the first gets in
             if (Haul.activeFor(c, url, pick == null ? "" : pick, as == null ? "" : as) != null) return null;
-            i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as, seconds);
+            i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as, seconds, setup);
         }
         start(c);
         return i;

@@ -22,7 +22,20 @@ final class Post {
 
     final List<Entry> entries = new ArrayList<>();
     String title = "";
-    boolean sound;   // a TikTok photo post with a sound to play under its pictures
+    boolean sound;   // a photo post with a sound to play under its pictures (TikTok's, or an Instagram post's song)
+    InstaMusic.Music music;   // an Instagram photo post's song, when Instagram said which
+
+    /** True when every item is a photo: a post whose song can go under its pictures. */
+    boolean allPhotos() {
+        for (Entry e : entries) if (e.video) return false;
+        return !entries.isEmpty();
+    }
+
+    /** An Instagram post: its song, when it has one and is all photos, makes it a post to save as photos, video or sound. */
+    void withMusic(InstaMusic.Music m) {
+        music = m;
+        sound = m != null && allPhotos();
+    }
 
     /** A TikTok photo post, from its page: every picture, and whether there is a sound. Empty when the page has none. */
     static Post tiktok(String html) {
