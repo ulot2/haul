@@ -33,6 +33,7 @@ No account, no ads, no server of its own. yt-dlp runs on the phone and updates i
 - The player saves the frame on screen of a video as a JPEG in Pictures/Haul (a haul of quality STILL: never downloaded again).
 - Folders (Settings): ONE, by SITE or by CREATOR under …/Haul (Folders.sub), for new downloads, stills and statuses; the haul keeps its folder.
 - Back up / Restore (Settings › Your list): the hold as a JSON file (Storage Access Framework). Restore adds what's missing: saved with its file here, else FAILED "From your backup" (Try again downloads it); statuses, stills and clipped sounds without their files are left out.
+- Split for Status: a saved video over a minute, split by FFmpeg (segment muxer, stream copy, parts of N−2 s so none runs over) into a haul of N-second parts (30/60/90, remembered), through the queue.
 - One download at a time; others wait in the queue. Android 14+: a user-initiated data transfer job (waits for a connection, no daily limit). Android 10-13, or if Android refuses the job: a foreground service.
 - No sign-in: private, age-restricted and some rate-limited posts fail with a clear reason.
 - Updates: the app checks GitHub releases (public repo ulot2/haul) every 6 hours; yt-dlp updates daily (after the queue empties) and after a failure.

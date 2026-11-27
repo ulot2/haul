@@ -400,6 +400,14 @@ final class Sheets {
             primary.setVisibility(View.GONE);
         }
 
+        if (done && Haul.VIDEO.equals(i.kind) && i.duration > 60 && !i.uris.isEmpty() && !i.splitting()) {
+            Button splitButton = d.findViewById(R.id.sheetSplit);
+            splitButton.setVisibility(View.VISIBLE);
+            splitButton.setOnClickListener(v -> {
+                d.dismiss();
+                splitForStatus(a, i);
+            });
+        }
         if (done && soundOf(i) != null) {
             Button cutButton = d.findViewById(R.id.sheetCut);
             cutButton.setVisibility(View.VISIBLE);
@@ -428,7 +436,7 @@ final class Sheets {
             d.findViewById(R.id.actCopy).setVisibility(View.GONE);
             d.findViewById(R.id.actAgain).setVisibility(View.GONE);
         }
-        if (Haul.STILL.equals(i.quality)) d.findViewById(R.id.actAgain).setVisibility(View.GONE);   // made here, from a video
+        if (i.madeHere()) d.findViewById(R.id.actAgain).setVisibility(View.GONE);   // made here, from a saved file
         Button again = d.findViewById(R.id.actAgain);
         again.setEnabled(!active);
         again.setAlpha(active ? 0.4f : 1f);
@@ -445,6 +453,33 @@ final class Sheets {
             else Haul.remove(a, i.id);
         });
         d.show();
+    }
+
+    // ---- Split for a WhatsApp Status ----
+
+    /**
+     * How long each part: WhatsApp's Status takes only so long a video, and that limit has changed over time, so the user
+     * picks what theirs takes (a minute, to start). The parts are made on the phone, then Share sends them all.
+     */
+    private static void splitForStatus(Activity a, Haul.Item i) {
+        int[] lengths = {30, 60, 90};
+        String[] names = new String[lengths.length];
+        for (int k = 0; k < lengths.length; k++) {
+            int parts = (int) Math.ceil(i.duration / (double) (lengths[k] - 2));
+            names[k] = lengths[k] + " seconds · about " + parts + (parts == 1 ? " part" : " parts");
+        }
+        int[] chosen = {Math.max(0, java.util.Arrays.binarySearch(lengths, Haul.prefs(a).getInt("status_split", 60)))};
+        new AlertDialog.Builder(a)
+                .setTitle("Split for Status")
+                .setSingleChoiceItems(names, chosen[0], (x, k) -> chosen[0] = k)
+                .setPositiveButton("Split", (x, y) -> {
+                    int seconds = lengths[chosen[0]];
+                    Haul.prefs(a).edit().putInt("status_split", seconds).apply();
+                    Downloads.split(a, i, i.uris.get(0), seconds);
+                    Toast.makeText(a, "Splitting into " + seconds + "-second parts…", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     // ---- Clip the sound of a saved haul ----

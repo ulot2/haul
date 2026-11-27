@@ -52,6 +52,7 @@ final class Haul {
         String page = "";              // the post's own address, as the site gave it (a short link's full one)
         String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
         long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
+        int split;                     // a saved video split into parts this long (seconds) for a WhatsApp Status; 0 otherwise
         boolean decide;                // shared from another app: read the post first (Reading), then download or ask
         String folder = "";            // the folder under …/Haul its files went to (Folders); "" for none
         int retries;                   // times tried again after the site limited downloads (Retry)
@@ -71,7 +72,7 @@ final class Haul {
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
                     .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
                     .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
-                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("decide", decide)
+                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("split", split).put("decide", decide)
                     .put("retries", retries).put("retryAt", retryAt).put("folder", folder);
         }
 
@@ -111,6 +112,7 @@ final class Haul {
             i.source = o.optString("source");
             i.cutFrom = o.optLong("cutFrom", -1);
             i.cutTo = o.optLong("cutTo", -1);
+            i.split = o.optInt("split");
             i.decide = o.optBoolean("decide");
             i.retries = o.optInt("retries");
             i.retryAt = o.optLong("retryAt");
@@ -134,6 +136,16 @@ final class Haul {
 
         boolean clipped() {
             return clipStart >= 0 && clipEnd > clipStart;
+        }
+
+        /** A saved video split into parts for a WhatsApp Status: made on the phone, no site involved. */
+        boolean splitting() {
+            return !source.isEmpty() && split > 0;
+        }
+
+        /** Made on the phone from a file already saved (a clipped sound, a split video): never downloaded again. */
+        boolean madeHere() {
+            return cut() || splitting() || STILL.equals(quality) || Statuses.isStatus(url);
         }
 
         /** A sound clipped from a file already saved, not a download: made on the phone, no site involved. */
@@ -401,7 +413,7 @@ final class Haul {
      */
     static synchronized Item saved(Context c, String url, String quality) {
         for (Item i : load(c)) {
-            if (!DONE.equals(i.status) || i.clipped() || i.cut() || !sameWay(i.quality, quality)) continue;
+            if (!DONE.equals(i.status) || i.clipped() || i.madeHere() || !sameWay(i.quality, quality)) continue;
             if (Seen.same(url, i.url) || Seen.same(url, i.page)) return i;
         }
         return null;

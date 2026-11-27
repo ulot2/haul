@@ -165,6 +165,7 @@ final class Engine {
     /** Empties dir, downloads the haul into it: the link (or its chosen items, or a section), or a TikTok photo post. */
     static Result download(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
         if (item.cut()) return cutSound(c, item, dir, progress);
+        if (item.splitting()) return splitVideo(c, item, dir, progress);
         if (!item.as.isEmpty()) return tiktokPhotos(c, item, dir, progress, false);
         Result r = fetch(c, item, dir, progress, false);
         if (Haul.AUDIO.equals(item.quality)) return r;
@@ -869,6 +870,50 @@ final class Engine {
         r.files.add(made);
         r.title = (base.isEmpty() ? "Sound" : base) + " · " + when;
         r.duration = (int) Math.round((item.cutTo - item.cutFrom) / 1000.0);
+        r.caption = new Caption(item.caption, item.by, item.posted);
+        r.page = item.page;
+        return r;
+    }
+
+    /**
+     * A saved video in parts of item.split seconds, for a WhatsApp Status (which takes only so long a video): copied out
+     * of the Gallery and split by FFmpeg without re-encoding, so it's quick and loses nothing. Each part starts on a
+     * key frame, so it is cut a little short of the limit (2 seconds), never over it.
+     */
+    private static Result splitVideo(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+        init(c);
+        deleteAll(dir);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        progress.on(Progress.WORKING);
+        File source = new File(dir, "source.mp4");
+        try (InputStream in = c.getContentResolver().openInputStream(android.net.Uri.parse(item.source));
+             java.io.OutputStream out = new java.io.FileOutputStream(source)) {
+            if (in == null) throw new Exception(SOURCE_GONE);
+            byte[] buf = new byte[256 * 1024];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        } catch (java.io.FileNotFoundException | SecurityException e) {
+            throw new Exception(SOURCE_GONE, e);
+        }
+        String base = safeName((item.title.isEmpty() ? "Video" : item.title) + " status");
+        File parts = new File(dir, "parts");
+        //noinspection ResultOfMethodCallIgnored
+        parts.mkdirs();
+        File first = new File(parts, base + " 01.mp4");
+        ffmpeg(item.id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                "-i", source.getAbsolutePath(), "-map", "0", "-c", "copy", "-f", "segment",
+                "-segment_time", String.valueOf(Math.max(5, item.split - 2)), "-reset_timestamps", "1",
+                "-segment_start_number", "1", "-segment_format_options", "movflags=+faststart",
+                new File(parts, base.replace("%", "%%") + " %02d.mp4").getAbsolutePath())), first);   // % in a title: not a number
+        //noinspection ResultOfMethodCallIgnored
+        source.delete();
+        Result r = new Result();
+        File[] made = parts.listFiles((d, name) -> name.endsWith(".mp4"));
+        if (made == null || made.length == 0) throw new Exception(MADE + "no parts");
+        Arrays.sort(made, (x, y) -> x.getName().compareTo(y.getName()));
+        r.files.addAll(Arrays.asList(made));
+        r.title = (item.title.isEmpty() ? "Video" : item.title) + " · for Status, " + made.length + (made.length == 1 ? " part" : " parts");
+        r.duration = item.split;
         r.caption = new Caption(item.caption, item.by, item.posted);
         r.page = item.page;
         return r;

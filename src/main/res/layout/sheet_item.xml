@@ -161,6 +161,17 @@
             android:text="Clip the sound"
             android:visibility="gone" />
 
+        <!-- A saved video over a minute: split into parts for a WhatsApp Status. -->
+        <Button
+            android:id="@+id/sheetSplit"
+            style="@style/Haul.Button.Outline"
+            android:layout_width="match_parent"
+            android:layout_marginTop="10dp"
+            android:drawableStart="@drawable/ic_status"
+            android:drawablePadding="8dp"
+            android:text="Split for Status"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

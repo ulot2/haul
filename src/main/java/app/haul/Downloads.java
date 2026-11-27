@@ -129,6 +129,24 @@ final class Downloads {
         return i;
     }
 
+    /**
+     * Splits a saved video (the file at source) into parts of seconds each, for a WhatsApp Status: a new haul, its parts
+     * in Movies/Haul, made on the phone. It keeps the post's link, title and caption.
+     */
+    static Haul.Item split(Context c, Haul.Item from, String source, int seconds) {
+        Haul.Item i = Haul.add(c, from.url, Haul.BEST, -1, -1, "", "", 0, x -> {
+            x.source = source;
+            x.split = seconds;
+            x.title = from.title;
+            x.caption = from.caption;
+            x.by = from.by;
+            x.posted = from.posted;
+            x.page = from.page;
+        });
+        start(c);
+        return i;
+    }
+
     /** Tries an existing (failed, canceled or finished) haul again, with the quality and section it had. */
     static void retry(Context c, String id) {
         Haul.update(c, id, i -> {
@@ -382,7 +400,7 @@ final class Downloads {
             showProgress(item, -1);
             File dir = new File(c.getCacheDir(), "haul/" + id);
             try {
-                if (!item.cut() && !host.waitsForNetwork() && Haul.wifiOnly(c)
+                if (!item.madeHere() && !host.waitsForNetwork() && Haul.wifiOnly(c)
                         && c.getSystemService(ConnectivityManager.class).isActiveNetworkMetered()) {
                     throw new IllegalStateException(NO_WIFI);
                 }
@@ -392,7 +410,7 @@ final class Downloads {
                 try {
                     got = fetch(item, dir, stages);
                 } catch (Exception first) {
-                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id) || item.cut()) throw first;   // a clip needs no new yt-dlp
+                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id) || item.madeHere()) throw first;   // made here: a new yt-dlp won't help
                     // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                     if (!Engine.updateAfterFailure(c)) throw first;
                     stages.on(Engine.Progress.STARTING, System.currentTimeMillis());

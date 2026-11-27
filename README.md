@@ -41,6 +41,8 @@ The first time, Haul asks to see WhatsApp's statuses folder: tap **Allow access*
 - Nothing goes over the internet: Haul copies the file WhatsApp already has.
 - If WhatsApp is reinstalled, or moves the folder in an update, Haul asks for access again.
 
+**Split for Status**: a saved video longer than a minute has **Split for Status** on its screen. Pick how long each part (30, 60 or 90 seconds: what your WhatsApp Status takes), and Haul cuts it into parts in Movies/Haul, on the phone, without re-encoding; **Share** sends them all to WhatsApp, to post one after another. Each part ends on a key frame a moment before the limit.
+
 **Clip the sound**: tap a saved sound, video, or TikTok photo post with its sound, then **Clip the sound**. Set where it starts and ends with the sliders, nudge either one a tenth of a second with − and +, and **Play the section** to hear it. **Save the sound** makes it an M4A of its own in Music/Haul, made on the phone from the file you already have (nothing is downloaded again), cut exactly where you set it: a ringtone, or the one part of a song. The download it came from stays as it is. (Choosing **Audio** with **Clip a section** before downloading still works too, but you can't hear the section there.)
 
 Haul keeps each post's **caption**, who posted it and when. Tap a download to read them; **Copy caption** copies the whole text (a recipe, a song's name, a place), so it isn't lost when the post is.
