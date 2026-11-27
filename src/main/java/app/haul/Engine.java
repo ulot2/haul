@@ -1230,15 +1230,14 @@ final class Engine {
                 r.addOption("--no-warnings");
                 r.addOption("--ignore-no-formats-error");
                 r.addOption("-I", "1:20");
-                boolean instagram = "Instagram".equals(Haul.site(url));
-                // Instagram: also print what it sent, to find the song of a photo post (InstaMusic).
-                if (instagram) r.addOption("--dump-pages");
                 String out = run(r, "ahead-" + Integer.toHexString(url.hashCode()), null).getOut();
                 String json = "";
                 for (String line : out.split("\n")) if (line.startsWith("{")) json = line;
                 if (json.isEmpty()) throw new Exception("NO_FILES");
                 f = Ahead.file(c, url);
-                if (instagram) keepMusic(c, url, Photos.dumpedPages(out), f);
+                // An Instagram post: what Instagram sent, to find the song of a photo post (InstaMusic). A run of its
+                // own: -J makes yt-dlp quiet, and quiet, it doesn't print the pages.
+                if ("Instagram".equals(Haul.site(url)) && url.contains("/p/")) readPages(c, url, f);
                 //noinspection ResultOfMethodCallIgnored
                 f.getParentFile().mkdirs();
                 File tmp = new File(f.getPath() + ".tmp");
@@ -1272,11 +1271,30 @@ final class Engine {
         return new File(c.getCacheDir(), "instagram-report.txt");
     }
 
+    /** Reads an Instagram post again, printing what Instagram sent (--dump-pages), and keeps its song and a report. */
+    private static void readPages(Context c, String url, File details) {
+        List<String> pages = new ArrayList<>();
+        String failed = "";
+        try {
+            YoutubeDLRequest r = new YoutubeDLRequest(url);
+            r.addOption("--dump-pages");
+            r.addOption("--skip-download");
+            r.addOption("--no-playlist");
+            r.addOption("--no-warnings");
+            r.addOption("--ignore-no-formats-error");   // a photo has no video formats: not a failure here
+            r.addOption("-I", "1");                     // the post is read whole for its first item
+            pages = Photos.dumpedPages(run(r, "pages-" + Integer.toHexString(url.hashCode()), null).getOut());
+        } catch (Exception e) {
+            failed = String.valueOf(e.getMessage());
+        }
+        keepMusic(c, url, pages, details, failed);
+    }
+
     /**
      * Keeps the song found in what Instagram sent (beside the post's details), and a short report of the read: what
      * Instagram sent around any "music" it mentioned, so a post whose song didn't come through can be looked into.
      */
-    private static void keepMusic(Context c, String url, List<String> pages, File details) {
+    private static void keepMusic(Context c, String url, List<String> pages, File details, String failed) {
         InstaMusic.Music m = InstaMusic.parse(pages);
         try {
             File side = new File(details.getPath() + ".music");
@@ -1292,6 +1310,7 @@ final class Engine {
         r.append("Haul ").append(Updates.installed(c)).append(" · Instagram read\n").append(url).append("\n");
         r.append(m == null ? "No song found.\n" : "Song: " + m.name() + " · from " + m.from + " ms for " + m.length + " ms\n");
         r.append(pages.size()).append(pages.size() == 1 ? " page" : " pages").append(" sent\n");
+        if (!failed.isEmpty()) r.append("Reading the pages failed: ").append(failed.length() > 2000 ? failed.substring(0, 2000) : failed).append("\n");
         for (int k = 0; k < pages.size(); k++) {
             String p = pages.get(k);
             r.append("\n--- page ").append(k + 1).append(": ").append(p.length()).append(" characters\n");
