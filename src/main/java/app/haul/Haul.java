@@ -29,6 +29,8 @@ final class Haul {
     /** Read, and waiting for the user to pick from the post (a TikTok photo post's pictures, an Instagram carousel). */
     static final String CHOOSE = "choose";
     static final String BEST = "best", SMALL = "small", AUDIO = "audio", GIF = "gif";
+    /** A frame of a saved video, saved as a photo from the player: made on the phone, never downloaded again. */
+    static final String STILL = "still";
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
     /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of each with the sound. */
     static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";
@@ -51,6 +53,8 @@ final class Haul {
         String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
         long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
         boolean decide;                // shared from another app: read the post first (Reading), then download or ask
+        int retries;                   // times tried again after the site limited downloads (Retry)
+        long retryAt;                  // waiting until then to try again (the site is limiting downloads); 0 otherwise
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
         int count = 0;                 // files saved; a post with several videos or photos saves several
@@ -66,7 +70,8 @@ final class Haul {
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
                     .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
                     .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
-                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("decide", decide);
+                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("decide", decide)
+                    .put("retries", retries).put("retryAt", retryAt);
         }
 
         static Item of(JSONObject o) {
@@ -106,6 +111,8 @@ final class Haul {
             i.cutFrom = o.optLong("cutFrom", -1);
             i.cutTo = o.optLong("cutTo", -1);
             i.decide = o.optBoolean("decide");
+            i.retries = o.optInt("retries");
+            i.retryAt = o.optLong("retryAt");
             return i;
         }
 
@@ -261,7 +268,7 @@ final class Haul {
         List<Item> list = load(c);
         for (int k = list.size() - 1; k >= 0; k--) {
             Item i = list.get(k);
-            if (QUEUED.equals(i.status) && !i.decide) {
+            if (QUEUED.equals(i.status) && !i.decide && i.retryAt <= System.currentTimeMillis()) {
                 i.status = WORKING;
                 save(c);
                 return i;
@@ -301,6 +308,16 @@ final class Haul {
         return null;
     }
 
+    /** The soonest time a download waits for to try again (the site was limiting downloads), or 0 for none. */
+    static synchronized long nextRetry(Context c) {
+        long soonest = 0;
+        for (Item i : load(c)) {
+            if (!QUEUED.equals(i.status) || i.retryAt <= 0) continue;
+            if (soonest == 0 || i.retryAt < soonest) soonest = i.retryAt;
+        }
+        return soonest;
+    }
+
     static synchronized int waiting(Context c) {
         int n = 0;
         for (Item i : load(c)) if (QUEUED.equals(i.status)) n++;
@@ -331,7 +348,8 @@ final class Haul {
     /** Best and 720p are both "the video"; the sound alone and a GIF are other things to keep. */
     static boolean sameWay(String a, String b) {
         boolean audioA = AUDIO.equals(a), audioB = AUDIO.equals(b), gifA = GIF.equals(a), gifB = GIF.equals(b);
-        return audioA == audioB && gifA == gifB;
+        boolean stillA = STILL.equals(a), stillB = STILL.equals(b);
+        return audioA == audioB && gifA == gifB && stillA == stillB;
     }
 
     /** True when the search finds this haul: in its title, caption, creator, site, link or ticket number ("148"). */

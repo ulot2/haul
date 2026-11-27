@@ -738,7 +738,9 @@ public class MainActivity extends Activity {
                 state.setTextColor(getColor(R.color.clay_text));
                 break;
             case Haul.QUEUED:
-                meta.setText(i.site + " · " + (i.decide ? "Reading the post · in line" : Look.what(i) + " · in line"));
+                meta.setText(i.retryAt > System.currentTimeMillis()
+                        ? i.site + " is limiting downloads · trying again at " + Format.time(i.retryAt)
+                        : i.site + " · " + (i.decide ? "Reading the post · in line" : Look.what(i) + " · in line"));
                 state.setVisibility(View.VISIBLE);
                 state.setAllCaps(true);
                 state.setText(waiting());

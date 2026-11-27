@@ -74,7 +74,7 @@ post. Tap to show or hide the bars. The top bar's buttons share the file or open
         android:textSize="16sp"
         android:visibility="gone" />
 
-    <!-- Top bar: back, title and "2 / 5", share, open in Gallery. Padded by the status bar in code. -->
+    <!-- Top bar: back, title and "2 / 5", save still (videos), share, open in Gallery. Padded by the status bar in code. -->
     <LinearLayout
         android:id="@+id/playerTop"
         android:layout_width="match_parent"
@@ -123,6 +123,17 @@ post. Tap to show or hide the bars. The top bar's buttons share the file or open
                 android:textColor="#A8A298"
                 android:textSize="11sp" />
         </LinearLayout>
+
+        <!-- Video only: the frame on screen, saved as a photo. -->
+        <ImageButton
+            android:id="@+id/playerStill"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_row"
+            android:contentDescription="Save this frame as a photo"
+            android:src="@drawable/ic_still"
+            android:tint="#F4F0E8"
+            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/playerShare"
@@ -187,4 +198,13 @@ post. Tap to show or hide the bars. The top bar's buttons share the file or open
             android:textColor="#F4F0E8"
             android:textSize="12sp" />
     </LinearLayout>
+    <!-- A flash when a still is saved, like a camera's. -->
+    <View
+        android:id="@+id/playerFlash"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="#FFFFFF"
+        android:clickable="false"
+        android:importantForAccessibility="no" />
 </FrameLayout>

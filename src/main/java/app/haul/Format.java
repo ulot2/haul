@@ -33,6 +33,13 @@ final class Format {
         return millis < 60_000 ? String.format(Locale.ROOT, "%.1f s", Math.round(millis / 100.0) / 10.0) : exact(millis);
     }
 
+    /** A clock time today, as the phone shows it in 24 hours: "14:32". */
+    static String time(long millis) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(millis);
+        return String.format(Locale.ROOT, "%02d:%02d", cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE));
+    }
+
     /** 148 → "0148". */
     static String ticket(int no) {
         return String.format(Locale.ROOT, "%04d", Math.max(0, no));

@@ -20,7 +20,7 @@ Some posts ask first:
 - An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
 - A **TikTok photo post** shows its pictures the same way; tap the ones to leave out. Then choose how to save the rest: **Video** (a video for each chosen picture, each its own download in Haul, with the post's sound, 5 to 30 seconds long or as long as the sound, made on the phone with FFmpeg), **Photos** (each chosen picture, and the sound next to them as a sound file in Music/Haul), or **Sound** (just the sound).
 
-Tap a download, then **Play**, to watch or hear it in Haul's own player (photos and GIFs too; swipe through a post's files). The button at the top opens it in the Gallery instead.
+Tap a download, then **Play**, to watch or hear it in Haul's own player (photos and GIFs too; swipe through a post's files). The button at the top opens it in the Gallery instead. On a video, the camera button **saves the frame on screen as a photo** (full size, in Pictures/Haul): pause where you want it, tap, and it's in your Gallery and in Haul's list.
 
 **GIFs** stay GIFs: an X post that is a GIF is saved as a `.gif` in Pictures/Haul (X serves GIFs as silent videos; Haul turns them back). The **GIF** quality turns any video into a GIF, up to 30 seconds, 480 pixels wide.
 
@@ -97,7 +97,7 @@ If it won't install:
 
 - **Private and age-restricted posts** need a signed-in account. Haul does not sign in, so it can't fetch them.
 - **TikTok slideshows** are read from the post's page, which TikTok changes now and then; if one fails, the video posts still work.
-- Instagram sometimes limits downloads without an account. Trying again later usually works.
+- Instagram sometimes limits downloads without an account. Haul waits and tries again by itself: after 2, 5 and 10 minutes ("Instagram is limiting downloads · trying again at 14:32"), and only then says it failed. **Try again** starts over at once.
 - Download only what you have the right to keep: your own posts, or posts whose owners allow it.
 
 ## Build
