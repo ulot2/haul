@@ -17,6 +17,7 @@ import android.widget.Toast;
 
 /** The Settings tab: downloads, shortcuts, notifications, the engine, about. MainActivity shows it and passes on its resume. */
 final class SettingsPage {
+    static final int REQ_BACKUP = 21, REQ_RESTORE = 22;
     private static final String AUDIO_TARGET = "app.haul.ShareAudio";
     private Button engineUpdate, aboutCheck;
     private TextView engineVersion, engineHelp, notifState, aboutCheckResult;
@@ -44,6 +45,27 @@ final class SettingsPage {
         }
         mark.run();
 
+        Button[] f = {findViewById(R.id.fOne), findViewById(R.id.fSite), findViewById(R.id.fCreator)};
+        String[] modes = {Folders.ONE, Folders.SITE, Folders.CREATOR};
+        String[] where = {"Everything in Movies/Haul, Pictures/Haul and Music/Haul.",
+                "A folder per site: Movies/Haul/TikTok, Movies/Haul/Instagram… For new downloads.",
+                "A folder per creator: Movies/Haul/some.one… For new downloads."};
+        TextView foldersHelp = findViewById(R.id.foldersHelp);
+        Runnable markFolders = () -> {
+            for (int k = 0; k < f.length; k++) {
+                f[k].setActivated(modes[k].equals(Haul.folders(a)));
+                if (modes[k].equals(Haul.folders(a))) foldersHelp.setText(where[k]);
+            }
+        };
+        for (int k = 0; k < f.length; k++) {
+            String mode = modes[k];
+            f[k].setOnClickListener(v -> {
+                Haul.prefs(a).edit().putString("folders", mode).apply();
+                markFolders.run();
+            });
+        }
+        markFolders.run();
+
         Switch ask = findViewById(R.id.swAsk), audio = findViewById(R.id.swAudio), wifi = findViewById(R.id.swWifi);
         ask.setChecked(Haul.askQuality(a));
         ask.setOnCheckedChangeListener((b, on) -> Haul.set(a, "ask_quality", on));
@@ -65,6 +87,14 @@ final class SettingsPage {
                 : "On mobile data, links stop with a note; tap them on Wi-Fi. (Android 14 and later wait for Wi-Fi instead.)");
 
         findViewById(R.id.addTile).setOnClickListener(v -> addTile());
+        findViewById(R.id.backupSave).setOnClickListener(v -> {
+            String day = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(new java.util.Date());
+            open(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("application/json").putExtra(Intent.EXTRA_TITLE, "Haul backup " + day + ".json"), REQ_BACKUP);
+        });
+        findViewById(R.id.backupRestore).setOnClickListener(v -> open(new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                .putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/json", "application/octet-stream", "text/plain"}), REQ_RESTORE));
         findViewById(R.id.badgeSettings).setOnClickListener(v -> Sheets.open(a, new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 android.net.Uri.parse("package:" + a.getPackageName()))));
 
@@ -128,6 +158,45 @@ final class SettingsPage {
         ((TextView) findViewById(R.id.badgeState)).setText(Badge.allowed(a) ? "Floating badge: on" : "Floating badge: off");
         String v = Engine.version(a);
         engineVersion.setText(v.isEmpty() ? "yt-dlp" : "yt-dlp " + v);
+    }
+
+    private void open(Intent pick, int request) {
+        try {
+            a.startActivityForResult(pick, request);
+        } catch (Exception e) {
+            Toast.makeText(a, "This phone has no file picker Haul can open", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** The file picker's answer, passed on by MainActivity: write the backup there, or read one from there. */
+    void onActivityResult(int request, int result, Intent data) {
+        if (result != Activity.RESULT_OK || data == null || data.getData() == null) return;
+        android.net.Uri file = data.getData();
+        new Thread(() -> {
+            String said;
+            try {
+                if (request == REQ_BACKUP) {
+                    try (java.io.OutputStream out = a.getContentResolver().openOutputStream(file, "wt")) {
+                        if (out == null) throw new Exception("no file");
+                        out.write(Haul.backup(a).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                    int n = Haul.items(a).size();
+                    said = "Backed up " + n + (n == 1 ? " download" : " downloads");
+                } else {
+                    String text;
+                    try (java.io.InputStream in = a.getContentResolver().openInputStream(file)) {
+                        if (in == null) throw new Exception("no file");
+                        text = Haul.readAll(in);
+                    }
+                    int n = Haul.restore(a, text, i -> Downloads.stillThere(a, i));
+                    said = n == 0 ? "Nothing new in that backup" : "Brought back " + n + (n == 1 ? " download" : " downloads");
+                }
+            } catch (Exception e) {
+                said = request == REQ_BACKUP ? "Couldn't write the backup there" : "That isn't a Haul backup";
+            }
+            String message = said;
+            a.runOnUiThread(() -> Toast.makeText(a, message, Toast.LENGTH_LONG).show());
+        }, "haul-backup").start();
     }
 
     /** Android 13+ asks the user to add the tile right here; older Android has to be told where to drag it. */

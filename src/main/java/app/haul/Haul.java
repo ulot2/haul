@@ -29,6 +29,8 @@ final class Haul {
     /** Read, and waiting for the user to pick from the post (a TikTok photo post's pictures, an Instagram carousel). */
     static final String CHOOSE = "choose";
     static final String BEST = "best", SMALL = "small", AUDIO = "audio", GIF = "gif";
+    /** A frame of a saved video, saved as a photo from the player: made on the phone, never downloaded again. */
+    static final String STILL = "still";
     static final String VIDEO = "video", PHOTOS = "photos";   // an item's kind, with AUDIO
     /** How to save a TikTok photo post: its pictures (and its sound, as a file), or a video of each with the sound. */
     static final String AS_PHOTOS = "photos", AS_SLIDESHOW = "slideshow";
@@ -50,7 +52,11 @@ final class Haul {
         String page = "";              // the post's own address, as the site gave it (a short link's full one)
         String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
         long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
+        int split;                     // a saved video split into parts this long (seconds) for a WhatsApp Status; 0 otherwise
         boolean decide;                // shared from another app: read the post first (Reading), then download or ask
+        String folder = "";            // the folder under …/Haul its files went to (Folders); "" for none
+        int retries;                   // times tried again after the site limited downloads (Retry)
+        long retryAt;                  // waiting until then to try again (the site is limiting downloads); 0 otherwise
         List<String> uris = new ArrayList<>();   // every saved file; uri is the first
         int no;                        // the ticket number shown as "NO. 0148"
         int count = 0;                 // files saved; a post with several videos or photos saves several
@@ -66,7 +72,8 @@ final class Haul {
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
                     .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
                     .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
-                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("decide", decide);
+                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("split", split).put("decide", decide)
+                    .put("retries", retries).put("retryAt", retryAt).put("folder", folder);
         }
 
         static Item of(JSONObject o) {
@@ -105,7 +112,11 @@ final class Haul {
             i.source = o.optString("source");
             i.cutFrom = o.optLong("cutFrom", -1);
             i.cutTo = o.optLong("cutTo", -1);
+            i.split = o.optInt("split");
             i.decide = o.optBoolean("decide");
+            i.retries = o.optInt("retries");
+            i.retryAt = o.optLong("retryAt");
+            i.folder = o.optString("folder");
             return i;
         }
 
@@ -125,6 +136,16 @@ final class Haul {
 
         boolean clipped() {
             return clipStart >= 0 && clipEnd > clipStart;
+        }
+
+        /** A saved video split into parts for a WhatsApp Status: made on the phone, no site involved. */
+        boolean splitting() {
+            return !source.isEmpty() && split > 0;
+        }
+
+        /** Made on the phone from a file already saved (a clipped sound, a split video): never downloaded again. */
+        boolean madeHere() {
+            return cut() || splitting() || STILL.equals(quality) || Statuses.isStatus(url);
         }
 
         /** A sound clipped from a file already saved, not a download: made on the phone, no site involved. */
@@ -159,6 +180,11 @@ final class Haul {
     /** Settings, all off by default except the "Haul audio" share target. */
     static boolean askQuality(Context c) {
         return prefs(c).getBoolean("ask_quality", false);
+    }
+
+    /** Where new downloads go: Folders.ONE (all together), SITE or CREATOR. */
+    static String folders(Context c) {
+        return prefs(c).getString("folders", Folders.ONE);
     }
 
     static boolean wifiOnly(Context c) {
@@ -216,6 +242,61 @@ final class Haul {
         return i;
     }
 
+    // ---- Backup and restore ----
+
+    static final String FROM_BACKUP = "From your backup. Tap to download it again.";
+
+    /** The whole hold as a backup file's text: {"haul":1,"at":…,"items":[…]}. */
+    static synchronized String backup(Context c) throws Exception {
+        JSONArray a = new JSONArray();
+        for (Item i : load(c)) a.put(i.json());
+        return new JSONObject().put("haul", 1).put("at", System.currentTimeMillis()).put("items", a).toString();
+    }
+
+    /**
+     * A haul from a backup, as it comes back: saved, when its file is on this phone (fileThere); else waiting to be
+     * downloaded again with a tap (FROM_BACKUP). Null for one that can't come back without its file: a WhatsApp status,
+     * a still, a clipped sound, which were made on the old phone, not downloaded.
+     */
+    static Item restored(Item i, boolean fileThere) {
+        if (i == null || i.id == null || i.id.isEmpty() || i.url == null || i.url.isEmpty()) return null;
+        if (DONE.equals(i.status) && fileThere) return i;
+        if (Statuses.isStatus(i.url) || STILL.equals(i.quality) || !i.source.isEmpty()) return null;
+        i.status = FAILED;
+        i.error = FROM_BACKUP;
+        i.decide = false;
+        i.retries = 0;
+        i.retryAt = 0;
+        i.uri = "";
+        i.uris = new ArrayList<>();
+        return i;
+    }
+
+    /**
+     * Brings a backup's hauls into the hold: those it hasn't already (by id), newest first, keeping the last KEEP.
+     * fileThere tells whether a saved haul's first file is on this phone. Returns how many came back.
+     */
+    static synchronized int restore(Context c, String text, java.util.function.Predicate<Item> fileThere) throws Exception {
+        JSONArray a = new JSONObject(text).getJSONArray("items");
+        List<Item> list = load(c);
+        java.util.Set<String> have = new java.util.HashSet<>();
+        for (Item i : list) have.add(i.id);
+        int n = 0;
+        for (int k = 0; k < a.length(); k++) {
+            Item raw = Item.of(a.getJSONObject(k));
+            if (have.contains(raw.id)) continue;
+            Item back = restored(raw, DONE.equals(raw.status) && fileThere.test(raw));
+            if (back == null) continue;
+            list.add(back);
+            have.add(back.id);
+            n++;
+        }
+        list.sort((x, y) -> Long.compare(y.time, x.time));
+        for (int k = list.size() - 1; k >= 0 && list.size() > KEEP; k--) if (!list.get(k).held()) list.remove(k);
+        if (n > 0) save(c);
+        return n;
+    }
+
     static synchronized void update(Context c, String id, Consumer<Item> edit) {
         for (Item i : load(c)) {
             if (i.id.equals(id)) {
@@ -261,7 +342,7 @@ final class Haul {
         List<Item> list = load(c);
         for (int k = list.size() - 1; k >= 0; k--) {
             Item i = list.get(k);
-            if (QUEUED.equals(i.status) && !i.decide) {
+            if (QUEUED.equals(i.status) && !i.decide && i.retryAt <= System.currentTimeMillis()) {
                 i.status = WORKING;
                 save(c);
                 return i;
@@ -301,6 +382,16 @@ final class Haul {
         return null;
     }
 
+    /** The soonest time a download waits for to try again (the site was limiting downloads), or 0 for none. */
+    static synchronized long nextRetry(Context c) {
+        long soonest = 0;
+        for (Item i : load(c)) {
+            if (!QUEUED.equals(i.status) || i.retryAt <= 0) continue;
+            if (soonest == 0 || i.retryAt < soonest) soonest = i.retryAt;
+        }
+        return soonest;
+    }
+
     static synchronized int waiting(Context c) {
         int n = 0;
         for (Item i : load(c)) if (QUEUED.equals(i.status)) n++;
@@ -322,7 +413,7 @@ final class Haul {
      */
     static synchronized Item saved(Context c, String url, String quality) {
         for (Item i : load(c)) {
-            if (!DONE.equals(i.status) || i.clipped() || i.cut() || !sameWay(i.quality, quality)) continue;
+            if (!DONE.equals(i.status) || i.clipped() || i.madeHere() || !sameWay(i.quality, quality)) continue;
             if (Seen.same(url, i.url) || Seen.same(url, i.page)) return i;
         }
         return null;
@@ -331,7 +422,8 @@ final class Haul {
     /** Best and 720p are both "the video"; the sound alone and a GIF are other things to keep. */
     static boolean sameWay(String a, String b) {
         boolean audioA = AUDIO.equals(a), audioB = AUDIO.equals(b), gifA = GIF.equals(a), gifB = GIF.equals(b);
-        return audioA == audioB && gifA == gifB;
+        boolean stillA = STILL.equals(a), stillB = STILL.equals(b);
+        return audioA == audioB && gifA == gifB && stillA == stillB;
     }
 
     /** True when the search finds this haul: in its title, caption, creator, site, link or ticket number ("148"). */

@@ -89,6 +89,7 @@ public class PlayerActivity extends Activity {
         title.setText(Look.title(item));
 
         findViewById(R.id.playerBack).setOnClickListener(v -> finish());
+        findViewById(R.id.playerStill).setOnClickListener(v -> saveStill());
         findViewById(R.id.playerShare).setOnClickListener(v -> {
             String type = getContentResolver().getType(Uri.parse(files.get(index)));
             List<Uri> one = new ArrayList<>();
@@ -179,6 +180,7 @@ public class PlayerActivity extends Activity {
         String type = getContentResolver().getType(u);
         if (type == null) type = item.mime;
         if (type.startsWith("image/")) {
+            findViewById(R.id.playerStill).setVisibility(View.GONE);
             playable = false;
             video.setVisibility(View.GONE);
             audio.setVisibility(View.GONE);
@@ -192,12 +194,85 @@ public class PlayerActivity extends Activity {
             image.setVisibility(View.GONE);
             boolean sound = type.startsWith("audio/");
             audio.setVisibility(sound ? View.VISIBLE : View.GONE);
+            findViewById(R.id.playerStill).setVisibility(sound ? View.GONE : View.VISIBLE);
             audioTitle.setText(Look.title(item));
             // Audio still plays through the video view (it is a MediaPlayer); the card covers the empty picture.
             video.setVisibility(View.VISIBLE);
             video.setVideoURI(u);
             bars(true);
         }
+    }
+
+    /**
+     * Save still: the frame on screen, at the video's own size, as a JPEG in Pictures/Haul; a haul of its own in the
+     * hold (the post's link and caption kept). The video pauses there, and the screen flashes, as a camera's does.
+     */
+    private void saveStill() {
+        if (!playable) return;
+        if (video.isPlaying()) video.pause();
+        showPlay();
+        long at = video.getCurrentPosition();
+        Uri from = Uri.parse(files.get(index));
+        View flash = findViewById(R.id.playerFlash);
+        flash.animate().cancel();
+        flash.setAlpha(0.7f);
+        flash.animate().alpha(0f).setDuration(350).start();
+        Haul.Item of = item;
+        new Thread(() -> {
+            String said;
+            try {
+                said = still(of, from, at);
+            } catch (Exception | OutOfMemoryError e) {
+                said = "Couldn't save the frame";
+            }
+            String message = said;
+            runOnUiThread(() -> android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show());
+        }, "haul-still").start();
+    }
+
+    /** Takes the frame at ms from the video, saves it, adds it to the hold; returns what to say. */
+    private String still(Haul.Item of, Uri from, long ms) throws Exception {
+        android.graphics.Bitmap frame;
+        android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+        try {
+            r.setDataSource(this, from);
+            frame = r.getFrameAtTime(ms * 1000, android.media.MediaMetadataRetriever.OPTION_CLOSEST);
+        } finally {
+            try {
+                r.release();
+            } catch (Exception ignored) {
+            }
+        }
+        if (frame == null) return "Couldn't read that frame";
+        java.io.ByteArrayOutputStream jpeg = new java.io.ByteArrayOutputStream();
+        frame.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, jpeg);
+        int w = frame.getWidth(), h = frame.getHeight();
+        frame.recycle();
+        String when = Format.exact(ms);
+        String base = Look.title(of).replaceAll("[\\\\/:*?\"<>|\\n\\r\\t]", " ").trim();
+        if (base.length() > 60) base = base.substring(0, 60).trim();
+        String name = (base.isEmpty() ? "Still" : base) + " still " + when.replace(':', '.') + ".jpg";
+        String sub = Folders.sub(Haul.folders(this), of.site, of.by);
+        Uri saved = Downloads.toGallery(this, new java.io.ByteArrayInputStream(jpeg.toByteArray()), name, "image/jpeg", sub);
+        long bytes = jpeg.size();
+        Haul.add(this, of.url, Haul.STILL, -1, -1, "", "", 0, i -> {
+            i.status = Haul.DONE;
+            i.site = of.site;
+            i.title = Look.title(of) + " · still " + when;
+            i.kind = Haul.PHOTOS;
+            i.mime = "image/jpeg";
+            i.uri = saved.toString();
+            i.uris = new ArrayList<>(java.util.Collections.singletonList(saved.toString()));
+            i.count = 1;
+            i.size = bytes;
+            i.caption = of.caption;
+            i.by = of.by;
+            i.posted = of.posted;
+            i.page = of.page;
+            i.folder = sub;
+            i.doneAt = System.currentTimeMillis();
+        });
+        return "Saved the frame at " + when + " (" + w + "×" + h + ") to Pictures/Haul" + (sub.isEmpty() ? "" : "/" + sub);
     }
 
     /** A photo, fitted to the screen; a GIF moves. Decoded at about screen size, so large photos don't run out of memory. */

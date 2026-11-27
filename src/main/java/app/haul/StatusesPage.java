@@ -31,7 +31,7 @@ import java.util.Map;
  * on its resume and the folder picker's answer.
  */
 final class StatusesPage {
-    static final int REQ_FOLDER = 7;
+    static final int REQ_FOLDER = 8;   // not 7: Sheets.REQ_DELETE
     private static final int[] TONES = {R.color.tone0, R.color.tone1, R.color.tone2, R.color.tone3, R.color.tone4, R.color.tone5};
 
     /** One file in the statuses folder. */
@@ -353,6 +353,7 @@ final class StatusesPage {
 
     private void saveOne(String which, Status s) throws Exception {
         Uri from = Uri.parse(s.uri);
+        String sub = Folders.sub(Haul.folders(a), "WhatsApp", "");   // a status doesn't say who posted it
         long size;
         Uri to;
         try (InputStream in = a.getContentResolver().openInputStream(from)) {
@@ -361,7 +362,7 @@ final class StatusesPage {
             String when = new java.text.SimpleDateFormat("yyyy-MM-dd HH.mm.ss", java.util.Locale.ROOT)
                     .format(new java.util.Date(s.modified > 0 ? s.modified : System.currentTimeMillis()));
             String ext = s.name.contains(".") ? s.name.substring(s.name.lastIndexOf('.')) : "";
-            to = Downloads.toGallery(a, in, "Status " + when + " " + s.name.replaceFirst("\\.[^.]+$", "") + ext, s.mime);
+            to = Downloads.toGallery(a, in, "Status " + when + " " + s.name.replaceFirst("\\.[^.]+$", "") + ext, s.mime, sub);
         }
         size = 0;
         try (Cursor cur = a.getContentResolver().query(to, new String[]{android.provider.MediaStore.MediaColumns.SIZE}, null, null, null)) {
@@ -405,6 +406,7 @@ final class StatusesPage {
             i.duration = length;
             i.height = Haul.VIDEO.equals(s.kind) ? tall : -1;
             i.doneAt = System.currentTimeMillis();
+            i.folder = sub;
         });
     }
 }

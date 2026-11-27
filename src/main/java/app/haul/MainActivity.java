@@ -389,6 +389,7 @@ public class MainActivity extends Activity {
         super.onActivityResult(request, result, data);
         if (request == Sheets.REQ_DELETE) render();
         if (request == StatusesPage.REQ_FOLDER) statuses.onActivityResult(request, result, data);
+        if (request == SettingsPage.REQ_BACKUP || request == SettingsPage.REQ_RESTORE) settings.onActivityResult(request, result, data);
     }
 
     // ---- The tabs ----
@@ -738,7 +739,9 @@ public class MainActivity extends Activity {
                 state.setTextColor(getColor(R.color.clay_text));
                 break;
             case Haul.QUEUED:
-                meta.setText(i.site + " · " + (i.decide ? "Reading the post · in line" : Look.what(i) + " · in line"));
+                meta.setText(i.retryAt > System.currentTimeMillis()
+                        ? i.site + " is limiting downloads · trying again at " + Format.time(i.retryAt)
+                        : i.site + " · " + (i.decide ? "Reading the post · in line" : Look.what(i) + " · in line"));
                 state.setVisibility(View.VISIBLE);
                 state.setAllCaps(true);
                 state.setText(waiting());
