@@ -60,21 +60,21 @@
 
             <LinearLayout style="@style/Haul.NewsRow">
                 <FrameLayout style="@style/Haul.NewsTile">
-                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_tabs" />
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_again" />
                 </FrameLayout>
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="A new home" />
-                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Paste a link on Download. Your saves are in Downloads; Statuses and Settings are tabs too." />
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Instagram tries again" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="When Instagram limits downloads, Haul waits and tries again by itself, a few minutes later." />
                 </LinearLayout>
             </LinearLayout>
 
             <LinearLayout style="@style/Haul.NewsRow">
                 <FrameLayout style="@style/Haul.NewsTile">
-                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_badge" />
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_still" />
                 </FrameLayout>
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Keep scrolling" />
-                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Share a post and carry on. A floating badge reads it, and pulses when there\'s something to pick." />
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Save a still" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="In the player, the camera button saves the frame on screen as a full-size photo." />
                 </LinearLayout>
             </LinearLayout>
 
@@ -83,48 +83,28 @@
                     <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_scissors" />
                 </FrameLayout>
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clip as you share" />
-                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Keep just part of a video, right from the share sheet." />
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Split for Status" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Cut a long video into parts your WhatsApp Status takes, then share them all at once." />
                 </LinearLayout>
             </LinearLayout>
 
             <LinearLayout style="@style/Haul.NewsRow">
                 <FrameLayout style="@style/Haul.NewsTile">
-                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_status" />
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_folder" />
                 </FrameLayout>
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="WhatsApp statuses" />
-                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Save the statuses you\'ve seen, before they\'re gone." />
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Folders" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Keep downloads in a folder per site or per creator. Settings › Folders." />
                 </LinearLayout>
             </LinearLayout>
 
             <LinearLayout style="@style/Haul.NewsRow">
                 <FrameLayout style="@style/Haul.NewsTile">
-                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_music" />
+                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_backup" />
                 </FrameLayout>
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Clip the sound" />
-                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Cut the part of a song you want, for a ringtone, to a tenth of a second." />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout style="@style/Haul.NewsRow">
-                <FrameLayout style="@style/Haul.NewsTile">
-                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_search" />
-                </FrameLayout>
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Captions and search" />
-                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Haul keeps each post\'s caption. Find any download by caption, creator or site." />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout style="@style/Haul.NewsRow">
-                <FrameLayout style="@style/Haul.NewsTile">
-                    <ImageView style="@style/Haul.NewsIcon" android:src="@drawable/ic_link" />
-                </FrameLayout>
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Many links, no doubles" />
-                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Copy a few links in a row and download them together. Haul tells you when you have a post already." />
+                    <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Back up your list" />
+                    <TextView style="@style/Haul.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="13.5sp" android:text="Save your downloads list to a file, and bring it back on a new phone. Settings › Your list." />
                 </LinearLayout>
             </LinearLayout>
 
