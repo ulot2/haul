@@ -16,7 +16,7 @@ import android.widget.TextView;
  */
 public class WhatsNewActivity extends Activity {
     /** The release this page tells about. Raise it (and change activity_news) with the next release that has news. */
-    static final String NEWS = "1.5";
+    static final String NEWS = "1.6";
     private static final String SEEN = "news_seen";
 
     /** True the first time Haul opens after updating to a release with news it hasn't shown. */
