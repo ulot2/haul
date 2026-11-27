@@ -1311,20 +1311,38 @@ final class Engine {
         r.append(m == null ? "No song found.\n" : "Song: " + m.name() + " · from " + m.from + " ms for " + m.length + " ms\n");
         r.append(pages.size()).append(pages.size() == 1 ? " page" : " pages").append(" sent\n");
         if (!failed.isEmpty()) r.append("Reading the pages failed: ").append(failed.length() > 2000 ? failed.substring(0, 2000) : failed).append("\n");
+        // For each page: which of the song's fields (and of the post's own data) are in it, plain or escaped, and what
+        // surrounds the song's fields where they are.
+        String code = Seen.key(url).replaceFirst("^instagram:", "");
+        String[] marks = {"music_metadata", "music_info", "progressive_download_url", "audio_asset_start_time_in_ms",
+                "overlap_duration_in_ms", "xdt_api__v1__media__shortcode__web_info", "carousel_media", "image_versions2", code};
         for (int k = 0; k < pages.size(); k++) {
             String p = pages.get(k);
             r.append("\n--- page ").append(k + 1).append(": ").append(p.length()).append(" characters\n");
-            int shown = 0;
-            for (int at = p.indexOf("music"); at >= 0 && shown < 4; at = p.indexOf("music", at + 1500)) {
-                r.append("…").append(p, Math.max(0, at - 300), Math.min(p.length(), at + 1200)).append("…\n");
-                shown++;
+            r.append(p.substring(0, Math.min(p.length(), 160)).replace("\n", " ")).append(p.length() > 160 ? "…\n" : "\n");
+            for (String mark : marks) {
+                int plain = count(p, "\"" + mark + "\""), escaped = count(p, "\\\"" + mark + "\\\""), bare = count(p, mark);
+                r.append("  ").append(mark).append(": ").append(plain).append(" plain, ").append(escaped)
+                        .append(" escaped, ").append(bare).append(" anywhere\n");
             }
-            if (shown == 0) r.append(p, 0, Math.min(p.length(), 600)).append(p.length() > 600 ? "…\n" : "\n");
+            int shown = 0;
+            for (String mark : new String[]{"music_metadata", "progressive_download_url", "music_info"}) {
+                for (int at = p.indexOf(mark); at >= 0 && shown < 3; at = p.indexOf(mark, at + 2000)) {
+                    r.append("  …").append(p, Math.max(0, at - 200), Math.min(p.length(), at + 1200)).append("…\n");
+                    shown++;
+                }
+            }
         }
         try (OutputStream os = new FileOutputStream(instagramReport(c))) {
             os.write(r.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception ignored) {
         }
+    }
+
+    private static int count(String in, String what) {
+        int n = 0;
+        for (int at = in.indexOf(what); at >= 0; at = in.indexOf(what, at + what.length())) n++;
+        return n;
     }
 
     /** Reads ahead in the background, quietly; for a link the user is looking at and will likely download. */
