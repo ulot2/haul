@@ -103,6 +103,7 @@ If it won't install:
 
 - **Private and age-restricted posts** need a signed-in account. Haul does not sign in, so it can't fetch them.
 - **TikTok slideshows** are read from the post's page, which TikTok changes now and then; if one fails, the video posts still work.
+- **Music on Instagram photo posts** can't come along: to someone not signed in, Instagram sends a photo post's pictures and details but not its song (checked on the phone, Nov 2026). TikTok photo posts keep their sound.
 - Instagram sometimes limits downloads without an account. Haul waits and tries again by itself: after 2, 5 and 10 minutes ("Instagram is limiting downloads · trying again at 14:32"), and only then says it failed. **Try again** starts over at once.
 - Download only what you have the right to keep: your own posts, or posts whose owners allow it.
 
