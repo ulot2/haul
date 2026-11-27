@@ -53,8 +53,6 @@ final class Haul {
         String source = "";            // a sound clipped from a saved file: that file (content://); "" otherwise
         long cutFrom = -1, cutTo = -1; // the clipped section of source, in milliseconds
         int split;                     // a saved video split into parts this long (seconds) for a WhatsApp Status; 0 otherwise
-        String musicUrl = "";          // an Instagram photo post's song (InstaMusic); "" otherwise
-        long musicFrom, musicFor;      // the part of it the post plays, in milliseconds (musicFor 0: unknown)
         boolean decide;                // shared from another app: read the post first (Reading), then download or ask
         String folder = "";            // the folder under …/Haul its files went to (Folders); "" for none
         int retries;                   // times tried again after the site limited downloads (Retry)
@@ -74,8 +72,7 @@ final class Haul {
                     .put("duration", duration).put("height", height).put("size", size).put("doneAt", doneAt)
                     .put("pick", pick).put("as", as).put("sound", sound).put("took", took).put("seconds", seconds)
                     .put("caption", caption).put("by", by).put("posted", posted).put("page", page)
-                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("split", split)
-                    .put("musicUrl", musicUrl).put("musicFrom", musicFrom).put("musicFor", musicFor).put("decide", decide)
+                    .put("source", source).put("cutFrom", cutFrom).put("cutTo", cutTo).put("split", split).put("decide", decide)
                     .put("retries", retries).put("retryAt", retryAt).put("folder", folder);
         }
 
@@ -116,9 +113,6 @@ final class Haul {
             i.cutFrom = o.optLong("cutFrom", -1);
             i.cutTo = o.optLong("cutTo", -1);
             i.split = o.optInt("split");
-            i.musicUrl = o.optString("musicUrl");
-            i.musicFrom = o.optLong("musicFrom");
-            i.musicFor = o.optLong("musicFor");
             i.decide = o.optBoolean("decide");
             i.retries = o.optInt("retries");
             i.retryAt = o.optLong("retryAt");

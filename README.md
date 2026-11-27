@@ -15,8 +15,6 @@ When a download is done, its notification has **Share** (straight to WhatsApp, s
 
 **Keep scrolling while Haul reads.** Some posts have to be read before they download: a TikTok short link, a TikTok post that might be photos, an Instagram post with several photos and videos. When you share one, Haul doesn't hold you up: a badge floats over TikTok (or wherever you are) while it reads, and you carry on. It opens out for a few seconds to say what it's doing ("Reading the post…"), then draws in to a round badge. Drag it anywhere; it settles on the nearer side and stays there. A plain video just downloads: the badge shows a ✓ and "Downloading", and fades. A post with something to pick from makes the badge open out in clay ("Pick the photos", with the count), then draw in, rippling rings until you tap it; a notification says so too. Tap either, and the picker opens over your app: download what you pick, **×** to pick later, or **Cancel this download** if you don't want it after all. Long-press the badge to put it away (the notification stays). The first time, Haul asks to **display over other apps**, which the badge needs; without it, notifications do the same job. **Settings › Floating badge** turns it on later.
 
-**Instagram photo posts with music**: when Instagram says which song a photo post plays, Haul brings it along, the way it does for TikTok photo posts: the picker asks **Video** (each picture as a video with the song), **Photos** (the pictures, and the song as a sound file in Music/Haul) or **Sound** (just the song), cut to the part the post plays. Whether Instagram gives the song to someone not signed in is up to Instagram; if a post's song doesn't come, **Settings › About › Save an Instagram report** saves what Instagram sent to the Download folder, to look into.
-
 Some posts ask first:
 
 - An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
@@ -105,6 +103,7 @@ If it won't install:
 
 - **Private and age-restricted posts** need a signed-in account. Haul does not sign in, so it can't fetch them.
 - **TikTok slideshows** are read from the post's page, which TikTok changes now and then; if one fails, the video posts still work.
+- **Music on Instagram photo posts** can't come along: to someone not signed in, Instagram sends a photo post's pictures and details but not its song (checked on the phone, Nov 2026). TikTok photo posts keep their sound.
 - Instagram sometimes limits downloads without an account. Haul waits and tries again by itself: after 2, 5 and 10 minutes ("Instagram is limiting downloads · trying again at 14:32"), and only then says it failed. **Try again** starts over at once.
 - Download only what you have the right to keep: your own posts, or posts whose owners allow it.
 

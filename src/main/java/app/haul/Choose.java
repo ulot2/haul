@@ -124,13 +124,7 @@ final class Choose {
     }
 
     private static Haul.Item put(Activity a, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
-        return put(a, url, quality, clipStart, clipEnd, pick, as, seconds, null);
-    }
-
-    /** The same, with more set up first (setup: an Instagram post's song). */
-    private static Haul.Item put(Activity a, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds,
-                                 java.util.function.Consumer<Haul.Item> setup) {
-        Haul.Item i = Downloads.add(a, url, quality, clipStart, clipEnd, pick, as, seconds, setup);
+        Haul.Item i = Downloads.add(a, url, quality, clipStart, clipEnd, pick, as, seconds);
         if (i == null) Toast.makeText(a, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
         return i;
     }
@@ -228,14 +222,13 @@ final class Choose {
             Post post;
             try {
                 post = Post.parse(Engine.read(a, url));
-                post.withMusic(Engine.music(a, url));
             } catch (Exception e) {
                 post = null;
             }
             Post got = post;
             a.runOnUiThread(() -> {
                 if (!d.isShowing()) return;   // backed out
-                if (got == null || got.entries.size() <= 1 && !got.sound) {
+                if (got == null || got.entries.size() <= 1) {
                     // One photo or video (or the post couldn't be read here): download it as it is. The details
                     // just read make the download start at once.
                     finish(d, done, put(a, url, quality, -1, -1, "", ""));
@@ -262,9 +255,7 @@ final class Choose {
         int videos = 0;
         for (Post.Entry e : post.entries) if (e.video) videos++;
         int photos = total - videos;
-        // A TikTok photo post, or an Instagram one with a song: also asks how to save it (video, photos, sound).
-        boolean asks = tiktok || post.sound;
-        if (!asks) {
+        if (!tiktok) {
             hint.setText(String.format(Locale.ROOT, "%d %s · %d %s · tap to leave out", photos, photos == 1 ? "photo" : "photos",
                     videos, videos == 1 ? "video" : "videos"));
         } else if (total == 0) {
@@ -277,7 +268,7 @@ final class Choose {
         scroll.setVisibility(total == 0 ? View.GONE : View.VISIBLE);
         // At most about half the screen of pictures (less for TikTok, which asks more below them); the rest scrolls.
         int screen = a.getResources().getDisplayMetrics().heightPixels;
-        int maxHeight = asks ? screen / 3 : screen / 2;
+        int maxHeight = tiktok ? screen / 3 : screen / 2;
         GridLayout grid = d.findViewById(R.id.pickGrid);
         int gap = Sheets.dp(a, 6);
         int width = a.getResources().getDisplayMetrics().widthPixels - Sheets.dp(a, 40);
@@ -290,7 +281,7 @@ final class Choose {
         if (total <= 1) all.setVisibility(View.GONE);   // nothing to choose between
 
         // How to save a TikTok photo post; the last answer is offered first the next time.
-        String[] as = {asks ? Haul.prefs(a).getString("tiktok_as", Haul.AS_SLIDESHOW) : ""};
+        String[] as = {tiktok ? Haul.prefs(a).getString("tiktok_as", Haul.AS_SLIDESHOW) : ""};
         Button asVideo = d.findViewById(R.id.asVideo), asPhotos = d.findViewById(R.id.asPhotos), asSound = d.findViewById(R.id.asSound);
         TextView note = d.findViewById(R.id.pickAsNote);
         // How long each video runs; 0 is as long as the sound. Also remembered.
@@ -317,7 +308,7 @@ final class Choose {
             all.setText(n == total ? "Select none" : "Select all");
             all.setEnabled(!soundOnly);
             all.setAlpha(soundOnly ? 0.5f : 1f);
-            if (!asks) return;
+            if (!tiktok) return;
             asVideo.setActivated(Haul.AS_SLIDESHOW.equals(as[0]));
             asPhotos.setActivated(Haul.AS_PHOTOS.equals(as[0]));
             asSound.setActivated(soundOnly);
@@ -331,7 +322,7 @@ final class Choose {
                     ? "Each chosen picture in Pictures/Haul" + (with.isEmpty() ? "." : ", and the sound in Music/Haul.")
                     : "A video for each chosen picture" + with + ", " + howLong + ", in Movies/Haul.");
         };
-        if (asks) {
+        if (tiktok) {
             if (!Haul.AS_PHOTOS.equals(as[0]) && !Haul.AUDIO.equals(as[0])) as[0] = Haul.AS_SLIDESHOW;
             d.findViewById(R.id.pickAs).setVisibility(View.VISIBLE);
             Button[] ways = {asVideo, asPhotos, asSound};
@@ -415,31 +406,24 @@ final class Choose {
             List<Integer> picked = new ArrayList<>();
             for (int k = 0; k < total; k++) if (chosen[k]) picked.add(post.entries.get(k).index);
             String items = picked.size() == total ? "" : Post.items(picked);
-            if (!asks) {
+            if (!tiktok) {
                 finish(d, done, put(a, url, quality, -1, -1, items, ""));
                 return;
             }
             Haul.prefs(a).edit().putString("tiktok_as", as[0]).putInt("tiktok_seconds", seconds[0]).apply();
-            // An Instagram post's song goes with each haul made of it (the post has no sound of its own to download).
-            InstaMusic.Music m = tiktok ? null : post.music;
-            java.util.function.Consumer<Haul.Item> song = m == null ? null : x -> {
-                x.musicUrl = m.url;
-                x.musicFrom = m.from;
-                x.musicFor = m.length;
-            };
             if (Haul.AUDIO.equals(as[0])) {
-                finish(d, done, put(a, url, Haul.AUDIO, -1, -1, "", "", 0, song));
+                finish(d, done, put(a, url, Haul.AUDIO, -1, -1, "", ""));
             } else if (Haul.AS_SLIDESHOW.equals(as[0]) && picked.size() > 1) {
                 // Each picture's video is a haul of its own: its own row in the hold, waiting, downloading and saved.
                 Haul.Item first = null;
                 for (int index : picked) {
-                    Haul.Item i = Downloads.add(a, url, quality, -1, -1, String.valueOf(index), as[0], seconds[0], song);
+                    Haul.Item i = Downloads.add(a, url, quality, -1, -1, String.valueOf(index), as[0], seconds[0]);
                     if (first == null) first = i;
                 }
                 if (first == null) Toast.makeText(a, "Haul is already downloading this", Toast.LENGTH_SHORT).show();
                 finish(d, done, first);
             } else {
-                finish(d, done, put(a, url, quality, -1, -1, items, as[0], Haul.AS_SLIDESHOW.equals(as[0]) ? seconds[0] : 0, song));
+                finish(d, done, put(a, url, quality, -1, -1, items, as[0], Haul.AS_SLIDESHOW.equals(as[0]) ? seconds[0] : 0));
             }
         });
         d.findViewById(R.id.pickButtons).setVisibility(View.VISIBLE);

@@ -226,13 +226,6 @@
                 android:layout_width="match_parent"
                 android:layout_marginTop="10dp"
                 android:text="What\'s new in Haul" />
-
-            <Button
-                android:id="@+id/aboutReport"
-                style="@style/Haul.Button.Outline"
-                android:layout_width="match_parent"
-                android:layout_marginTop="10dp"
-                android:text="Save an Instagram report" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
