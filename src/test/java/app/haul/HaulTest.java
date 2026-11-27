@@ -66,4 +66,33 @@ public class HaulTest {
         assertEquals("https://x.com/a/status/1005", kept.get(0));
         assertEquals("https://x.com/a/status/1034", kept.get(kept.size() - 1));
     }
+
+    @Test
+    public void whatComesBackFromABackup() {
+        Haul.Item saved = new Haul.Item();
+        saved.id = "a";
+        saved.url = "https://www.tiktok.com/@a/video/7301234567890";
+        saved.status = Haul.DONE;
+        saved.uri = "content://media/1";
+        saved.uris.add(saved.uri);
+        assertEquals(Haul.DONE, Haul.restored(saved, true).status);   // its file is here
+
+        Haul.Item gone = Haul.restored(saved, false);                   // on the old phone
+        assertEquals(Haul.FAILED, gone.status);
+        assertEquals(Haul.FROM_BACKUP, gone.error);
+        assertTrue(gone.uris.isEmpty());
+
+        Haul.Item status = new Haul.Item();
+        status.id = "b";
+        status.url = Statuses.link(Statuses.WHATSAPP, "x.jpg");
+        status.status = Haul.DONE;
+        assertNull(Haul.restored(status, false));                        // made there, can't be downloaded again
+
+        Haul.Item still = new Haul.Item();
+        still.id = "c";
+        still.url = saved.url;
+        still.quality = Haul.STILL;
+        assertNull(Haul.restored(still, false));
+        assertNull(Haul.restored(null, true));
+    }
 }

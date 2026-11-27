@@ -165,6 +165,8 @@ final class Engine {
     /** Empties dir, downloads the haul into it: the link (or its chosen items, or a section), or a TikTok photo post. */
     static Result download(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
         if (item.cut()) return cutSound(c, item, dir, progress);
+        if (item.splitting()) return splitVideo(c, item, dir, progress);
+        if (!item.musicUrl.isEmpty()) return instagramMusic(c, item, dir, progress);
         if (!item.as.isEmpty()) return tiktokPhotos(c, item, dir, progress, false);
         Result r = fetch(c, item, dir, progress, false);
         if (Haul.AUDIO.equals(item.quality)) return r;
@@ -874,6 +876,127 @@ final class Engine {
         return r;
     }
 
+    /**
+     * A saved video in parts of item.split seconds, for a WhatsApp Status (which takes only so long a video): copied out
+     * of the Gallery and split by FFmpeg without re-encoding, so it's quick and loses nothing. Each part starts on a
+     * key frame, so it is cut a little short of the limit (2 seconds), never over it.
+     */
+    private static Result splitVideo(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+        init(c);
+        deleteAll(dir);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        progress.on(Progress.WORKING);
+        File source = new File(dir, "source.mp4");
+        try (InputStream in = c.getContentResolver().openInputStream(android.net.Uri.parse(item.source));
+             java.io.OutputStream out = new java.io.FileOutputStream(source)) {
+            if (in == null) throw new Exception(SOURCE_GONE);
+            byte[] buf = new byte[256 * 1024];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        } catch (java.io.FileNotFoundException | SecurityException e) {
+            throw new Exception(SOURCE_GONE, e);
+        }
+        String base = safeName((item.title.isEmpty() ? "Video" : item.title) + " status");
+        File parts = new File(dir, "parts");
+        //noinspection ResultOfMethodCallIgnored
+        parts.mkdirs();
+        File first = new File(parts, base + " 01.mp4");
+        ffmpeg(item.id, new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                "-i", source.getAbsolutePath(), "-map", "0", "-c", "copy", "-f", "segment",
+                "-segment_time", String.valueOf(Math.max(5, item.split - 2)), "-reset_timestamps", "1",
+                "-segment_start_number", "1", "-segment_format_options", "movflags=+faststart",
+                new File(parts, base.replace("%", "%%") + " %02d.mp4").getAbsolutePath())), first);   // % in a title: not a number
+        //noinspection ResultOfMethodCallIgnored
+        source.delete();
+        Result r = new Result();
+        File[] made = parts.listFiles((d, name) -> name.endsWith(".mp4"));
+        if (made == null || made.length == 0) throw new Exception(MADE + "no parts");
+        Arrays.sort(made, (x, y) -> x.getName().compareTo(y.getName()));
+        r.files.addAll(Arrays.asList(made));
+        r.title = (item.title.isEmpty() ? "Video" : item.title) + " · for Status, " + made.length + (made.length == 1 ? " part" : " parts");
+        r.duration = item.split;
+        r.caption = new Caption(item.caption, item.by, item.posted);
+        r.page = item.page;
+        return r;
+    }
+
+    /**
+     * An Instagram photo post with its song (InstaMusic), saved as the user picked: the chosen pictures and the song as
+     * a sound file (AS_PHOTOS), a video of each picture with the song (AS_SLIDESHOW), or the song alone (AUDIO). The
+     * song is cut to the part the post plays. If the song can't be fetched (its address expired, say), the pictures
+     * still come, without it; the song alone fails with a reason.
+     */
+    private static Result instagramMusic(Context c, Haul.Item item, File dir, Progress progress) throws Exception {
+        init(c);
+        deleteAll(dir);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        boolean soundOnly = Haul.AUDIO.equals(item.quality), video = Haul.AS_SLIDESHOW.equals(item.as);
+        Result pictures = new Result();
+        if (!soundOnly) {
+            // The chosen pictures, as any Instagram post's (a folder of their own: fetch empties the one it's given).
+            Haul.Item photos = copy(item);
+            photos.quality = Haul.BEST;
+            photos.pick = item.pick;
+            pictures = fetch(c, photos, new File(dir, "pictures"), progress, false);
+        }
+        progress.on(Progress.WORKING);
+        JSONObject headers = new JSONObject();
+        try {
+            headers.put("User-Agent", BROWSER).put("Referer", "https://www.instagram.com/");
+        } catch (Exception ignored) {
+        }
+        File sounds = new File(dir, "sound");
+        //noinspection ResultOfMethodCallIgnored
+        sounds.mkdirs();
+        File raw = fetchSound(item.musicUrl, headers, sounds);
+        String title = !pictures.title.isEmpty() ? pictures.title : item.title.isEmpty() ? "Instagram post" : item.title;
+        File song = null;
+        if (raw != null) {
+            song = new File(dir, safeName(title) + " [song].m4a");
+            List<String> cmd = new ArrayList<>(Arrays.asList(ffmpegBinary.getAbsolutePath(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", seconds(item.musicFrom), "-i", raw.getAbsolutePath()));
+            if (item.musicFor > 0) cmd.addAll(Arrays.asList("-t", seconds(item.musicFor)));
+            cmd.addAll(Arrays.asList("-vn", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", song.getAbsolutePath()));
+            ffmpeg(item.id, cmd, song);
+        }
+        if (soundOnly) {
+            if (song == null) throw new Exception(MADE + "couldn't get the post's song from Instagram");
+            Result r = new Result();
+            r.files.add(song);
+            r.title = title;
+            r.duration = (int) Math.round(durationMillis(song) / 1000.0);
+            try {
+                JSONObject info = read(c, item.url);
+                r.caption = Caption.of(java.util.Collections.singletonList(info));
+            } catch (Exception ignored) {
+            }
+            return r;
+        }
+        if (pictures.files.isEmpty()) throw new Exception("NO_FILES");
+        if (!video) {
+            // The pictures, then the song as a file of its own (Haul counts the last file as the sound).
+            if (song != null) pictures.files.add(song);
+            return pictures;
+        }
+        // One video for each chosen picture: the picture, still, over the song, for as long as was asked.
+        int secs = Slideshow.length(item.seconds, song == null ? 0 : durationMillis(song));
+        Result made = new Result();
+        for (File picture : pictures.files) {
+            File mp4 = new File(dir, picture.getName().replaceFirst("\\.[^.]+$", "") + ".mp4");
+            String how = slideshow(item.id, java.util.Collections.singletonList(picture), song, secs, mp4);
+            if (how != null && !made.slow.contains(how)) made.slow.add(how);
+            made.files.add(mp4);
+        }
+        boolean one = item.pick.matches("\\d+") && made.files.size() == 1;
+        made.title = one ? title + " · " + item.pick : title;
+        made.caption = pictures.caption;
+        made.page = pictures.page;
+        made.duration = secs;
+        made.height = 1920;
+        return made;
+    }
+
     /** 12345 (ms) → "12.345", as FFmpeg takes times. */
     private static String seconds(long millis) {
         return String.format(Locale.ROOT, "%.3f", millis / 1000.0);
@@ -1107,11 +1230,15 @@ final class Engine {
                 r.addOption("--no-warnings");
                 r.addOption("--ignore-no-formats-error");
                 r.addOption("-I", "1:20");
+                boolean instagram = "Instagram".equals(Haul.site(url));
+                // Instagram: also print what it sent, to find the song of a photo post (InstaMusic).
+                if (instagram) r.addOption("--dump-pages");
                 String out = run(r, "ahead-" + Integer.toHexString(url.hashCode()), null).getOut();
                 String json = "";
                 for (String line : out.split("\n")) if (line.startsWith("{")) json = line;
                 if (json.isEmpty()) throw new Exception("NO_FILES");
                 f = Ahead.file(c, url);
+                if (instagram) keepMusic(c, url, Photos.dumpedPages(out), f);
                 //noinspection ResultOfMethodCallIgnored
                 f.getParentFile().mkdirs();
                 File tmp = new File(f.getPath() + ".tmp");
@@ -1123,6 +1250,61 @@ final class Engine {
             try (InputStream in = new FileInputStream(f)) {
                 return new JSONObject(Haul.readAll(in));
             }
+        }
+    }
+
+    /**
+     * The song an Instagram post plays, kept beside its details when it was read; null when Instagram sent none (or the
+     * post hasn't been read).
+     */
+    static InstaMusic.Music music(Context c, String url) {
+        File side = new File(Ahead.file(c, url).getPath() + ".music");
+        if (!side.isFile()) return null;
+        try (InputStream in = new FileInputStream(side)) {
+            return InstaMusic.of(new JSONObject(Haul.readAll(in)));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Where the last Instagram read's report is kept (Settings › About › Instagram report). */
+    static File instagramReport(Context c) {
+        return new File(c.getCacheDir(), "instagram-report.txt");
+    }
+
+    /**
+     * Keeps the song found in what Instagram sent (beside the post's details), and a short report of the read: what
+     * Instagram sent around any "music" it mentioned, so a post whose song didn't come through can be looked into.
+     */
+    private static void keepMusic(Context c, String url, List<String> pages, File details) {
+        InstaMusic.Music m = InstaMusic.parse(pages);
+        try {
+            File side = new File(details.getPath() + ".music");
+            //noinspection ResultOfMethodCallIgnored
+            side.getParentFile().mkdirs();
+            try (OutputStream os = new FileOutputStream(side)) {
+                os.write((m == null ? "{}" : InstaMusic.json(m).toString()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {
+            // no song kept: the post downloads as photos
+        }
+        StringBuilder r = new StringBuilder();
+        r.append("Haul ").append(Updates.installed(c)).append(" · Instagram read\n").append(url).append("\n");
+        r.append(m == null ? "No song found.\n" : "Song: " + m.name() + " · from " + m.from + " ms for " + m.length + " ms\n");
+        r.append(pages.size()).append(pages.size() == 1 ? " page" : " pages").append(" sent\n");
+        for (int k = 0; k < pages.size(); k++) {
+            String p = pages.get(k);
+            r.append("\n--- page ").append(k + 1).append(": ").append(p.length()).append(" characters\n");
+            int shown = 0;
+            for (int at = p.indexOf("music"); at >= 0 && shown < 4; at = p.indexOf("music", at + 1500)) {
+                r.append("…").append(p, Math.max(0, at - 300), Math.min(p.length(), at + 1200)).append("…\n");
+                shown++;
+            }
+            if (shown == 0) r.append(p, 0, Math.min(p.length(), 600)).append(p.length() > 600 ? "…\n" : "\n");
+        }
+        try (OutputStream os = new FileOutputStream(instagramReport(c))) {
+            os.write(r.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
         }
     }
 

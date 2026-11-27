@@ -70,10 +70,16 @@ final class Downloads {
 
     /** The same, for a TikTok photo post saved as videos: seconds is how long each runs (0: as long as the sound). */
     static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds) {
+        return add(c, url, quality, clipStart, clipEnd, pick, as, seconds, null);
+    }
+
+    /** The same, with more set up before the queue sees it (setup, when given: an Instagram post's song). */
+    static Haul.Item add(Context c, String url, String quality, int clipStart, int clipEnd, String pick, String as, int seconds,
+                         java.util.function.Consumer<Haul.Item> setup) {
         Haul.Item i;
         synchronized (Downloads.class) {   // two quick shares of one link: only the first gets in
             if (Haul.activeFor(c, url, pick == null ? "" : pick, as == null ? "" : as) != null) return null;
-            i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as, seconds);
+            i = Haul.add(c, url, quality, clipStart, clipEnd, pick, as, seconds, setup);
         }
         start(c);
         return i;
@@ -125,6 +131,24 @@ final class Downloads {
             if (Haul.activeFor(c, url, "", "") != null) return null;
             i = Haul.add(c, url, quality, -1, -1, "", "", 0, x -> x.decide = true);
         }
+        start(c);
+        return i;
+    }
+
+    /**
+     * Splits a saved video (the file at source) into parts of seconds each, for a WhatsApp Status: a new haul, its parts
+     * in Movies/Haul, made on the phone. It keeps the post's link, title and caption.
+     */
+    static Haul.Item split(Context c, Haul.Item from, String source, int seconds) {
+        Haul.Item i = Haul.add(c, from.url, Haul.BEST, -1, -1, "", "", 0, x -> {
+            x.source = source;
+            x.split = seconds;
+            x.title = from.title;
+            x.caption = from.caption;
+            x.by = from.by;
+            x.posted = from.posted;
+            x.page = from.page;
+        });
         start(c);
         return i;
     }
@@ -382,7 +406,7 @@ final class Downloads {
             showProgress(item, -1);
             File dir = new File(c.getCacheDir(), "haul/" + id);
             try {
-                if (!item.cut() && !host.waitsForNetwork() && Haul.wifiOnly(c)
+                if (!item.madeHere() && !host.waitsForNetwork() && Haul.wifiOnly(c)
                         && c.getSystemService(ConnectivityManager.class).isActiveNetworkMetered()) {
                     throw new IllegalStateException(NO_WIFI);
                 }
@@ -392,7 +416,7 @@ final class Downloads {
                 try {
                     got = fetch(item, dir, stages);
                 } catch (Exception first) {
-                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id) || item.cut()) throw first;   // a clip needs no new yt-dlp
+                    if (stopped != 0 || Engine.canceled(first) || isCanceled(id) || item.madeHere()) throw first;   // made here: a new yt-dlp won't help
                     // Sites change and break yt-dlp; a fresh yt-dlp usually fixes it.
                     if (!Engine.updateAfterFailure(c)) throw first;
                     stages.on(Engine.Progress.STARTING, System.currentTimeMillis());
@@ -405,10 +429,12 @@ final class Downloads {
                 String firstMime = "";
                 long size = 0;
                 boolean anyVideo = false, anyAudio = false, anyImage = false;
+                // By site or by creator (Settings), each download into its folder under …/Haul.
+                final String sub = Folders.sub(Haul.folders(c), item.site, got.caption.by.isEmpty() ? item.by : got.caption.by);
                 for (File f : got.files) {
                     String mime = mime(f.getName());
                     size += f.length();
-                    uris.add(String.valueOf(save(f, mime)));
+                    uris.add(String.valueOf(save(f, mime, sub)));
                     if (firstMime.isEmpty()) firstMime = mime;
                     anyVideo |= mime.startsWith("video/");
                     anyAudio |= mime.startsWith("audio/");
@@ -428,6 +454,7 @@ final class Downloads {
                 Haul.update(c, id, i -> {
                     i.status = Haul.DONE;
                     i.error = "";
+                    i.folder = sub;
                     i.retries = 0;
                     i.retryAt = 0;
                     i.uris = uris;
@@ -497,9 +524,9 @@ final class Downloads {
 
         // ---- Into the Gallery ----
 
-        private Uri save(File f, String mime) throws Exception {
+        private Uri save(File f, String mime, String sub) throws Exception {
             try (InputStream in = new FileInputStream(f)) {
-                return toGallery(c, in, f.getName(), mime);
+                return toGallery(c, in, f.getName(), mime, sub);
             }
         }
 
@@ -619,6 +646,11 @@ final class Downloads {
      * no storage permission is needed. Used for downloads and for WhatsApp statuses.
      */
     static Uri toGallery(Context c, InputStream in, String name, String mime) throws Exception {
+        return toGallery(c, in, name, mime, "");
+    }
+
+    /** The same, into a folder of its own under …/Haul (sub, from Folders; "" for none). */
+    static Uri toGallery(Context c, InputStream in, String name, String mime, String sub) throws Exception {
         String folder;
         Uri collection;
         if (mime.startsWith("audio/")) {
@@ -635,7 +667,7 @@ final class Downloads {
         ContentValues v = new ContentValues();
         v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
         v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
-        v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul");
+        v.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/Haul" + (sub == null || sub.isEmpty() ? "" : "/" + sub));
         v.put(MediaStore.MediaColumns.IS_PENDING, 1);
         Uri uri = cr.insert(collection, v);
         if (uri == null) throw new Exception("Couldn't save to the Gallery.");
@@ -656,8 +688,9 @@ final class Downloads {
 
     /** Where a haul's files are in the Gallery. */
     static String album(Haul.Item i) {
-        if (i.sound) return "Pictures/Haul and Music/Haul";
-        return Haul.AUDIO.equals(i.kind) ? "Music/Haul" : Haul.PHOTOS.equals(i.kind) ? "Pictures/Haul" : "Movies/Haul";
+        String in = i.folder.isEmpty() ? "" : "/" + i.folder;
+        if (i.sound) return "Pictures/Haul" + in + " and Music/Haul" + in;
+        return (Haul.AUDIO.equals(i.kind) ? "Music/Haul" : Haul.PHOTOS.equals(i.kind) ? "Pictures/Haul" : "Movies/Haul") + in;
     }
 
     static String mime(String name) {

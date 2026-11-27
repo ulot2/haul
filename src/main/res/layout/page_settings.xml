@@ -49,6 +49,23 @@
 
             <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="16dp" android:background="@color/line" />
 
+            <!-- Where new downloads go in the Gallery: all together, a folder per site, or a folder per creator. -->
+            <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Folders" />
+            <TextView android:id="@+id/foldersHelp" style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button android:id="@+id/fOne" style="@style/Haul.Segment" android:text="One" />
+                <Button android:id="@+id/fSite" style="@style/Haul.Segment" android:text="By site" />
+                <Button android:id="@+id/fCreator" style="@style/Haul.Segment" android:layout_marginEnd="0dp" android:text="By creator" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="16dp" android:background="@color/line" />
+
             <LinearLayout
                 android:id="@+id/rowAsk"
                 android:layout_width="match_parent"
@@ -135,6 +152,19 @@
             <Button android:id="@+id/badgeSettings" style="@style/Haul.Button.Outline" android:layout_width="wrap_content" android:layout_height="44dp" android:layout_marginStart="14dp" android:text="Open" />
         </LinearLayout>
 
+        <!-- Your list: a backup file, to keep it or take it to a new phone. -->
+        <TextView style="@style/Haul.Label" android:layout_marginTop="22dp" android:text="Your list" />
+
+        <LinearLayout style="@style/Haul.Card" android:layout_marginTop="10dp">
+            <TextView style="@style/Haul.Title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Back up your downloads list" />
+            <TextView style="@style/Haul.Body" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:textSize="13sp" android:text="Titles, captions, links and dates, in one file you keep (in Drive, say). Restore it on a new phone: each download is one tap from coming back." />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:orientation="horizontal">
+                <Button android:id="@+id/backupSave" style="@style/Haul.Button.Outline" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1" android:text="Back up" />
+                <Button android:id="@+id/backupRestore" style="@style/Haul.Button.Outline" android:layout_width="0dp" android:layout_height="44dp" android:layout_marginStart="10dp" android:layout_weight="1" android:text="Restore" />
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- Notifications -->
         <TextView style="@style/Haul.Label" android:layout_marginTop="22dp" android:text="Notifications" />
 
@@ -196,6 +226,13 @@
                 android:layout_width="match_parent"
                 android:layout_marginTop="10dp"
                 android:text="What\'s new in Haul" />
+
+            <Button
+                android:id="@+id/aboutReport"
+                style="@style/Haul.Button.Outline"
+                android:layout_width="match_parent"
+                android:layout_marginTop="10dp"
+                android:text="Save an Instagram report" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

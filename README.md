@@ -15,6 +15,8 @@ When a download is done, its notification has **Share** (straight to WhatsApp, s
 
 **Keep scrolling while Haul reads.** Some posts have to be read before they download: a TikTok short link, a TikTok post that might be photos, an Instagram post with several photos and videos. When you share one, Haul doesn't hold you up: a badge floats over TikTok (or wherever you are) while it reads, and you carry on. It opens out for a few seconds to say what it's doing ("Reading the post…"), then draws in to a round badge. Drag it anywhere; it settles on the nearer side and stays there. A plain video just downloads: the badge shows a ✓ and "Downloading", and fades. A post with something to pick from makes the badge open out in clay ("Pick the photos", with the count), then draw in, rippling rings until you tap it; a notification says so too. Tap either, and the picker opens over your app: download what you pick, **×** to pick later, or **Cancel this download** if you don't want it after all. Long-press the badge to put it away (the notification stays). The first time, Haul asks to **display over other apps**, which the badge needs; without it, notifications do the same job. **Settings › Floating badge** turns it on later.
 
+**Instagram photo posts with music**: when Instagram says which song a photo post plays, Haul brings it along, the way it does for TikTok photo posts: the picker asks **Video** (each picture as a video with the song), **Photos** (the pictures, and the song as a sound file in Music/Haul) or **Sound** (just the song), cut to the part the post plays. Whether Instagram gives the song to someone not signed in is up to Instagram; if a post's song doesn't come, **Settings › About › Save an Instagram report** saves what Instagram sent to the Download folder, to look into.
+
 Some posts ask first:
 
 - An **Instagram post with several photos and videos** shows them all; tap the ones to leave out, then **Download**.
@@ -40,6 +42,8 @@ The first time, Haul asks to see WhatsApp's statuses folder: tap **Allow access*
 - WhatsApp clears them after about **a day**, so save the ones you want while they're there.
 - Nothing goes over the internet: Haul copies the file WhatsApp already has.
 - If WhatsApp is reinstalled, or moves the folder in an update, Haul asks for access again.
+
+**Split for Status**: a saved video longer than a minute has **Split for Status** on its screen. Pick how long each part (30, 60 or 90 seconds: what your WhatsApp Status takes), and Haul cuts it into parts in Movies/Haul, on the phone, without re-encoding; **Share** sends them all to WhatsApp, to post one after another. Each part ends on a key frame a moment before the limit.
 
 **Clip the sound**: tap a saved sound, video, or TikTok photo post with its sound, then **Clip the sound**. Set where it starts and ends with the sliders, nudge either one a tenth of a second with − and +, and **Play the section** to hear it. **Save the sound** makes it an M4A of its own in Music/Haul, made on the phone from the file you already have (nothing is downloaded again), cut exactly where you set it: a ringtone, or the one part of a song. The download it came from stays as it is. (Choosing **Audio** with **Clip a section** before downloading still works too, but you can't hear the section there.)
 
@@ -70,6 +74,10 @@ Videos come as MP4 with H.264 video and AAC audio, because those play everywhere
 - **Best**: the highest resolution in H.264.
 - **720p**: smaller files: at most 720p (the largest the site has up to that).
 - **Audio**: just the sound, as M4A, in **Music/Haul**.
+
+**Folders** (Settings): everything together in Movies/Haul, Pictures/Haul and Music/Haul, or a folder per site (Movies/Haul/TikTok) or per creator (Movies/Haul/some.one), for new downloads.
+
+**Back up your list** (Settings › Your list): **Back up** writes your downloads list (titles, captions, links, dates) to a file you keep, in Drive, say; **Restore** brings it back, on this phone or a new one. Downloads whose files are here come back as saved; the rest come back one tap from downloading again.
 
 The default is in **Settings**. Turn on **Ask when sharing** and sharing a post opens **HAUL THIS AS** over the app you're in, the same as in Haul: the quality, and **Clip a section** to keep only part of a video. Off, a shared post downloads at once. Photos (Instagram photo posts and carousels, TikTok slideshows) land in **Pictures/Haul**. **Wi‑Fi only** keeps links waiting until the phone is on Wi‑Fi (on Android 13 and older they stop with a note instead).
 
